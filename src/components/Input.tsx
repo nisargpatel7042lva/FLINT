@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Pressable,
   StyleSheet,
   TextInput,
   View,
@@ -7,6 +8,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 
 import { useTheme } from '../theme';
 import { Text } from './Text';
@@ -19,6 +21,11 @@ export type InputProps = Omit<TextInputProps, 'style'> & {
   hint?: string;
   iconLeft?: React.ReactNode;
   iconRight?: React.ReactNode;
+  /**
+   * Renders a show/hide affordance and manages `secureTextEntry` internally.
+   * Kept on the primitive so password fields do not hand-roll it per screen.
+   */
+  secureToggle?: boolean;
   /** Render on a dark card. */
   onDark?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
@@ -30,6 +37,7 @@ export function Input({
   hint,
   iconLeft,
   iconRight,
+  secureToggle = false,
   onDark = false,
   containerStyle,
   onFocus,
@@ -38,6 +46,9 @@ export function Input({
 }: InputProps) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  const mutedIcon = onDark ? theme.colors.textInverseMuted : theme.colors.textMuted;
 
   const borderColor = error
     ? theme.colors.danger
@@ -75,6 +86,7 @@ export function Input({
         {iconLeft}
         <TextInput
           {...rest}
+          secureTextEntry={secureToggle ? !revealed : rest.secureTextEntry}
           onFocus={e => {
             setFocused(true);
             onFocus?.(e);
@@ -92,7 +104,21 @@ export function Input({
             { color: onDark ? theme.colors.textInverse : theme.colors.text },
           ]}
         />
-        {iconRight}
+        {secureToggle ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            hitSlop={8}
+            onPress={() => setRevealed(v => !v)}>
+            {revealed ? (
+              <EyeOff color={mutedIcon} size={18} />
+            ) : (
+              <Eye color={mutedIcon} size={18} />
+            )}
+          </Pressable>
+        ) : (
+          iconRight
+        )}
       </View>
 
       {error || hint ? (

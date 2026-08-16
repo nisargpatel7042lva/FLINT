@@ -91,10 +91,15 @@ const lightColors = (accent: Accent): ThemeColors => ({
 const darkColors = (accent: Accent): ThemeColors => ({
   background: palette.ink950,
   surface: palette.ink850,
-  surfaceMuted: palette.ink800,
+  /**
+   * Must stay one step lighter than BOTH `surface` and `surfaceInverse`, or
+   * muted elements (avatars, stat pills) nested inside a dark card become
+   * invisible against it.
+   */
+  surfaceMuted: palette.ink700,
 
   surfaceInverse: palette.ink800,
-  surfaceInverseMuted: palette.ink700,
+  surfaceInverseMuted: palette.ink600,
 
   surfaceBright: palette.cream50,
   textOnBright: palette.ink900,

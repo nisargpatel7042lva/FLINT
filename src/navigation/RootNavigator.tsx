@@ -8,6 +8,15 @@ import {
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useTheme } from '../theme';
+import {
+  FindFriendsScreen,
+  OnboardingScreen,
+  ProfileGoalScreen,
+  ProfileNameScreen,
+  SignInScreen,
+  SignUpScreen,
+  WelcomeScreen,
+} from '../screens';
 import { TabNavigator } from './TabNavigator';
 import type { RootStackParamList } from './types';
 
@@ -38,7 +47,19 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer theme={navTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        initialRouteName="Welcome"
+        screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        {/* Pre-app flow. Auth is not wired yet, so these are linear. */}
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="SignUp" component={SignUpScreen} />
+        <Stack.Screen name="SignIn" component={SignInScreen} />
+        <Stack.Screen name="ProfileName" component={ProfileNameScreen} />
+        <Stack.Screen name="ProfileGoal" component={ProfileGoalScreen} />
+        <Stack.Screen name="FindFriends" component={FindFriendsScreen} />
+
+        {/* Main app. Entered via `reset` so back does not return to setup. */}
         <Stack.Screen name="Tabs" component={TabNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
