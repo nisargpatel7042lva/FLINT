@@ -26,3 +26,10 @@ export * from './Divider';
 export * from './AvatarGroup';
 export * from './OptionCard';
 export * from './ListRow';
+
+// Phase 3 — social / competitive layer.
+export * from './RaceTrack';
+export * from './SegmentedControl';
+export * from './RoundsStrip';
+export * from './ReactionBar';
+export * from './EmptyState';

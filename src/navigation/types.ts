@@ -7,8 +7,9 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type MainTabParamList = {
   Home: undefined;
-  Activity: undefined;
-  Workouts: undefined;
+  Feed: undefined;
+  Wars: undefined;
+  Groups: undefined;
   Profile: undefined;
 };
 
@@ -28,6 +29,15 @@ export type RootStackParamList = {
   ProfileGoal: undefined;
   FindFriends: undefined;
   Tabs: NavigatorScreenParams<MainTabParamList>;
+
+  // Social / competitive layer
+  GroupDetail: { groupId: string };
+  CreateChallenge: { groupId?: string } | undefined;
+  TeamWar: { warId: string };
+  /** `warId` present ⇒ video proof required. */
+  ProofSubmit: { warId?: string } | undefined;
+  ProofReview: undefined;
+  Notifications: undefined;
 };
 
 /**

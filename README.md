@@ -98,6 +98,28 @@ configuration time with:
 It is therefore pinned as a direct dependency at `^0.11.4` (Reanimated 4.5.3
 peers `0.10.x - 0.11.x`). Don't "clean up" that seemingly redundant entry.
 
+## Team Wars scoring
+
+All rules live in [`src/services/scoring.ts`](src/services/scoring.ts). Screens
+render the standing; they never compute it.
+
+| Rule | Behaviour |
+| --- | --- |
+| Currency | **Unified points.** 1 workout = 100, 1 km = 10, 100 kcal = 20. |
+| Fairness | **Capped contribution.** Each member counts at most 400 pts per day. |
+| Win condition | **Daily rounds.** Each calendar day is won separately; most days won takes the war. Cumulative points are the tiebreak only. |
+| Verification | **Opponent approval.** A Team War submission needs 2 approvals from the opposing group before it scores. |
+
+The conversion rates, the daily cap and the approval threshold are the balance
+knobs — they are the only numbers that decide fairness, and they all live at the
+top of that one file.
+
+**Open question:** `groupDayScore` counts a member's effort toward *every* group
+they belong to, so overlapping groups each show that effort. If a session should
+count for only one group, that needs a rule.
+
 ## Not built yet
 
-Real screens, Health Connect integration, iOS.
+Health Connect integration, iOS, and real persistence — all domain data comes
+from `src/services/mockData.ts`. Auth is unwired. Video capture and upload in
+`ProofSubmitScreen` are simulated; no camera module is installed yet.

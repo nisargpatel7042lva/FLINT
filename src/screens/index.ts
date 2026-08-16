@@ -11,3 +11,13 @@ export * from './profile/FindFriendsScreen';
 export * from './HomeScreen';
 export * from './PlaceholderScreen';
 export * from './DesignSystemScreen';
+
+// Social / competitive layer
+export * from './social/GroupsScreen';
+export * from './social/GroupDetailScreen';
+export * from './social/CreateChallengeScreen';
+export * from './social/TeamWarScreen';
+export * from './social/ProofSubmitScreen';
+export * from './social/ProofReviewScreen';
+export * from './social/FeedScreen';
+export * from './social/NotificationsScreen';

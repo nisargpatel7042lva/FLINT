@@ -9,12 +9,18 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useTheme } from '../theme';
 import {
+  CreateChallengeScreen,
   FindFriendsScreen,
+  GroupDetailScreen,
+  NotificationsScreen,
   OnboardingScreen,
   ProfileGoalScreen,
   ProfileNameScreen,
+  ProofReviewScreen,
+  ProofSubmitScreen,
   SignInScreen,
   SignUpScreen,
+  TeamWarScreen,
   WelcomeScreen,
 } from '../screens';
 import { TabNavigator } from './TabNavigator';
@@ -61,6 +67,18 @@ export function RootNavigator() {
 
         {/* Main app. Entered via `reset` so back does not return to setup. */}
         <Stack.Screen name="Tabs" component={TabNavigator} />
+
+        {/* Social / competitive layer, pushed over the tabs. */}
+        <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
+        <Stack.Screen name="CreateChallenge" component={CreateChallengeScreen} />
+        <Stack.Screen name="TeamWar" component={TeamWarScreen} />
+        <Stack.Screen name="ProofReview" component={ProofReviewScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen
+          name="ProofSubmit"
+          component={ProofSubmitScreen}
+          options={{ animation: 'slide_from_bottom' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

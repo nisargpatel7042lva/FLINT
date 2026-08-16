@@ -5,11 +5,13 @@ import {
   createBottomTabNavigator,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
-import { Activity, Dumbbell, House, User } from 'lucide-react-native';
+import { House, Swords, User, Users, Zap } from 'lucide-react-native';
 
 import { useTheme } from '../theme';
 import { HomeScreen } from '../screens/HomeScreen';
-import { PlaceholderScreen } from '../screens/PlaceholderScreen';
+import { FeedScreen } from '../screens/social/FeedScreen';
+import { GroupsScreen } from '../screens/social/GroupsScreen';
+import { TeamWarScreen } from '../screens/social/TeamWarScreen';
 import { DesignSystemScreen } from '../screens/DesignSystemScreen';
 import type { MainTabParamList } from './types';
 
@@ -31,7 +33,7 @@ function TabIcon({ Icon, focused, color }: TabIconProps & { Icon: LucideIcon }) 
         styles.iconWrap,
         focused ? { backgroundColor: theme.colors.accent } : null,
       ]}>
-      <Icon color={color} size={22} />
+      <Icon color={color} size={21} />
     </View>
   );
 }
@@ -49,14 +51,11 @@ const renderTabBar = (props: BottomTabBarProps) => (
 
 // Defined at module scope so React sees a stable component type across renders.
 const HomeIcon = (p: TabIconProps) => <TabIcon {...p} Icon={House} />;
-const ActivityIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Activity} />;
-const WorkoutsIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Dumbbell} />;
+const FeedIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Zap} />;
+const WarsIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Swords} />;
+const GroupsIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Users} />;
 const ProfileIcon = (p: TabIconProps) => <TabIcon {...p} Icon={User} />;
 
-/**
- * Floating dark tab bar with an orange active state, per the reference.
- * Screens are placeholders for now — this phase only proves the shell.
- */
 export function TabNavigator() {
   const theme = useTheme();
 
@@ -74,7 +73,7 @@ export function TabNavigator() {
           {
             backgroundColor: theme.colors.surfaceInverse,
             borderRadius: theme.radius.pill,
-            marginHorizontal: theme.spacing.xl,
+            marginHorizontal: theme.spacing.base,
             marginBottom:
               Platform.OS === 'android' ? theme.spacing.base : theme.spacing.xl,
           },
@@ -87,16 +86,21 @@ export function TabNavigator() {
         options={{ tabBarAccessibilityLabel: 'Home', tabBarIcon: HomeIcon }}
       />
       <Tab.Screen
-        name="Activity"
-        component={PlaceholderScreen}
-        options={{ tabBarAccessibilityLabel: 'Activity', tabBarIcon: ActivityIcon }}
+        name="Feed"
+        component={FeedScreen}
+        options={{ tabBarAccessibilityLabel: 'Feed', tabBarIcon: FeedIcon }}
       />
       <Tab.Screen
-        name="Workouts"
-        component={PlaceholderScreen}
-        options={{ tabBarAccessibilityLabel: 'Workouts', tabBarIcon: WorkoutsIcon }}
+        name="Wars"
+        component={TeamWarScreen}
+        options={{ tabBarAccessibilityLabel: 'Team Wars', tabBarIcon: WarsIcon }}
       />
-      {/* The design-system gallery lives here until real screens replace it. */}
+      <Tab.Screen
+        name="Groups"
+        component={GroupsScreen}
+        options={{ tabBarAccessibilityLabel: 'Groups', tabBarIcon: GroupsIcon }}
+      />
+      {/* The design-system gallery lives here until a real profile screen exists. */}
       <Tab.Screen
         name="Profile"
         component={DesignSystemScreen}
@@ -116,8 +120,6 @@ const styles = StyleSheet.create({
     borderTopColor: 'transparent',
     elevation: 12,
   },
-  // Bottom tabs reserve vertical room for a label even when it is hidden, which
-  // pushes the icon above centre. Zero the padding and centre explicitly.
   item: {
     height: 68,
     paddingVertical: 0,
@@ -125,8 +127,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrap: {
-    width: 52,
-    height: 40,
+    width: 46,
+    height: 38,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
