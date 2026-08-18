@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+import type { BarrierId } from '../services/onboarding';
+
 /**
  * Route params live here so screens and navigators share one source of truth.
  * Add routes to these maps before wiring them into a navigator.
@@ -21,6 +23,16 @@ export type MainTabParamList = {
  *         → FindFriends → Tabs
  */
 export type RootStackParamList = {
+  /**
+   * First-60-seconds flow. Auth deliberately sits AFTER the first win:
+   * Splash -> Barrier -> CharReaction -> TimeBudget -> FirstWorkout -> SignUp
+   */
+  Splash: undefined;
+  Barrier: undefined;
+  CharReaction: { barrierId: BarrierId };
+  TimeBudget: undefined;
+  FirstWorkout: { minutes: number } | undefined;
+
   Welcome: undefined;
   Onboarding: undefined;
   SignIn: undefined;

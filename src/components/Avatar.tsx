@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { placeholderAvatar, remote } from '../assets/placeholders';
 import { useTheme } from '../theme';
 import { Text } from './Text';
 
@@ -26,6 +27,12 @@ export type AvatarProps = {
    * Lives on the primitive so screens don't hand-roll absolute positioning.
    */
   badge?: React.ReactNode;
+  /**
+   * Skip the auto-sourced placeholder photo and show initials instead.
+   * Use where a network image would be wasteful or wrong (dense lists,
+   * offline-first surfaces).
+   */
+  initialsOnly?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -46,6 +53,7 @@ export function Avatar({
   size = 'md',
   ring = false,
   badge,
+  initialsOnly = false,
   style,
   testID,
 }: AvatarProps) {
@@ -54,6 +62,11 @@ export function Avatar({
 
   const initialsVariant =
     size === 'xl' ? 'statMd' : size === 'sm' ? 'label' : 'bodyStrong';
+
+  // PLACEHOLDER: auto-sourced avatar so no screen ships with an empty circle.
+  // Stable per name. Pass `initialsOnly` or a real `source` to opt out.
+  const resolved =
+    source ?? (initialsOnly || !name ? undefined : remote(placeholderAvatar(name, d * 2)));
 
   return (
     <View testID={testID} style={[{ width: d, height: d }, style]}>
@@ -70,9 +83,9 @@ export function Avatar({
           },
           ring ? [styles.ring, { borderColor: theme.colors.accent }] : null,
         ]}>
-        {source ? (
+        {resolved ? (
           <Image
-            source={source}
+            source={resolved}
             style={{ width: d, height: d, borderRadius: d / 2 }}
             resizeMode="cover"
           />

@@ -118,6 +118,48 @@ top of that one file.
 they belong to, so overlapping groups each show that effort. If a session should
 count for only one group, that needs a rule.
 
+## Char (the mascot)
+
+`src/components/char/Char.tsx`. Char represents the user's **consistency**, not
+a level or badge. Four states, driven by streak health:
+
+| State | Meaning | Motion |
+| --- | --- | --- |
+| `dim` | No active streak | Barely-there breathe, no halo |
+| `glowing` | Streak alive | Steady breathe, gentle bob, pulsing halo |
+| `concerned` | Streak at risk today | Irregular flicker, shrinks, sits lower |
+| `celebrating` | Milestone hit | Spring pop + expanding ring |
+
+Char is a soft abstract ember, not a character with a face — deliberately, so
+every state animates with `transform` and `opacity` only and runs on the UI
+thread. `charStateForStreak()` maps streak data to a state so every screen tells
+the same story.
+
+## Micro-interaction guidelines
+
+`src/theme/motion.ts` is the single source for timing and easing. Read its
+header before adding any animation — it defines six rules (taps spring-pop,
+completions overshoot, counters tween, entrances decelerate, ambient loops stay
+subtle, progress bars use `duration.slow`) plus the performance constraint that
+only `transform`/`opacity` get animated.
+
+Helpers that implement those rules: `PressableScale` (rule 1),
+`AnimatedCounter` (rule 3).
+
+## Placeholder imagery
+
+`src/assets/placeholders.ts` — every image without a real asset resolves here,
+so swapping in production art is a one-file change. Sources are keyless and
+free for dev: **pravatar** (avatars), **loremflickr** (topic photos),
+**picsum** (neutral).
+
+⚠ Before shipping: these are third-party network calls on every render, and the
+Flickr-backed images carry individual CC terms that may require attribution.
+`source.unsplash.com` is dead (503) and Pexels needs an API key, so neither is
+used. Topic relevance from LoremFlickr is variable — `gym` is reliable,
+`workout` returns a lot of unrelated material, and `fitness`/`yoga` 500 outright
+(excluded from the type).
+
 ## Not built yet
 
 Health Connect integration, iOS, and real persistence — all domain data comes

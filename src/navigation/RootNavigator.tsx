@@ -9,6 +9,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useTheme } from '../theme';
 import {
+  BarrierScreen,
+  CharReactionScreen,
   CreateChallengeScreen,
   FindFriendsScreen,
   GroupDetailScreen,
@@ -18,9 +20,12 @@ import {
   ProfileNameScreen,
   ProofReviewScreen,
   ProofSubmitScreen,
+  FirstWorkoutScreen,
   SignInScreen,
   SignUpScreen,
+  SplashScreen,
   TeamWarScreen,
+  TimeBudgetScreen,
   WelcomeScreen,
 } from '../screens';
 import { TabNavigator } from './TabNavigator';
@@ -54,9 +59,16 @@ export function RootNavigator() {
   return (
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator
-        initialRouteName="Welcome"
+        initialRouteName="Splash"
         screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-        {/* Pre-app flow. Auth is not wired yet, so these are linear. */}
+        {/* First 60 seconds. Account creation comes AFTER the first win. */}
+        <Stack.Screen name="Splash" component={SplashScreen} />
+        <Stack.Screen name="Barrier" component={BarrierScreen} />
+        <Stack.Screen name="CharReaction" component={CharReactionScreen} />
+        <Stack.Screen name="TimeBudget" component={TimeBudgetScreen} />
+        <Stack.Screen name="FirstWorkout" component={FirstWorkoutScreen} />
+
+        {/* Legacy entry, kept reachable while the new flow settles. */}
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="SignUp" component={SignUpScreen} />

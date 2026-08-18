@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ImageBackground, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Check, Play, X } from 'lucide-react-native';
 
@@ -19,6 +19,7 @@ import {
   memberById,
   pendingForReview,
 } from '../../services';
+import { placeholderPhoto, remote } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
 
 type Verdict = 'approved' | 'rejected';
@@ -85,7 +86,10 @@ export function ProofReviewScreen() {
                   </Text>
                 </View>
 
-                <View
+                {/* PLACEHOLDER: real video thumbnail once uploads are wired. */}
+                <ImageBackground
+                  source={remote(placeholderPhoto('gym', s.id, 640, 360))}
+                  imageStyle={{ borderRadius: theme.radius.lg }}
                   style={[
                     styles.media,
                     {
@@ -100,7 +104,7 @@ export function ProofReviewScreen() {
                       fill={theme.colors.textInverse}
                     />
                   </IconButton>
-                </View>
+                </ImageBackground>
 
                 <View style={styles.actions}>
                   <Button

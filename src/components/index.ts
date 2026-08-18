@@ -33,3 +33,9 @@ export * from './SegmentedControl';
 export * from './RoundsStrip';
 export * from './ReactionBar';
 export * from './EmptyState';
+
+// Phase 4 - mascot and motion primitives.
+export * from './char';
+export * from './AnimatedCounter';
+export * from './PressableScale';
+export * from './Slider';

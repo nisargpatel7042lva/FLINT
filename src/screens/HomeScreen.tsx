@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { ArrowRight, Bell, Clock, LayoutGrid } from 'lucide-react-native';
 
 import {
@@ -10,15 +10,15 @@ import {
   Screen,
   Text,
 } from '../components';
+import { placeholderPhoto, remote, type PhotoTopic } from '../assets/placeholders';
 import { useTheme } from '../theme';
 
 /**
  * Hero screen, composed entirely from the design-system primitives.
  *
  * The layout follows the supplied reference (dark page, oversized headline, one
- * accent card + one bright card, trailing CTA). Imagery in the reference is
- * licensed photography, so the media slots here are abstract token-built shapes
- * instead — drop real art in when it is available.
+ * accent card + one bright card, trailing CTA). Media slots use auto-sourced
+ * royalty-free placeholders — see `assets/placeholders.ts`.
  */
 export function HomeScreen() {
   const theme = useTheme();
@@ -54,7 +54,7 @@ export function HomeScreen() {
               Exercises{'\n'}for Men
             </Text>
           </View>
-          <MediaSlot tint="rgba(0,0,0,0.18)" />
+          <MediaSlot topic="gym" photoKey="exercises-men" />
         </View>
       </Card>
 
@@ -71,7 +71,7 @@ export function HomeScreen() {
               Exercises{'\n'}for Women
             </Text>
           </View>
-          <MediaSlot tint="rgba(13,13,13,0.08)" />
+          <MediaSlot topic="gym" photoKey="exercises-women" />
         </View>
       </Card>
 
@@ -87,20 +87,21 @@ export function HomeScreen() {
   );
 }
 
-/**
- * Placeholder for the card artwork. Deliberately abstract — it holds the
- * composition's proportions without standing in for licensed imagery.
- */
-function MediaSlot({ tint }: { tint: string }) {
+/** PLACEHOLDER: replace with real workout artwork. */
+function MediaSlot({
+  topic,
+  photoKey,
+}: {
+  topic: PhotoTopic;
+  photoKey: string;
+}) {
   const theme = useTheme();
   return (
-    <View
-      style={[
-        styles.media,
-        { borderRadius: theme.radius.xl, backgroundColor: tint },
-      ]}>
-      <View style={[styles.mediaDot, { backgroundColor: tint }]} />
-    </View>
+    <Image
+      source={remote(placeholderPhoto(topic, photoKey, 320, 360))}
+      style={[styles.media, { borderRadius: theme.radius.xl }]}
+      resizeMode="cover"
+    />
   );
 }
 
@@ -118,8 +119,7 @@ const styles = StyleSheet.create({
   cardRow: { flexDirection: 'row', alignItems: 'center', columnGap: 12 },
   cardCopy: { flex: 1 },
   cardTitle: { marginTop: 12 },
-  media: { width: 104, height: 116, alignItems: 'center', justifyContent: 'center' },
-  mediaDot: { width: 56, height: 56, borderRadius: 28 },
+  media: { width: 104, height: 116 },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ImageBackground, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Bell, Play, ShieldCheck, Swords } from 'lucide-react-native';
 
@@ -22,6 +22,7 @@ import {
   unreadCount,
 } from '../../services';
 import type { ReactionKey, Submission } from '../../services';
+import { placeholderPhoto, remote } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
 
 type Filter = 'all' | 'war' | 'pending';
@@ -150,9 +151,18 @@ export function FeedScreen() {
                   </Text>
                 ) : null}
 
-                {/* Team War proof carries a clip. Thumbnail is a placeholder. */}
+                {/* PLACEHOLDER: real video thumbnail once uploads are wired. */}
                 {s.warId ? (
-                  <View
+                  <ImageBackground
+                    source={remote(
+                      placeholderPhoto(
+                        s.kind === 'run' ? 'running' : s.kind === 'ride' ? 'cycling' : 'gym',
+                        s.id,
+                        640,
+                        360,
+                      ),
+                    )}
+                    imageStyle={{ borderRadius: theme.radius.lg }}
                     style={[
                       styles.media,
                       {
@@ -172,7 +182,7 @@ export function FeedScreen() {
                       variant="muted"
                       style={styles.mediaChip}
                     />
-                  </View>
+                  </ImageBackground>
                 ) : null}
 
                 <View style={styles.postFoot}>
