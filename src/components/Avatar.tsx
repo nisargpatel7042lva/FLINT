@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Image,
   StyleSheet,
@@ -68,6 +68,12 @@ export function Avatar({
   const resolved =
     source ?? (initialsOnly || !name ? undefined : remote(placeholderAvatar(name, d * 2)));
 
+  // Placeholder avatars are remote, so they can be slow or fail outright.
+  // Initials are ALWAYS rendered underneath and the photo fades in on top —
+  // an empty grey circle is never an acceptable state, least of all in a demo.
+  const [failed, setFailed] = useState(false);
+  const showPhoto = Boolean(resolved) && !failed;
+
   return (
     <View testID={testID} style={[{ width: d, height: d }, style]}>
       <View
@@ -83,15 +89,18 @@ export function Avatar({
           },
           ring ? [styles.ring, { borderColor: theme.colors.accent }] : null,
         ]}>
-        {resolved ? (
+        <Text variant={initialsVariant}>{initialsOf(name)}</Text>
+        {showPhoto ? (
           <Image
             source={resolved}
-            style={{ width: d, height: d, borderRadius: d / 2 }}
+            style={[
+              styles.photo,
+              { width: d, height: d, borderRadius: d / 2 },
+            ]}
             resizeMode="cover"
+            onError={() => setFailed(true)}
           />
-        ) : (
-          <Text variant={initialsVariant}>{initialsOf(name)}</Text>
-        )}
+        ) : null}
       </View>
 
       {badge ? <View style={styles.badge}>{badge}</View> : null}
@@ -101,6 +110,7 @@ export function Avatar({
 
 const styles = StyleSheet.create({
   circle: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  photo: { position: 'absolute' },
   ring: { borderWidth: 2 },
   badge: { position: 'absolute', right: -4, bottom: -4 },
 });

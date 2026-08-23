@@ -18,17 +18,13 @@ import {
   charStateForStreak,
 } from '../../components';
 import {
-  SESSION_LOGS,
   TRAINING_TODAY,
-  computeStats,
-  currentStreak,
   estimateSeconds,
-  recentLogs,
-  streakAtRisk,
   WEEKLY_GOAL_MINUTES,
   suggestPlan,
   totalSets,
 } from '../../services';
+import { useSessions } from '../../hooks/useSessions';
 import { useTheme } from '../../theme';
 
 const RING = 78;
@@ -46,9 +42,8 @@ export function DashboardScreen() {
 
   const [minutes, setMinutes] = useState(15);
 
-  const streak = useMemo(() => currentStreak(SESSION_LOGS, TRAINING_TODAY), []);
-  const atRisk = useMemo(() => streakAtRisk(SESSION_LOGS, TRAINING_TODAY), []);
-  const stats = useMemo(() => computeStats(SESSION_LOGS, TRAINING_TODAY), []);
+  // One read path for training data — see hooks/useSessions.
+  const { logs, streak, atRisk, stats } = useSessions();
   const plan = useMemo(() => suggestPlan(minutes, TRAINING_TODAY), [minutes]);
 
   const fitMinutes = Math.round(estimateSeconds(plan) / 60);
@@ -174,7 +169,7 @@ export function DashboardScreen() {
         style={styles.section}
       />
       <View style={styles.recent}>
-        {recentLogs(3).map(log => (
+        {logs.slice(0, 3).map(log => (
           <ListRow
             key={log.id}
             title={log.title}

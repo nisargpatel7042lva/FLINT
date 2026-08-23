@@ -15,27 +15,15 @@ import {
   Text,
   charStateForStreak,
 } from '../../components';
-import {
-  CHAR_STAGES,
-  PROFILE,
-  SESSION_LOGS,
-  TRAINING_TODAY,
-  charStage,
-  computeStats,
-  currentStreak,
-  longestStreak,
-  streakAtRisk,
-} from '../../services';
+import { CHAR_STAGES, PROFILE, charStage } from '../../services';
+import { useSessions } from '../../hooks/useSessions';
 import { useTheme } from '../../theme';
 
 /** Personal profile: who you are, where Char is, and what you've built. */
 export function ProfileScreen() {
   const theme = useTheme();
 
-  const streak = useMemo(() => currentStreak(SESSION_LOGS, TRAINING_TODAY), []);
-  const atRisk = useMemo(() => streakAtRisk(SESSION_LOGS, TRAINING_TODAY), []);
-  const best = useMemo(() => longestStreak(SESSION_LOGS), []);
-  const stats = useMemo(() => computeStats(SESSION_LOGS, TRAINING_TODAY), []);
+  const { streak, atRisk, best, stats, source } = useSessions();
   const { stage, next, progress, daysToNext } = useMemo(
     () => charStage(streak),
     [streak],
@@ -46,11 +34,19 @@ export function ProfileScreen() {
       <View style={styles.header}>
         <Avatar name={PROFILE.name} size="lg" ring />
         <View style={styles.flex}>
-          <Text variant="h1">{PROFILE.name}</Text>
-          <Text variant="bodySm" tone="muted">
-            {PROFILE.handle} · since {PROFILE.joinedDay}
+          <Text variant="h1" numberOfLines={1}>
+            {PROFILE.name}
+          </Text>
+          <Text variant="bodySm" tone="muted" numberOfLines={1}>
+            {PROFILE.handle}
           </Text>
         </View>
+        {/* Which backend is live should never be a mystery in dev. */}
+        <Chip
+          label=""
+          value={source === 'firestore' ? 'Firestore' : 'Local'}
+          variant="muted"
+        />
       </View>
 
       {/* Char's evolution stage. */}
@@ -92,7 +88,11 @@ export function ProfileScreen() {
         )}
       </Card>
 
-      <SectionHeader title="Lifetime" style={styles.section} />
+      <SectionHeader
+        title="Lifetime"
+        subtitle={`Training since ${PROFILE.joinedDay}`}
+        style={styles.section}
+      />
       <View style={styles.stats}>
         <StatPill value={stats.totalSessions} label="Sessions" variant="light" size="sm" />
         <StatPill value={stats.totalMinutes} label="Minutes" variant="light" size="sm" />

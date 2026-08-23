@@ -13,14 +13,8 @@ import {
   SegmentedControl,
   Text,
 } from '../../components';
-import {
-  SESSION_LOGS,
-  TRAINING_TODAY,
-  computeStats,
-  currentStreak,
-  logsByDay,
-  longestStreak,
-} from '../../services';
+import { TRAINING_TODAY } from '../../services';
+import { useSessions } from '../../hooks/useSessions';
 import { useTheme } from '../../theme';
 
 type View_ = 'calendar' | 'list';
@@ -36,11 +30,17 @@ export function HistoryScreen() {
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState<string | undefined>(undefined);
 
-  const byDay = useMemo(() => logsByDay(), []);
+  const { logs, streak, best, stats } = useSessions();
+
+  const byDay = useMemo(
+    () =>
+      logs.reduce<Record<string, (typeof logs)[number]>>((acc, l) => {
+        acc[l.day] = l;
+        return acc;
+      }, {}),
+    [logs],
+  );
   const marked = useMemo(() => new Set(Object.keys(byDay)), [byDay]);
-  const stats = useMemo(() => computeStats(SESSION_LOGS, TRAINING_TODAY), []);
-  const streak = useMemo(() => currentStreak(SESSION_LOGS, TRAINING_TODAY), []);
-  const best = useMemo(() => longestStreak(SESSION_LOGS), []);
 
   const selectedLog = selected ? byDay[selected] : undefined;
 
@@ -125,13 +125,13 @@ export function HistoryScreen() {
         </View>
       ) : (
         <View style={styles.list}>
-          {SESSION_LOGS.length === 0 ? (
+          {logs.length === 0 ? (
             <EmptyState
               title="No sessions yet"
               body="Your logged workouts will show up here."
             />
           ) : (
-            SESSION_LOGS.slice(0, 30).map(log => (
+            logs.slice(0, 30).map(log => (
               <ListRow
                 key={log.id}
                 title={log.title}

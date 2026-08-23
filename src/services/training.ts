@@ -94,7 +94,26 @@ const POOLS: Record<Focus, PoolEntry[]> = {
 };
 
 /** Rest shrinks as the budget shrinks — short sessions stay dense. */
-const restFor = (minutes: number) => (minutes <= 8 ? 15 : minutes <= 15 ? 25 : 35);
+const baseRestFor = (minutes: number) => (minutes <= 8 ? 15 : minutes <= 15 ? 25 : 35);
+
+/**
+ * Per-focus density.
+ *
+ * Without this every focus produced the same shape at a given budget — five
+ * options all reading "4 moves · 12 sets", which looks like a bug rather than a
+ * choice. Rest is what actually differs between training styles: cardio is
+ * relentless, strength earns recovery.
+ */
+const DENSITY: Record<Focus, { restScale: number; preferredSets: number }> = {
+  cardio: { restScale: 0.5, preferredSets: 3 },
+  core: { restScale: 0.7, preferredSets: 3 },
+  full: { restScale: 0.9, preferredSets: 3 },
+  legs: { restScale: 1.15, preferredSets: 4 },
+  upper: { restScale: 1.15, preferredSets: 4 },
+};
+
+const restFor = (minutes: number, focus: Focus) =>
+  Math.round(baseRestFor(minutes) * DENSITY[focus].restScale);
 
 /**
  * Builds a plan that actually fits `minutes`.
@@ -110,12 +129,12 @@ const restFor = (minutes: number) => (minutes <= 8 ? 15 : minutes <= 15 ? 25 : 3
  */
 export function buildPlan(minutes: number, focus: Focus): WorkoutPlan {
   const budget = minutes * 60;
-  const rest = restFor(minutes);
+  const rest = restFor(minutes, focus);
   const perSet = WORK_SECONDS + rest;
 
-  // Prefer 3 sets; drop to 2 (then 1) when the budget is too tight to fit at
-  // least three distinct exercises.
-  let sets = 3;
+  // Start from this focus's preferred set count and drop until at least three
+  // distinct exercises fit inside the budget.
+  let sets = DENSITY[focus].preferredSets;
   let count = 0;
 
   while (sets >= 1) {

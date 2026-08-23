@@ -1,0 +1,46 @@
+rules_version = '2';
+
+/**
+ * Kasrat Firestore rules.
+ *
+ * Training data is private. Sessions are a subcollection of the owning user,
+ * so ownership is a single uid comparison rather than a field check that could
+ * be forged on write.
+ *
+ * Default deny: anything not matched below is refused.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Fields the client may never set — these are server-owned.
+    function noServerFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['currentStreak', 'lastNudgeAt']);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      // Streak and nudge bookkeeping are written by Cloud Functions only
+      // (the Admin SDK bypasses rules), so a client cannot inflate its streak.
+      allow update: if isOwner(userId) && noServerFields();
+      allow delete: if false;
+
+      match /sessions/{sessionId} {
+        allow read: if isOwner(userId);
+        // Document id must equal the session's day: that is what makes
+        // "one session per day" structural, and streaks depend on it.
+        allow create, update: if isOwner(userId)
+          && request.resource.data.day == sessionId
+          && request.resource.data.minutes is number
+          && request.resource.data.minutes >= 0
+          && request.resource.data.minutes <= 600;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

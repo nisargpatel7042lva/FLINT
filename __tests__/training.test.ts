@@ -90,6 +90,19 @@ describe('time-adaptive plans', () => {
   it('names the session with its budget', () => {
     expect(buildPlan(12, 'legs').title).toBe('12-minute Legs Day');
   });
+
+  /**
+   * Regression: every focus used to produce the same shape at a given budget
+   * ("4 moves / 12 sets" across all five), which reads as a bug rather than a
+   * choice. Density now differs per focus.
+   */
+  it('produces meaningfully different sessions per focus', () => {
+    const shapes = foci.map(f => {
+      const p = buildPlan(15, f);
+      return `${p.exercises.length}x${p.exercises[0].sets}`;
+    });
+    expect(new Set(shapes).size).toBeGreaterThan(1);
+  });
 });
 
 describe('char stages', () => {

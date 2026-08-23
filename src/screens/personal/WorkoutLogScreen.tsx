@@ -16,13 +16,8 @@ import {
   Stepper,
   Text,
 } from '../../components';
-import {
-  SESSION_LOGS,
-  TRAINING_TODAY,
-  buildPlan,
-  currentStreak,
-  totalSets,
-} from '../../services';
+import { TRAINING_TODAY, buildPlan, totalSets } from '../../services';
+import { useSessions } from '../../hooks/useSessions';
 import type { RootStackParamList } from '../../navigation/types';
 import { duration, useTheme } from '../../theme';
 
@@ -52,11 +47,10 @@ export function WorkoutLogScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [finished, setFinished] = useState(false);
 
-  const streakBefore = useMemo(
-    () => currentStreak(SESSION_LOGS, TRAINING_TODAY),
-    [],
-  );
-  const [streak, setStreak] = useState(streakBefore);
+  // The streak comes from the repository, so it updates once the write lands
+  // rather than being guessed locally.
+  const { streak: liveStreak, addSession } = useSessions();
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
@@ -83,13 +77,25 @@ export function WorkoutLogScreen() {
     }
   }, [current]);
 
-  const finish = () => {
+  const finish = (completed: number) => {
     if (timer.current) {
       clearInterval(timer.current);
     }
     setFinished(true);
-    // Today was not logged yet, so completing a session extends the streak.
-    setTimeout(() => setStreak(streakBefore + 1), duration.base);
+
+    // Persist through the repository. The streak then updates from the data,
+    // not from an optimistic guess.
+    addSession({
+      day: TRAINING_TODAY,
+      title: plan.title,
+      focus: plan.focus,
+      minutes: plan.minutes,
+      completedSets: completed,
+      totalSets: planSets,
+      // TODO: replace with Health Connect active calories for the session
+      // window once permissions are granted (services/health.ts).
+      kcal: Math.round(plan.minutes * 8),
+    }).catch(e => setSaveError(e instanceof Error ? e.message : String(e)));
   };
 
   const logSet = () => {
@@ -101,7 +107,7 @@ export function WorkoutLogScreen() {
 
     const allDone = plan.exercises.every(e => (next[e.id] ?? 0) >= e.sets);
     if (allDone) {
-      finish();
+      finish(Object.values(next).reduce((n, v) => n + v, 0));
     }
   };
 
@@ -112,7 +118,7 @@ export function WorkoutLogScreen() {
     const next = { ...done, [current.id]: current.sets };
     setDone(next);
     if (plan.exercises.every(e => (next[e.id] ?? 0) >= e.sets)) {
-      finish();
+      finish(Object.values(next).reduce((n, v) => n + v, 0));
     }
   };
 
@@ -132,7 +138,7 @@ export function WorkoutLogScreen() {
             <Card variant="dark" padding="lg" radius="xxl">
               <View style={styles.streakRow}>
                 <Flame color={theme.colors.accent} size={28} />
-                <AnimatedCounter value={streak} variant="statLg" tone="inverse" />
+                <AnimatedCounter value={liveStreak} variant="statLg" tone="inverse" />
               </View>
               <Text variant="label" tone="inverseMuted" uppercase align="center">
                 Day streak
@@ -145,6 +151,11 @@ export function WorkoutLogScreen() {
               <Chip label="Time" value={mmss(elapsed)} variant="muted" />
               <Chip label="Sets" value={`${completedSets}/${planSets}`} variant="muted" />
             </View>
+            {saveError ? (
+              <Text variant="caption" tone="danger" align="center" style={styles.saveError}>
+                Saved locally only: {saveError}
+              </Text>
+            ) : null}
           </Animated.View>
         </View>
 
@@ -300,4 +311,5 @@ const styles = StyleSheet.create({
     columnGap: 12,
   },
   summaryRow: { flexDirection: 'row', columnGap: 10, marginTop: 24 },
+  saveError: { marginTop: 12 },
 });

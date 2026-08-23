@@ -1,4 +1,5 @@
 import React from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import {
   DarkTheme,
   DefaultTheme,
@@ -8,6 +9,7 @@ import {
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useTheme } from '../theme';
+import { useSessions } from '../hooks/useSessions';
 import {
   BarrierScreen,
   CharReactionScreen,
@@ -59,11 +61,34 @@ function useNavigationTheme(): NavTheme {
 
 export function RootNavigator() {
   const navTheme = useNavigationTheme();
+  const theme = useTheme();
+
+  /**
+   * Returning users skip onboarding.
+   *
+   * Having training history IS the signal that someone has been here before —
+   * no separate "hasOnboarded" flag to keep in sync, and it behaves correctly
+   * on a fresh install (no sessions -> onboarding) and on reinstall against an
+   * existing account (sessions sync -> straight into the app).
+   */
+  const { logs, loading } = useSessions();
+
+  if (loading) {
+    // Brief, and on-theme — a white flash here would be the first thing anyone
+    // sees on a cold start.
+    return (
+      <View style={[styles.boot, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
+    );
+  }
+
+  const initialRouteName = logs.length > 0 ? 'Tabs' : 'Splash';
 
   return (
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator
-        initialRouteName="Splash"
+        initialRouteName={initialRouteName}
         screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         {/* First 60 seconds. Account creation comes AFTER the first win. */}
         <Stack.Screen name="Splash" component={SplashScreen} />
@@ -112,3 +137,7 @@ export function RootNavigator() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  boot: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+});

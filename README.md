@@ -192,6 +192,59 @@ the previous day — which silently broke consecutive-day comparison (every
 longest-streak read as 1) and shifted calendar marks by a day. There is a
 regression test for it.
 
+## Backend
+
+Firebase: Auth, Firestore, Storage, Cloud Messaging, Cloud Functions.
+
+**Setup requires one thing only I cannot do for you** — see
+[docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). Creating the project needs
+your Google account, and `google-services.json` comes from it.
+
+Until that file exists the app **still builds and runs** on local data. The
+Gradle plugin is applied conditionally (`android/app/build.gradle`), because
+the google-services plugin hard-fails a build when the file is missing.
+`Profile → Data` shows which backend is live.
+
+### The data boundary
+
+Screens depend on `TrainingRepository`, never on Firestore or on fixtures:
+
+```
+src/services/repository.ts            the interface
+src/services/repository.firestore.ts  Firestore implementation
+src/services/repository.local.ts      in-memory fallback
+src/hooks/useSessions.ts              the single read path
+```
+
+That interface is why Phase 5 could be built against mock data and switched to
+a real backend without changing a screen's logic.
+
+`currentStreak` is written **only** by Cloud Functions — the rules block
+clients, because a streak a client can write is a streak it can fake.
+
+### Native integrations
+
+| Area | Android | iOS |
+| --- | --- | --- |
+| Health | Health Connect (`services/health.ts`) | HealthKit **stubbed** behind the same `HealthProvider` interface |
+| Location | Fused Location, foreground only | same API, untested |
+
+`minSdkVersion` is **26** — the floor for `react-native-health-connect`, and
+Health Connect needs Android 8+ regardless.
+
+### Char's notification voice
+
+Copy lives in `src/services/notificationCopy.ts` (client) and
+`functions/src/copy.ts` (server) — mirrored deliberately; change one, change
+the other. The rules are in both file headers, and the first is: **never
+shame**. No "you missed", no countdown pressure, no blame for time away. Char
+dims; the user is not at fault.
+
+## Building
+
+See [docs/ANDROID_BUILD.md](docs/ANDROID_BUILD.md) for debug APKs, the release
+keystore, and the Android Studio walkthrough.
+
 ## Not built yet
 
 Completed sessions are not persisted — `WorkoutLogScreen` updates its own

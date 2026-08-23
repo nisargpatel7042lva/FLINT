@@ -1,6 +1,35 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Cloud Messaging: required to show notifications on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      Location. Coarse is requested alongside fine because Android 12+ lets the
+      user grant only approximate location, and the app must still work then.
+      No background location is requested - sessions are logged in-app.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!--
+      Health Connect. Only the read permissions actually used are declared;
+      each one is a separate user-facing grant, so asking for more than we read
+      costs trust for nothing.
+    -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+    <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" />
+
+    <!-- Required so the app can detect whether Health Connect is installed. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
 
     <application
       android:name=".MainApplication"
@@ -11,6 +40,17 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+
+      <!--
+        Default channel for Cloud Messaging. react-native-firebase's messaging
+        manifest declares this same key with an empty value, so the merger needs
+        an explicit override rather than treating ours as a conflict.
+      -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_channel_id"
+        android:value="@string/default_notification_channel_id"
+        tools:replace="android:value" />
+
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"
@@ -22,6 +62,23 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
+
+        <!-- Health Connect sends the user here to read our privacy policy. -->
+        <intent-filter>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent-filter>
       </activity>
+
+      <!-- Android 14+ delivers the rationale request as an activity-alias. -->
+      <activity-alias
+        android:name="ViewPermissionUsageActivity"
+        android:exported="true"
+        android:targetActivity=".MainActivity"
+        android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+            <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+        </intent-filter>
+      </activity-alias>
     </application>
 </manifest>

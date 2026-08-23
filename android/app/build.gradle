@@ -3,6 +3,25 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 /**
+ * Firebase.
+ *
+ * The google-services plugin HARD FAILS the build when google-services.json is
+ * absent, so it is applied only when the file exists. That keeps the repo
+ * buildable and runnable for anyone who has not yet been given Firebase
+ * credentials — the app falls back to local data (see src/services/backend.ts).
+ *
+ * Drop your google-services.json into android/app/ and this switches on with no
+ * other change.
+ */
+def googleServicesFile = file("google-services.json")
+if (googleServicesFile.exists()) {
+    apply plugin: "com.google.gms.google-services"
+    println "Firebase: google-services.json found - Firebase enabled."
+} else {
+    println "Firebase: google-services.json MISSING - building without Firebase."
+}
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */

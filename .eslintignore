@@ -1,0 +1,2 @@
+# Cloud Functions have their own toolchain and dependencies.
+functions/
