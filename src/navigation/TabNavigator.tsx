@@ -5,14 +5,13 @@ import {
   createBottomTabNavigator,
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
-import { House, Swords, User, Users, Zap } from 'lucide-react-native';
+import { CalendarDays, Dumbbell, House, User } from 'lucide-react-native';
 
 import { useTheme } from '../theme';
-import { HomeScreen } from '../screens/HomeScreen';
-import { FeedScreen } from '../screens/social/FeedScreen';
-import { GroupsScreen } from '../screens/social/GroupsScreen';
-import { TeamWarScreen } from '../screens/social/TeamWarScreen';
-import { DesignSystemScreen } from '../screens/DesignSystemScreen';
+import { DashboardScreen } from '../screens/personal/DashboardScreen';
+import { TrainScreen } from '../screens/personal/TrainScreen';
+import { HistoryScreen } from '../screens/personal/HistoryScreen';
+import { ProfileScreen } from '../screens/personal/ProfileScreen';
 import type { MainTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -51,11 +50,17 @@ const renderTabBar = (props: BottomTabBarProps) => (
 
 // Defined at module scope so React sees a stable component type across renders.
 const HomeIcon = (p: TabIconProps) => <TabIcon {...p} Icon={House} />;
-const FeedIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Zap} />;
-const WarsIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Swords} />;
-const GroupsIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Users} />;
+const TrainIcon = (p: TabIconProps) => <TabIcon {...p} Icon={Dumbbell} />;
+const HistoryIcon = (p: TabIconProps) => <TabIcon {...p} Icon={CalendarDays} />;
 const ProfileIcon = (p: TabIconProps) => <TabIcon {...p} Icon={User} />;
 
+/**
+ * PERSONAL ONLY for this phase.
+ *
+ * Feed / Team Wars / Groups are intentionally absent from the tab bar so the
+ * individual loop stands alone. They still exist as stack routes and can be
+ * re-added here in one line once the core loop is settled.
+ */
 export function TabNavigator() {
   const theme = useTheme();
 
@@ -73,7 +78,7 @@ export function TabNavigator() {
           {
             backgroundColor: theme.colors.surfaceInverse,
             borderRadius: theme.radius.pill,
-            marginHorizontal: theme.spacing.base,
+            marginHorizontal: theme.spacing.xl,
             marginBottom:
               Platform.OS === 'android' ? theme.spacing.base : theme.spacing.xl,
           },
@@ -82,28 +87,22 @@ export function TabNavigator() {
       }}>
       <Tab.Screen
         name="Home"
-        component={HomeScreen}
+        component={DashboardScreen}
         options={{ tabBarAccessibilityLabel: 'Home', tabBarIcon: HomeIcon }}
       />
       <Tab.Screen
-        name="Feed"
-        component={FeedScreen}
-        options={{ tabBarAccessibilityLabel: 'Feed', tabBarIcon: FeedIcon }}
+        name="Train"
+        component={TrainScreen}
+        options={{ tabBarAccessibilityLabel: 'Train', tabBarIcon: TrainIcon }}
       />
       <Tab.Screen
-        name="Wars"
-        component={TeamWarScreen}
-        options={{ tabBarAccessibilityLabel: 'Team Wars', tabBarIcon: WarsIcon }}
+        name="History"
+        component={HistoryScreen}
+        options={{ tabBarAccessibilityLabel: 'History', tabBarIcon: HistoryIcon }}
       />
-      <Tab.Screen
-        name="Groups"
-        component={GroupsScreen}
-        options={{ tabBarAccessibilityLabel: 'Groups', tabBarIcon: GroupsIcon }}
-      />
-      {/* The design-system gallery lives here until a real profile screen exists. */}
       <Tab.Screen
         name="Profile"
-        component={DesignSystemScreen}
+        component={ProfileScreen}
         options={{ tabBarAccessibilityLabel: 'Profile', tabBarIcon: ProfileIcon }}
       />
     </Tab.Navigator>

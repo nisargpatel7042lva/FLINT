@@ -26,6 +26,10 @@ import {
   SplashScreen,
   TeamWarScreen,
   TimeBudgetScreen,
+  WorkoutDetailScreen,
+  WorkoutLogScreen,
+  FeedScreen,
+  GroupsScreen,
   WelcomeScreen,
 } from '../screens';
 import { TabNavigator } from './TabNavigator';
@@ -86,6 +90,19 @@ export function RootNavigator() {
         <Stack.Screen name="TeamWar" component={TeamWarScreen} />
         <Stack.Screen name="ProofReview" component={ProofReviewScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+
+        {/* Personal tracking loop. */}
+        <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
+        <Stack.Screen
+          name="WorkoutLog"
+          component={WorkoutLogScreen}
+          options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+        />
+
+        {/* Social screens: off the tab bar this phase, still routable. */}
+        <Stack.Screen name="Feed" component={FeedScreen} />
+        <Stack.Screen name="Wars" component={TeamWarScreen} />
+        <Stack.Screen name="Groups" component={GroupsScreen} />
         <Stack.Screen
           name="ProofSubmit"
           component={ProofSubmitScreen}

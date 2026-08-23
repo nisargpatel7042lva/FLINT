@@ -1,3 +1,11 @@
+// Personal tracking loop (Phase 5)
+export * from './personal/DashboardScreen';
+export * from './personal/TrainScreen';
+export * from './personal/WorkoutDetailScreen';
+export * from './personal/WorkoutLogScreen';
+export * from './personal/HistoryScreen';
+export * from './personal/ProfileScreen';
+
 // First-60-seconds flow
 export * from './onboarding/SplashScreen';
 export * from './onboarding/BarrierScreen';

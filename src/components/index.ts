@@ -39,3 +39,7 @@ export * from './char';
 export * from './AnimatedCounter';
 export * from './PressableScale';
 export * from './Slider';
+
+// Phase 5 - personal tracking primitives.
+export * from './Stepper';
+export * from './MonthCalendar';

@@ -160,7 +160,42 @@ used. Topic relevance from LoremFlickr is variable — `gym` is reliable,
 `workout` returns a lot of unrelated material, and `fitness`/`yoga` 500 outright
 (excluded from the type).
 
+## Personal tracking loop
+
+The individual experience, and the one the validation data says most users
+actually want. Tabs are **personal only** — Feed / Team Wars / Groups are off
+the tab bar so this loop can be judged on its own; they remain routable and are
+one line each to restore in `TabNavigator`.
+
+All logic lives in [`src/services/training.ts`](src/services/training.ts):
+
+| Piece | Behaviour |
+| --- | --- |
+| Time fit | A plan's estimate must land INSIDE the budget. Each set costs work + rest, each exercise adds setup; exercise and set counts are chosen to fit. Covered by a test asserting no plan over-runs. |
+| Naming | Sessions are named by their fit — "12-minute Legs Day", never a bare exercise list. |
+| Streaks | Consecutive days ending today, or yesterday — a streak is not "broken" just because you have not trained yet this morning. |
+| Char stages | Ember → Flame → Blaze → Wildfire → Forge, driven by the CURRENT streak so Char can fall back. |
+
+**Logging is one tap per set.** The rep target is pre-filled, "Log set" commits
+it, and the screen advances itself through sets, then exercises, then to the
+summary. The stepper is for corrections only and is never on the critical path.
+There is no text input anywhere in the flow.
+
+Tuning knobs: `WORK_SECONDS`, `SETUP_SECONDS`, `restFor()`,
+`WEEKLY_GOAL_SESSIONS`, `WEEKLY_GOAL_MINUTES`.
+
+### Gotcha: date keys
+
+Day keys are built from **local** date components, never `toISOString()`. That
+call converts to UTC, so local midnight in any timezone ahead of UTC lands on
+the previous day — which silently broke consecutive-day comparison (every
+longest-streak read as 1) and shifted calendar marks by a day. There is a
+regression test for it.
+
 ## Not built yet
+
+Completed sessions are not persisted — `WorkoutLogScreen` updates its own
+state, but `SESSION_LOGS` is a static fixture, so the streak resets on reload.
 
 Health Connect integration, iOS, and real persistence — all domain data comes
 from `src/services/mockData.ts`. Auth is unwired. Video capture and upload in

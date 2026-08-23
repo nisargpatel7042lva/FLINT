@@ -1,17 +1,22 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { BarrierId } from '../services/onboarding';
+import type { Focus } from '../services/training';
 
 /**
  * Route params live here so screens and navigators share one source of truth.
  * Add routes to these maps before wiring them into a navigator.
  */
 
+/**
+ * Tabs are PERSONAL ONLY for this phase. The social screens (Feed, Wars,
+ * Groups) still exist and remain reachable as stack routes — they are simply
+ * out of the tab bar so the individual loop can be judged on its own.
+ */
 export type MainTabParamList = {
   Home: undefined;
-  Feed: undefined;
-  Wars: undefined;
-  Groups: undefined;
+  Train: undefined;
+  History: undefined;
   Profile: undefined;
 };
 
@@ -50,6 +55,15 @@ export type RootStackParamList = {
   ProofSubmit: { warId?: string } | undefined;
   ProofReview: undefined;
   Notifications: undefined;
+
+  // Personal tracking
+  WorkoutDetail: { minutes: number; focus: Focus };
+  WorkoutLog: { minutes: number; focus: Focus };
+
+  // Social screens, kept reachable but off the tab bar this phase.
+  Feed: undefined;
+  Wars: undefined;
+  Groups: undefined;
 };
 
 /**

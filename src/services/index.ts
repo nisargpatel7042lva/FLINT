@@ -10,3 +10,5 @@ export * from './types';
 export * from './scoring';
 export * from './mockData';
 export * from './onboarding';
+export * from './training';
+export * from './trainingData';

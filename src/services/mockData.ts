@@ -30,7 +30,13 @@ function mulberry32(seed: number) {
 }
 /* eslint-enable no-bitwise */
 
-const toDay = (d: Date) => d.toISOString().slice(0, 10);
+/** Local-date key; see the note in `training.ts` on why not `toISOString()`. */
+const toDay = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 const shiftDays = (base: Date, delta: number) => {
   const d = new Date(base);
