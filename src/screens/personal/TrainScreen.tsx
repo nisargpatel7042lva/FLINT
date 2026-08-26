@@ -5,8 +5,8 @@ import { Clock } from 'lucide-react-native';
 
 import {
   Button,
-  Card,
   Chip,
+  PhotoCard,
   PressableScale,
   Screen,
   SectionHeader,
@@ -22,9 +22,19 @@ import {
   totalSets,
   type Focus,
 } from '../../services';
+import { placeholderPhoto, remote, type PhotoTopic } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
 
 const ALL_FOCI: Focus[] = ['full', 'legs', 'upper', 'core', 'cardio'];
+
+/** Each focus gets photography that matches what it actually is. */
+const PHOTO_FOR: Record<Focus, PhotoTopic> = {
+  full: 'fitness',
+  legs: 'strength',
+  upper: 'strength',
+  core: 'fitness',
+  cardio: 'running',
+};
 
 /**
  * The time-adaptive library.
@@ -32,6 +42,10 @@ const ALL_FOCI: Focus[] = ['full', 'legs', 'upper', 'core', 'cardio'];
  * Time is the primary axis, not muscle group — that inverts the usual fitness
  * app and matches the actual constraint: you know how long you have before you
  * know what you feel like training.
+ *
+ * Sessions are photo-led cards, following the reference design: athlete
+ * photography with the type sitting on top, rather than a thumbnail beside a
+ * label.
  */
 export function TrainScreen() {
   const theme = useTheme();
@@ -40,10 +54,7 @@ export function TrainScreen() {
   const [minutes, setMinutes] = useState<number>(15);
   const todaysFocus = suggestFocus(TRAINING_TODAY);
 
-  const plans = useMemo(
-    () => ALL_FOCI.map(f => buildPlan(minutes, f)),
-    [minutes],
-  );
+  const plans = useMemo(() => ALL_FOCI.map(f => buildPlan(minutes, f)), [minutes]);
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -86,47 +97,35 @@ export function TrainScreen() {
               onPress={() =>
                 navigation.navigate('WorkoutDetail', { minutes, focus: plan.focus })
               }>
-              <Card
-                variant={suggested ? 'accent' : 'light'}
+              <PhotoCard
+                source={remote(
+                  placeholderPhoto(PHOTO_FOR[plan.focus], plan.focus, 800, 500),
+                )}
+                height={suggested ? 210 : 170}
+                layout="spread"
                 padding="base"
-                radius="xxl">
-                <View style={styles.rowTop}>
-                  <Text
-                    variant="h2"
-                    tone={suggested ? 'onAccent' : 'default'}
-                    style={styles.flex}>
-                    {FOCUS_LABEL[plan.focus]}
-                  </Text>
+                highlighted={suggested}>
+                {/* Top row: time fit, and the suggestion marker. */}
+                <View style={styles.topRow}>
                   <Chip
                     label=""
                     value={`${fit} min`}
-                    variant={suggested ? 'dark' : 'muted'}
-                    icon={
-                      <Clock
-                        color={
-                          suggested ? theme.colors.textInverse : theme.colors.textMuted
-                        }
-                        size={13}
-                      />
-                    }
+                    variant="dark"
+                    icon={<Clock color={theme.colors.textInverse} size={13} />}
                   />
+                  {suggested ? <Chip label="Suggested today" variant="accent" /> : null}
                 </View>
 
-                <Text
-                  variant="bodySm"
-                  tone={suggested ? 'onAccent' : 'muted'}
-                  style={styles.meta}>
-                  {plan.exercises.length} moves · {totalSets(plan)} sets ·{' '}
-                  {plan.exercises[0]?.name}
-                  {plan.exercises.length > 1 ? ` + ${plan.exercises.length - 1} more` : ''}
-                </Text>
-
-                {suggested ? (
-                  <Text variant="label" tone="onAccent" uppercase style={styles.suggested}>
-                    Suggested today
+                <View>
+                  <Text variant="displaySm" tone="inverse">
+                    {FOCUS_LABEL[plan.focus]}
                   </Text>
-                ) : null}
-              </Card>
+                  <Text variant="bodySm" tone="inverseMuted" style={styles.meta}>
+                    {plan.exercises.length} moves · {totalSets(plan)} sets ·{' '}
+                    {plan.exercises[0]?.name}
+                  </Text>
+                </View>
+              </PhotoCard>
             </PressableScale>
           );
         })}
@@ -137,13 +136,22 @@ export function TrainScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
-  flex: { flex: 1 },
   eyebrow: { paddingTop: 12 },
   title: { marginTop: 6 },
-  times: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 8, marginTop: 22 },
+  times: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 8,
+    rowGap: 8,
+    marginTop: 22,
+  },
   section: { marginTop: 30 },
-  list: { marginTop: 14, rowGap: 12 },
-  rowTop: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
+  list: { marginTop: 14, rowGap: 14 },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    columnGap: 8,
+  },
   meta: { marginTop: 6 },
-  suggested: { marginTop: 10 },
 });

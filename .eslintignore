@@ -1,2 +1,5 @@
 # Cloud Functions have their own toolchain and dependencies.
 functions/
+
+# The admin dashboard has its own toolchain.
+web/

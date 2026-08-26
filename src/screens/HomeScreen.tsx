@@ -54,7 +54,7 @@ export function HomeScreen() {
               Exercises{'\n'}for Men
             </Text>
           </View>
-          <MediaSlot topic="gym" photoKey="exercises-men" />
+          <MediaSlot topic="strength" photoKey="exercises-men" />
         </View>
       </Card>
 
@@ -71,7 +71,7 @@ export function HomeScreen() {
               Exercises{'\n'}for Women
             </Text>
           </View>
-          <MediaSlot topic="gym" photoKey="exercises-women" />
+          <MediaSlot topic="fitness" photoKey="exercises-women" />
         </View>
       </Card>
 

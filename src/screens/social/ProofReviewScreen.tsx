@@ -88,7 +88,7 @@ export function ProofReviewScreen() {
 
                 {/* PLACEHOLDER: real video thumbnail once uploads are wired. */}
                 <ImageBackground
-                  source={remote(placeholderPhoto('gym', s.id, 640, 360))}
+                  source={remote(placeholderPhoto('conditioning', s.id, 640, 360))}
                   imageStyle={{ borderRadius: theme.radius.lg }}
                   style={[
                     styles.media,

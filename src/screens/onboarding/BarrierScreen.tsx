@@ -68,7 +68,7 @@ function BarrierCard({
         {/* PLACEHOLDER: replace with real illustrations for each barrier. */}
         <Image
           source={remote(
-            placeholderPhoto('gym', barrier.id, tall ? 640 : 360, tall ? 320 : 240),
+            placeholderPhoto(tall ? 'strength' : 'fitness', barrier.id, tall ? 640 : 360, tall ? 320 : 240),
           )}
           style={[
             tall ? styles.tallImage : styles.image,
