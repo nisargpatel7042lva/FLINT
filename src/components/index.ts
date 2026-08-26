@@ -44,3 +44,6 @@ export * from './PhotoCard';
 // Phase 5 - personal tracking primitives.
 export * from './Stepper';
 export * from './MonthCalendar';
+
+// Phase 9 - charts.
+export * from './WeeklyBars';
