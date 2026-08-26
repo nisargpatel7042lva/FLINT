@@ -1,11 +1,12 @@
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 
 import { comebackNudge, milestoneNudge, streakAtRiskNudge } from './copy';
+import { pokeNudge, seedFrom, type PokeKind } from './pokeCopy';
 
 initializeApp();
 const db = getFirestore();
@@ -187,3 +188,73 @@ export const nudgeComebacks = onSchedule(
     logger.info('comeback nudges sent', { sent });
   },
 );
+
+/**
+ * Delivers a person-to-person nudge.
+ *
+ * This is the whole point of the feature: without it a nudge is a row in a
+ * database that the recipient only sees if they happen to open the app.
+ *
+ * Three things are deliberate here:
+ *
+ *  - The push text is generated from `kind` and the sender's display NAME, and
+ *    the `message` the client wrote is ignored. Client-supplied text on a
+ *    stranger's lock screen is a harassment vector, not a feature.
+ *  - The sender's name comes from their public profile, not from the nudge
+ *    document, so it cannot be spoofed by writing a different name into the
+ *    poke.
+ *  - A token that Firebase reports as dead is cleared. Stale tokens otherwise
+ *    accumulate forever and every send burns quota failing.
+ *
+ * The once-per-day cap is NOT enforced here: the nudge's document id encodes
+ * sender, recipient, kind and day, and the rules permit create only, so a
+ * second one cannot exist to trigger this.
+ */
+export const onPokeCreated = onDocumentCreated('pokes/{pokeId}', async event => {
+  const snap = event.data;
+  if (!snap) {
+    return;
+  }
+
+  const pokeId = event.params.pokeId as string;
+  const fromUid = String(snap.get('fromUid') ?? '');
+  const toUid = String(snap.get('toUid') ?? '');
+  const kind = String(snap.get('kind') ?? 'poke') as PokeKind;
+
+  if (!fromUid || !toUid || fromUid === toUid) {
+    logger.warn('poke ignored: malformed', { pokeId });
+    return;
+  }
+
+  const [senderProfile, recipient] = await Promise.all([
+    db.doc(`profiles/${fromUid}`).get(),
+    db.doc(`users/${toUid}`).get(),
+  ]);
+
+  const token = recipient.get('fcmToken');
+  if (!token) {
+    // Not an error: plenty of people never grant notification permission. The
+    // nudge still shows in-app the next time they open it.
+    logger.info('poke stored but not pushed: no token', { pokeId });
+    return;
+  }
+
+  const senderName = String(senderProfile.get('name') ?? 'A friend');
+  const nudge = pokeNudge(kind, senderName, seedFrom(pokeId));
+
+  try {
+    await send(String(token), nudge);
+    logger.info('poke delivered', { pokeId, kind });
+  } catch (e) {
+    const code = (e as { errorInfo?: { code?: string } })?.errorInfo?.code ?? '';
+    if (
+      code.includes('registration-token-not-registered') ||
+      code.includes('invalid-argument')
+    ) {
+      await db.doc(`users/${toUid}`).update({ fcmToken: FieldValue.delete() });
+      logger.info('cleared dead token', { toUid });
+      return;
+    }
+    logger.warn('poke delivery failed', { pokeId, error: String(e) });
+  }
+});

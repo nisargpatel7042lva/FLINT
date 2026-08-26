@@ -30,7 +30,6 @@ import {
   INDIVIDUAL_CHALLENGES,
   SUBMISSIONS,
   TODAY,
-  todayKey,
   counts,
   effortPoints,
   feedSubmissions,
@@ -51,7 +50,7 @@ export function GroupDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'GroupDetail'>>();
 
-  const { groupById: fromStore, friends, pokes } = useSocial();
+  const { groupById: fromStore, friends, sendPoke, spent, source } = useSocial();
   const [tab, setTab] = useState<Tab>('activity');
 
   /*
@@ -71,10 +70,15 @@ export function GroupDetailScreen() {
   );
   const challenges = INDIVIDUAL_CHALLENGES.filter(c => c.groupId === group.id);
 
-  const today = todayKey();
-
-  /** Friends who are not in this group yet — the pool the invite list offers. */
-  const addable = friends.filter(f => !group.memberIds.includes(f.id));
+  /**
+   * Friends who are not in this group yet — the pool the invite list offers.
+   *
+   * Group membership is still device-local, so a member is only nudgeable when
+   * they are also one of your friends, i.e. someone with a real account behind
+   * them. Everyone else gets no button rather than a button that fails.
+   */
+  const addable = friends.filter(f => !group.memberIds.includes(f.uid));
+  const friendFor = (memberId: string) => friends.find(f => f.uid === memberId);
 
   const invite = () => {
     Share.share({
@@ -175,15 +179,8 @@ export function GroupDetailScreen() {
             {contributions.map(c => {
               const m = memberById(c.memberId);
               const isMe = c.memberId === CURRENT_USER_ID;
-              // Read from `pokes` rather than calling the store directly, so
-              // the button re-renders the moment a nudge is spent.
-              const spent = pokes.some(
-                n =>
-                  n.fromId === CURRENT_USER_ID &&
-                  n.toId === c.memberId &&
-                  n.kind === 'poke' &&
-                  n.day === today,
-              );
+              const friend = friendFor(c.memberId);
+              const nudged = friend ? spent(friend.uid, 'poke') : false;
               return (
                 <ListRow
                   key={c.memberId}
@@ -195,21 +192,21 @@ export function GroupDetailScreen() {
                       c.wasCapped ? (
                         <Chip label="Capped" variant="muted" />
                       ) : undefined
-                    ) : (
+                    ) : friend ? (
                       <Button
-                        label={spent ? 'Nudged' : 'Nudge'}
+                        label={nudged ? 'Nudged' : 'Nudge'}
                         size="sm"
-                        variant={spent ? 'ghost' : 'outline'}
-                        disabled={spent}
-                        onPress={() => socialStore.sendPoke(c.memberId, 'poke', group.id)}
+                        variant={nudged ? 'ghost' : 'outline'}
+                        disabled={nudged}
+                        onPress={() => sendPoke(friend, 'poke', group.id)}
                         iconLeft={
                           <Hand
-                            color={spent ? theme.colors.textMuted : theme.colors.text}
+                            color={nudged ? theme.colors.textMuted : theme.colors.text}
                             size={14}
                           />
                         }
                       />
-                    )
+                    ) : undefined
                   }
                 />
               );
@@ -218,7 +215,11 @@ export function GroupDetailScreen() {
 
           <SectionHeader
             title="Add friends"
-            subtitle="They join straight away — no invite to accept"
+            subtitle={
+              source === 'firestore'
+                ? 'Groups are stored on this device for now'
+                : 'They join straight away — no invite to accept'
+            }
             style={styles.section}
           />
           {addable.length === 0 ? (
@@ -230,7 +231,7 @@ export function GroupDetailScreen() {
             <View style={styles.list}>
               {addable.map(f => (
                 <ListRow
-                  key={f.id}
+                  key={f.uid}
                   title={f.name}
                   subtitle={f.handle}
                   leading={<Avatar name={f.name} size="md" />}
@@ -238,7 +239,7 @@ export function GroupDetailScreen() {
                     <Button
                       label="Add"
                       size="sm"
-                      onPress={() => socialStore.addToGroup(group.id, f.id)}
+                      onPress={() => socialStore.addToGroup(group.id, f.uid)}
                       iconLeft={<UserPlus color={theme.colors.onAccent} size={14} />}
                     />
                   }

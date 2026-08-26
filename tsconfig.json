@@ -4,5 +4,11 @@
     "types": ["jest"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods", "functions", "web"]
+  "exclude": [
+    "**/node_modules",
+    "**/Pods",
+    "functions",
+    "web",
+    "__tests__/rules.test.ts"
+  ]
 }

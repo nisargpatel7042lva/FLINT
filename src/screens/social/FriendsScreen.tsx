@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
   ArrowLeft,
@@ -25,26 +25,24 @@ import {
   SegmentedControl,
   Text,
 } from '../../components';
-import {
-  CURRENT_USER_ID,
-  memberById,
-  pokeLabel,
-  socialStore,
-  todayKey,
-} from '../../services';
+import { pokeLabel } from '../../services';
+import type { PublicProfile } from '../../services/socialRepository';
 import { useSocial } from '../../hooks';
 import { useTheme } from '../../theme';
 import { relativeTime } from './relativeTime';
 
 type Tab = 'friends' | 'find';
 
+/** Debounce so a search does not fire a query per keystroke. */
+const SEARCH_DELAY_MS = 300;
+
 /**
  * Your people.
  *
  * Two actions per friend, and deliberately no more: a nudge ("thinking of
  * you") and a challenge ("go head to head"). Both are capped at one per person
- * per day by the store — the cap is what keeps a poke button from becoming
- * something people mute.
+ * per day — and the cap is enforced by the database, not by this screen, so a
+ * disabled button here is a courtesy rather than the security boundary.
  */
 export function FriendsScreen() {
   const theme = useTheme();
@@ -52,34 +50,48 @@ export function FriendsScreen() {
 
   const [tab, setTab] = useState<Tab>('friends');
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState<PublicProfile[]>([]);
+  const [searching, setSearching] = useState(false);
 
-  const { friends, suggestions, pokes, received } = useSocial();
+  const {
+    friends,
+    sent,
+    received,
+    source,
+    searchProfiles,
+    addFriend,
+    removeFriend,
+    sendPoke,
+    spent,
+    nameFor,
+  } = useSocial();
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) {
-      return suggestions;
+  const friendUids = useMemo(() => new Set(friends.map(f => f.uid)), [friends]);
+
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
     }
-    return suggestions.filter(
-      s => s.name.toLowerCase().includes(q) || s.handle.toLowerCase().includes(q),
-    );
-  }, [query, suggestions]);
 
-  /** Pokes I sent, newest first — the record of what I've already done today. */
-  const sent = useMemo(
-    () => pokes.filter(p => p.fromId === CURRENT_USER_ID).slice(0, 6),
-    [pokes],
-  );
+    setSearching(true);
+    let alive = true;
+    const t = setTimeout(() => {
+      searchProfiles(term)
+        .then(found => alive && setResults(found))
+        .catch(() => alive && setResults([]))
+        .finally(() => alive && setSearching(false));
+    }, SEARCH_DELAY_MS);
 
-  const today = todayKey();
-  const spent = (toId: string, kind: 'poke' | 'challenge') =>
-    pokes.some(
-      p =>
-        p.fromId === CURRENT_USER_ID &&
-        p.toId === toId &&
-        p.kind === kind &&
-        p.day === today,
-    );
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [query, searchProfiles]);
+
+  const recentlySent = sent.slice(0, 6);
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -100,7 +112,9 @@ export function FriendsScreen() {
         Friends
       </Text>
       <Text variant="body" tone="muted" style={styles.subtitle}>
-        Nudge someone who's gone quiet, or call them out for a head-to-head.
+        {source === 'firestore'
+          ? "Nudge someone who's gone quiet — it lands on their phone."
+          : 'Running on local data: nudges are recorded on this device only.'}
       </Text>
 
       <SegmentedControl<Tab>
@@ -118,18 +132,18 @@ export function FriendsScreen() {
           {friends.length === 0 ? (
             <EmptyState
               title="No friends yet"
-              body="Add a few people and you can nudge or challenge them from here."
+              body="Search for someone by their @handle and you can nudge or challenge them from here."
               icon={<Users color={theme.colors.textMuted} size={26} />}
               action={<Button label="Add people" onPress={() => setTab('find')} />}
             />
           ) : (
             <View style={styles.list}>
               {friends.map(f => {
-                const nudged = spent(f.id, 'poke');
-                const challenged = spent(f.id, 'challenge');
+                const nudged = spent(f.uid, 'poke');
+                const challenged = spent(f.uid, 'challenge');
                 return (
                   <ListRow
-                    key={f.id}
+                    key={f.uid}
                     filled
                     title={f.name}
                     subtitle={f.handle}
@@ -143,7 +157,7 @@ export function FriendsScreen() {
                           variant={nudged ? 'muted' : 'accent'}
                           size="sm"
                           disabled={nudged}
-                          onPress={() => socialStore.sendPoke(f.id, 'poke')}>
+                          onPress={() => sendPoke(f, 'poke')}>
                           <Hand
                             color={nudged ? theme.colors.textMuted : theme.colors.onAccent}
                             size={16}
@@ -158,7 +172,7 @@ export function FriendsScreen() {
                           variant="muted"
                           size="sm"
                           disabled={challenged}
-                          onPress={() => socialStore.sendPoke(f.id, 'challenge')}>
+                          onPress={() => sendPoke(f, 'challenge')}>
                           <Swords
                             color={
                               challenged ? theme.colors.textMuted : theme.colors.text
@@ -174,20 +188,20 @@ export function FriendsScreen() {
             </View>
           )}
 
-          {sent.length > 0 ? (
+          {recentlySent.length > 0 ? (
             <>
               <SectionHeader
-                title="Sent today"
+                title="Sent"
                 subtitle="One nudge and one challenge per person per day"
                 style={styles.section}
               />
               <Card variant="light" padding="base" radius="xl">
                 <View style={styles.sentList}>
-                  {sent.map(p => (
+                  {recentlySent.map(p => (
                     <View key={p.id} style={styles.sentRow}>
                       <Text variant="bodySm" style={styles.flex}>
                         <Text variant="bodyStrong">{pokeLabel(p.kind)}</Text>
-                        {` → ${memberById(p.toId).name}`}
+                        {` → ${nameFor(p.toId)}`}
                       </Text>
                       <Text variant="caption" tone="muted">
                         {relativeTime(p.createdAt)}
@@ -202,38 +216,51 @@ export function FriendsScreen() {
       ) : (
         <View>
           <Input
-            placeholder="Search by name or @username"
+            placeholder="Search by @handle"
             value={query}
             onChangeText={setQuery}
             autoCapitalize="none"
+            autoCorrect={false}
+            hint="Handles are unique. Ask your friend for theirs."
             iconLeft={<Search color={theme.colors.textMuted} size={18} />}
             containerStyle={styles.search}
           />
 
-          {results.length === 0 ? (
+          {query.trim().length < 2 ? (
             <Text variant="bodySm" tone="muted" align="center" style={styles.empty}>
-              {query.trim()
-                ? `No one matches “${query.trim()}”.`
-                : "You've added everyone we know about."}
+              Type at least two characters.
+            </Text>
+          ) : searching ? (
+            <ActivityIndicator color={theme.colors.accent} style={styles.empty} />
+          ) : results.length === 0 ? (
+            <Text variant="bodySm" tone="muted" align="center" style={styles.empty}>
+              No one matches “{query.trim()}”.
             </Text>
           ) : (
             <View style={styles.list}>
-              {results.map(person => (
-                <ListRow
-                  key={person.id}
-                  title={person.name}
-                  subtitle={person.handle}
-                  leading={<Avatar name={person.name} size="md" />}
-                  trailing={
-                    <Button
-                      label="Add"
-                      size="sm"
-                      onPress={() => socialStore.addFriend(person.id)}
-                      iconLeft={<UserPlus color={theme.colors.onAccent} size={14} />}
-                    />
-                  }
-                />
-              ))}
+              {results.map(person => {
+                const already = friendUids.has(person.uid);
+                return (
+                  <ListRow
+                    key={person.uid}
+                    title={person.name}
+                    subtitle={person.handle}
+                    leading={<Avatar name={person.name} size="md" />}
+                    trailing={
+                      already ? (
+                        <Chip label="Added" variant="muted" />
+                      ) : (
+                        <Button
+                          label="Add"
+                          size="sm"
+                          onPress={() => addFriend(person)}
+                          iconLeft={<UserPlus color={theme.colors.onAccent} size={14} />}
+                        />
+                      )
+                    }
+                  />
+                );
+              })}
             </View>
           )}
 
@@ -243,7 +270,7 @@ export function FriendsScreen() {
               <View style={styles.list}>
                 {friends.map(f => (
                   <ListRow
-                    key={f.id}
+                    key={f.uid}
                     title={f.name}
                     subtitle={f.handle}
                     leading={<Avatar name={f.name} size="md" />}
@@ -252,7 +279,7 @@ export function FriendsScreen() {
                         accessibilityLabel={`Remove ${f.name}`}
                         variant="muted"
                         size="sm"
-                        onPress={() => socialStore.removeFriend(f.id)}>
+                        onPress={() => removeFriend(f.uid)}>
                         <UserMinus color={theme.colors.textMuted} size={16} />
                       </IconButton>
                     }

@@ -1,0 +1,11 @@
+{
+  "//": "Rules tests run under node against the Firestore emulator, not React Native. They get their own typecheck (npm run typecheck:rules) because the app's config has no node types and would reject `fs`, `path` and `__dirname`.",
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "types": ["jest", "node"],
+    "noEmit": true,
+    "lib": ["ES2022"],
+    "jsx": "react-jsx"
+  },
+  "include": ["__tests__/rules.test.ts"]
+}

@@ -1,75 +1,220 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { CURRENT_USER_ID, memberById } from '../services/mockData';
-import { socialStore, suggestedMembers, type SocialState } from '../services/social';
-import type { Group, Member } from '../services/types';
+import { ensureSignedIn } from '../services/auth';
+import { socialStore, todayKey, type Poke, type PokeKind } from '../services/social';
+import { getSocialRepository } from '../services/socialRepositoryProvider';
+import type { PublicProfile } from '../services/socialRepository';
+import type { Group } from '../services/types';
 
-export type SocialApi = SocialState & {
-  /** False until persisted state has been read. */
+export type SocialApi = {
+  /** False until identity and the first snapshots have resolved. */
   loading: boolean;
-  friends: Member[];
-  suggestions: Member[];
-  /** Nudges pointed at the current user. */
-  received: import('../services/social').Poke[];
+  /** Which backend is live — surfaced in the UI so it is never a mystery. */
+  source: 'firestore' | 'local';
+  /** The signed-in user's id. Empty until resolved. */
+  uid: string;
+
+  friends: PublicProfile[];
+  /** Nudges addressed to me, newest first. */
+  received: Poke[];
+  /** Nudges I sent — what the daily cap is read from. */
+  sent: Poke[];
   unreadPokes: number;
+
+  /** Groups are still device-local; see the note in this file. */
+  groups: Group[];
   groupById: (id: string) => Group | undefined;
+
+  /**
+   * Claims a handle and publishes the public profile.
+   *
+   * Rejects if the handle is taken — that is the point of it being unique, and
+   * the caller is expected to surface the failure rather than swallow it.
+   */
+  claimProfile: (name: string, handle: string) => Promise<PublicProfile>;
+  searchProfiles: (term: string) => Promise<PublicProfile[]>;
+  addFriend: (friend: PublicProfile) => Promise<void>;
+  removeFriend: (friendUid: string) => Promise<void>;
+  /** Resolves false when today's nudge of that kind was already spent. */
+  sendPoke: (to: PublicProfile, kind: PokeKind, groupId?: string) => Promise<boolean>;
+  markInboxRead: () => Promise<void>;
+  /** True when today's nudge of that kind has already gone to that person. */
+  spent: (toUid: string, kind: PokeKind) => boolean;
+  /** Display name for a uid, resolving in the background if it is a stranger. */
+  nameFor: (uid: string) => string;
 };
 
 /**
  * The single read path for the social layer, mirroring `useSessions`.
  *
- * Every screen subscribes to the same store, so joining a group on one screen
- * is visible on another without either of them knowing the other exists.
+ * Everything here goes through `SocialRepository`, so the same screens drive
+ * real accounts when Firebase is configured and the fixture cast when it is
+ * not — no screen branches on which.
+ *
+ * GROUPS are the exception and still come straight from the device-local
+ * store. Group membership needs the same treatment as friends (real uids,
+ * a join-code lookup, rules) and that is a separate piece of work; keeping it
+ * visibly local is better than half-migrating it and leaving people unsure
+ * whether their squad exists on the server.
  */
 export function useSocial(): SocialApi {
-  const [state, setState] = useState<SocialState>(() => socialStore.getState());
+  const repo = useMemo(() => getSocialRepository(), []);
+
+  const [uid, setUid] = useState('');
+  const [friends, setFriends] = useState<PublicProfile[]>([]);
+  const [received, setReceived] = useState<Poke[]>([]);
+  const [sent, setSent] = useState<Poke[]>([]);
+  const [groups, setGroups] = useState<Group[]>(() => socialStore.getState().groups);
   const [loading, setLoading] = useState(true);
+  /*
+   * Names for people who are not (yet) friends.
+   *
+   * A nudge carries only the sender's uid. The name is fetched from their
+   * public profile rather than being denormalised onto the nudge, because a
+   * name written by the sending client is a name the sending client chose —
+   * fine for a push (the server looks it up itself) but not for the in-app
+   * list, where it would be a free impersonation slot.
+   */
+  const [profiles, setProfiles] = useState<Record<string, PublicProfile>>({});
+
+  const uidRef = useRef('');
 
   useEffect(() => {
     let alive = true;
-    const unsub = socialStore.subscribe(next => {
-      if (alive) {
-        setState(next);
+    const unsubs: (() => void)[] = [];
+
+    (async () => {
+      const user = await ensureSignedIn();
+      if (!alive) {
+        return;
       }
-    });
-    socialStore.hydrate().then(() => {
-      if (alive) {
-        setLoading(false);
-      }
-    });
+      uidRef.current = user.uid;
+      setUid(user.uid);
+
+      unsubs.push(repo.watchFriends(user.uid, next => alive && setFriends(next)));
+      unsubs.push(repo.watchInbox(user.uid, next => alive && setReceived(next)));
+      unsubs.push(repo.watchSent(user.uid, next => alive && setSent(next)));
+      setLoading(false);
+    })();
+
+    // Groups remain local, so they are read from the store directly.
+    unsubs.push(
+      socialStore.subscribe(s => {
+        if (alive) {
+          setGroups(s.groups);
+        }
+      }),
+    );
+    socialStore.hydrate();
+
     return () => {
       alive = false;
-      unsub();
+      unsubs.forEach(u => u());
     };
-  }, []);
+  }, [repo]);
 
-  const friends = useMemo(
-    () => state.friendIds.map(memberById).filter(Boolean),
-    [state.friendIds],
+  const today = todayKey();
+
+  const spent = useCallback(
+    (toUid: string, kind: PokeKind) =>
+      sent.some(p => p.toId === toUid && p.kind === kind && p.day === today),
+    [sent, today],
   );
 
-  const suggestions = useMemo(
-    () => suggestedMembers(state.friendIds),
-    [state.friendIds],
+  const claimProfile = useCallback(
+    async (name: string, handle: string) => {
+      const uidNow = uidRef.current || (await ensureSignedIn()).uid;
+      return repo.ensureProfile(uidNow, name, handle);
+    },
+    [repo],
   );
 
-  const received = useMemo(
-    () => state.pokes.filter(n => n.toId === CURRENT_USER_ID),
-    [state.pokes],
+  const searchProfiles = useCallback(
+    (term: string) => repo.searchProfiles(term, uidRef.current),
+    [repo],
+  );
+
+  const addFriend = useCallback(
+    (friend: PublicProfile) => repo.addFriend(uidRef.current, friend),
+    [repo],
+  );
+
+  const removeFriend = useCallback(
+    (friendUid: string) => repo.removeFriend(uidRef.current, friendUid),
+    [repo],
+  );
+
+  const sendPoke = useCallback(
+    async (to: PublicProfile, kind: PokeKind, groupId?: string) => {
+      try {
+        const poke = await repo.sendPoke(uidRef.current, to, kind, groupId);
+        return poke !== null;
+      } catch {
+        // A genuine failure (offline, rules) rather than the daily cap. The
+        // button stays available, which is the honest outcome: nothing was
+        // sent, so trying again should be allowed.
+        return false;
+      }
+    },
+    [repo],
+  );
+
+  const markInboxRead = useCallback(
+    () =>
+      repo.markInboxRead(
+        uidRef.current,
+        received.filter(p => !p.read).map(p => p.id),
+      ),
+    [repo, received],
+  );
+
+  /** uids we have already asked about, so a miss is not re-fetched every render. */
+  const requested = useRef<Set<string>>(new Set());
+
+  const nameFor = useCallback(
+    (id: string) => {
+      const friend = friends.find(f => f.uid === id);
+      if (friend) {
+        return friend.name;
+      }
+      const cached = profiles[id];
+      if (cached) {
+        return cached.name;
+      }
+      if (id && !requested.current.has(id)) {
+        requested.current.add(id);
+        repo
+          .getProfile(id)
+          .then(p => p && setProfiles(prev => ({ ...prev, [id]: p })))
+          .catch(() => {});
+      }
+      return 'Someone';
+    },
+    [friends, profiles, repo],
   );
 
   const groupById = useCallback(
-    (id: string) => state.groups.find(g => g.id === id),
-    [state.groups],
+    (id: string) => groups.find(g => g.id === id),
+    [groups],
   );
 
   return {
-    ...state,
     loading,
+    source: repo.kind,
+    uid,
     friends,
-    suggestions,
     received,
-    unreadPokes: received.filter(n => !n.read).length,
+    sent,
+    unreadPokes: received.filter(p => !p.read).length,
+    groups,
     groupById,
+    claimProfile,
+    searchProfiles,
+    addFriend,
+    removeFriend,
+    sendPoke,
+    markInboxRead,
+    spent,
+    nameFor,
   };
 }

@@ -1,5 +1,12 @@
 module.exports = {
   preset: '@react-native/jest-preset',
+  /**
+   * Rules tests talk to the Firestore emulator and run under a plain node
+   * environment, so they have their own config (jest.rules.config.js) and are
+   * excluded here. `npm test` must stay runnable with nothing installed but
+   * node_modules.
+   */
+  testPathIgnorePatterns: ['<rootDir>/__tests__/rules.test.ts'],
   setupFiles: ['<rootDir>/jest.setup.js'],
   /**
    * react-native-worklets ships a resolver that strips `.native` extensions for

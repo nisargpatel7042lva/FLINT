@@ -21,7 +21,7 @@ import {
   SectionHeader,
   Text,
 } from '../../components';
-import { NOTIFICATIONS, memberById, socialStore } from '../../services';
+import { NOTIFICATIONS, memberById } from '../../services';
 import type { AppNotification, NotificationKind, Poke } from '../../services';
 import { useSocial } from '../../hooks';
 import { useTheme } from '../../theme';
@@ -34,11 +34,11 @@ import { useTheme } from '../../theme';
  * so they are projected into one shape and one sorted list rather than given a
  * separate section nobody would think to scroll to.
  */
-const pokeToNotification = (p: Poke): AppNotification => ({
+const pokeToNotification = (p: Poke, senderName: string): AppNotification => ({
   id: p.id,
   kind: p.kind === 'challenge' ? 'challenge' : 'nudge',
-  title: `${memberById(p.fromId).name} ${p.kind === 'challenge' ? 'challenged you' : 'nudged you'}`,
-  body: `${memberById(p.fromId).name} ${p.message}`,
+  title: `${senderName} ${p.kind === 'challenge' ? 'challenged you' : 'nudged you'}`,
+  body: `${senderName} ${p.message}`,
   createdAt: p.createdAt,
   read: p.read,
   memberId: p.fromId,
@@ -57,15 +57,15 @@ const relativeTime = (iso: string) => {
 export function NotificationsScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
-  const { received } = useSocial();
+  const { received, nameFor, markInboxRead } = useSocial();
   const [fixtures, setFixtures] = useState<AppNotification[]>(NOTIFICATIONS);
 
   const items = useMemo(
     () =>
-      [...received.map(pokeToNotification), ...fixtures].sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt),
+      [...received.map(p => pokeToNotification(p, nameFor(p.fromId))), ...fixtures].sort(
+        (a, b) => b.createdAt.localeCompare(a.createdAt),
       ),
-    [received, fixtures],
+    [received, fixtures, nameFor],
   );
 
   const unread = items.filter(n => !n.read);
@@ -95,7 +95,7 @@ export function NotificationsScreen() {
 
   const markAllRead = () => {
     setFixtures(prev => prev.map(n => ({ ...n, read: true })));
-    socialStore.markPokesRead();
+    markInboxRead().catch(() => {});
   };
 
   const renderRow = (n: AppNotification) => (

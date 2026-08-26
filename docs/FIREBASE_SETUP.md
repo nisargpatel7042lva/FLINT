@@ -132,3 +132,90 @@ firebase emulators:start
 The app does not currently point at the emulator suite — add
 `connectFirestoreEmulator` / `connectAuthEmulator` calls in
 `src/services/backend.ts` when you want that.
+
+---
+
+## Making nudges actually reach a friend
+
+Everything below is already in the repo. What is missing is `google-services.json`,
+which only you can download — it identifies *your* Firebase project, and nothing
+in the app can talk to a backend until it exists.
+
+### What has to be true
+
+1. **`android/app/google-services.json` exists**, then rebuild:
+   ```
+   npx react-native run-android
+   ```
+   Until then `isFirebaseConfigured()` is false and the app runs on local
+   fixtures. The Friends screen says so in its subtitle rather than pretending.
+
+2. **Anonymous auth is enabled** (Authentication → Sign-in method). Every user
+   needs a uid from first launch; a nudge is addressed to one.
+
+3. **Rules and indexes are deployed**:
+   ```
+   npx firebase deploy --only firestore:rules,firestore:indexes
+   ```
+   The inbox query (`toUid` + `createdAt`) needs the composite index. Without
+   it the query fails at runtime with a link to create it.
+
+4. **Functions are deployed**:
+   ```
+   npm --prefix functions run deploy
+   ```
+   `onPokeCreated` is what turns a database row into a notification on someone
+   else's phone. Without it nudges are stored and shown in-app, but nothing
+   buzzes.
+
+5. **Both people have claimed a handle.** Profile setup does this. A nudge is
+   refused by the rules unless `profiles/{toUid}` exists, so an account that
+   skipped setup cannot be nudged — deliberately, since it also cannot be found.
+
+6. **The recipient granted notification permission**, so `users/{uid}.fcmToken`
+   is set. If it is not, the nudge still lands in their in-app inbox; the
+   function logs `poke stored but not pushed: no token` and moves on.
+
+### Trying it with two accounts
+
+The quickest honest test needs two installs — an emulator and a phone, or two
+emulators. Sign in on both, claim a handle on each, search for the other's
+handle, add, and nudge. The receiving device should show a notification within a
+second or two.
+
+To watch it happen:
+```
+npx firebase functions:log --only onPokeCreated
+```
+
+### What is deliberately NOT client-controlled
+
+- **The push text.** `onPokeCreated` generates it from the nudge's `kind` and
+  the *sender's profile name as stored on the server*. The `message` field the
+  client writes is ignored for the notification. A client that could choose the
+  text on a stranger's lock screen would be a harassment channel, not a feature.
+- **The daily cap.** The document id is
+  `{fromUid}_{toUid}_{kind}_{day}` and the rules permit `create` only, so a
+  second nudge of the same kind on the same day collides. A modified client
+  cannot spam anybody.
+- **Push tokens.** These live on `users/{uid}`, readable only by that user and
+  the Admin SDK. Public profiles carry name and handle only. Friend search must
+  never become a way to harvest FCM tokens.
+
+### Verifying the rules without a project
+
+The rules are tested against the real emulator and need no credentials:
+```
+npm run test:rules
+```
+25 cases, including "one user can never read another's push token" and "the
+daily cap holds even when the client tries to bypass it".
+
+### Still device-local
+
+**Groups.** Creating, joining and membership are persisted on the device only.
+Group members are fixture people, so the Nudge button inside a group only
+appears for members who are also your friends — that is, people with a real
+account behind them. Migrating groups is the same shape of work as friends:
+a `groups` collection, a `groupCodes/{code}` lookup so joining does not require
+listing every group, and membership rules.

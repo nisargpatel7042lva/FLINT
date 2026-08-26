@@ -12,8 +12,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     // Fields the client may never set — these are server-owned.
@@ -30,6 +34,13 @@ service cloud.firestore {
       allow update: if isOwner(userId) && noServerFields();
       allow delete: if false;
 
+      // Your friend list is yours. Names are duplicated in here rather than
+      // joined from `profiles` so the list renders in one read, and because a
+      // friend removing their profile should not blank your list.
+      match /friends/{friendId} {
+        allow read, write: if isOwner(userId);
+      }
+
       match /sessions/{sessionId} {
         allow read: if isOwner(userId);
         // Document id must equal the session's day: that is what makes
@@ -41,6 +52,87 @@ service cloud.firestore {
           && request.resource.data.minutes <= 600;
         allow delete: if isOwner(userId);
       }
+    }
+
+    /*
+     * Public profiles.
+     *
+     * Readable by any signed-in user, because finding a friend by handle means
+     * reading a stranger's name. Note what is NOT here: the FCM token lives on
+     * `users/{uid}`, which only its owner and the Admin SDK can read. Putting
+     * it on the public document would turn friend search into a way to collect
+     * push tokens for every account on the platform.
+     */
+    match /profiles/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.handleLower is string
+        && request.resource.data.handleLower.matches('^[a-z0-9_]{3,20}$')
+        && request.resource.data.handle == '@' + request.resource.data.handleLower
+        // The handle must already be claimed BY YOU. Without this a user could
+        // publish a profile carrying someone else's handle.
+        && get(/databases/$(database)/documents/handles/$(request.resource.data.handleLower)).data.uid == userId;
+      allow delete: if false;
+    }
+
+    /*
+     * Handle claims. The document id IS the handle, so uniqueness is structural
+     * rather than a check somebody has to remember to perform, and create-only
+     * means a claim can never be taken from its owner.
+     */
+    match /handles/{handle} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && handle.matches('^[a-z0-9_]{3,20}$');
+      allow update, delete: if false;
+    }
+
+    /*
+     * Nudges.
+     *
+     * The document id encodes sender, recipient, kind and day. Combined with
+     * create-only, that makes "one nudge per person per kind per day" a
+     * property of the database rather than a courtesy the client extends — a
+     * modified client cannot spam anybody, because the second write collides.
+     *
+     * `message` is accepted for the in-app list but is NOT what gets pushed;
+     * the Cloud Function generates the notification text from `kind` and the
+     * sender's profile name. See functions/src/pokeCopy.ts.
+     */
+    match /pokes/{pokeId} {
+      function isParty() {
+        return isSignedIn()
+          && (request.auth.uid == resource.data.fromUid
+              || request.auth.uid == resource.data.toUid);
+      }
+
+      allow read: if isParty();
+
+      allow create: if isSignedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        // You cannot nudge yourself into a streak.
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.kind in ['poke', 'challenge', 'cheer']
+        && request.resource.data.day is string
+        && request.resource.data.read == false
+        // The id must describe its own contents, or the daily cap means nothing.
+        && pokeId == request.resource.data.fromUid + '_'
+                   + request.resource.data.toUid + '_'
+                   + request.resource.data.kind + '_'
+                   + request.resource.data.day
+        // The recipient has to be a real account.
+        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.toUid));
+
+      // The recipient may mark it read, and may change nothing else.
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.toUid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      allow delete: if false;
     }
   }
 }
