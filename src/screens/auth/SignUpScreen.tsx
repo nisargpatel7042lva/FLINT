@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Lock, Mail, User } from 'lucide-react-native';
+import { ArrowLeft, GraduationCap, Lock, Mail, User } from 'lucide-react-native';
 
 import {
   Avatar,
@@ -12,6 +12,7 @@ import {
   Screen,
   Text,
 } from '../../components';
+import { checkCode } from '../../services';
 import { useTheme } from '../../theme';
 
 /**
@@ -25,9 +26,17 @@ export function SignUpScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [collegeCode, setCollegeCode] = useState('');
+
+  // Optional: someone who found the app on their own must never be blocked by
+  // a field that exists for campus rollouts.
+  const code = checkCode(collegeCode);
 
   const canSubmit =
-    name.trim().length > 0 && email.trim().length > 0 && password.length >= 8;
+    name.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.length >= 8 &&
+    code.state !== 'invalid';
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -78,6 +87,23 @@ export function SignUpScreen() {
             autoCapitalize="none"
             iconLeft={<Lock color={theme.colors.textMuted} size={18} />}
             hint="Use 8 or more characters."
+          />
+
+          <Input
+            label="College code (optional)"
+            placeholder="e.g. VTAK34"
+            value={collegeCode}
+            onChangeText={setCollegeCode}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={8}
+            iconLeft={<GraduationCap color={theme.colors.textMuted} size={18} />}
+            error={code.state === 'invalid' ? code.reason : undefined}
+            hint={
+              code.state === 'valid'
+                ? 'You will join your college’s challenge.'
+                : 'Have one from your college? Enter it to join their challenge.'
+            }
           />
         </View>
 

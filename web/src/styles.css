@@ -1,0 +1,203 @@
+/*
+ * Deliberately plain.
+ *
+ * This dashboard's job is to make a case to a non-technical administrator, so
+ * it reads like a report, not like the consumer app: system fonts, generous
+ * whitespace, hairline borders, one accent used only on numbers that matter.
+ * Nothing animates. Nothing is dark.
+ */
+
+:root {
+  --ink: #1a1a1a;
+  --ink-soft: #5c5c5c;
+  --ink-faint: #8a8a8a;
+  --line: #e2e0dd;
+  --bg: #f7f6f4;
+  --panel: #ffffff;
+  --accent: #e2560b;
+  --accent-soft: #fdeee5;
+  --good: #197a4b;
+  --warn: #a15c00;
+  --radius: 10px;
+  --max: 1080px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.25;
+  font-weight: 650;
+}
+h1 { font-size: 26px; }
+h2 { font-size: 19px; }
+h3 { font-size: 15px; }
+
+p { margin: 0; }
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 9px 14px;
+  transition: background 120ms ease;
+}
+button:hover { background: #f2f1ef; }
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+button.primary:hover { background: #c94a09; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+input,
+select {
+  font: inherit;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+}
+input:focus,
+select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.shell { max-width: var(--max); margin: 0 auto; padding: 0 20px 64px; }
+
+.topbar {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  margin-bottom: 28px;
+}
+.topbar-inner {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.brand { font-weight: 700; letter-spacing: -0.2px; }
+.spacer { flex: 1; }
+
+.muted { color: var(--ink-soft); }
+.faint { color: var(--ink-faint); font-size: 13px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.grid { display: grid; gap: 16px; }
+.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 760px) {
+  .grid.cols-2,
+  .grid.cols-3,
+  .grid.cols-4 { grid-template-columns: 1fr; }
+}
+
+.metric-value {
+  font-size: 30px;
+  font-weight: 680;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.metric-value.accent { color: var(--accent); }
+.metric-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink-faint);
+  margin-top: 6px;
+}
+.metric-note { font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+
+.section-title { margin: 32px 0 12px; }
+
+.row { display: flex; align-items: center; gap: 10px; }
+
+.banner {
+  background: var(--accent-soft);
+  border: 1px solid #f6d5c1;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #7a3208;
+  margin-bottom: 20px;
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-faint); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 20px;
+  letter-spacing: 3px;
+  font-weight: 700;
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: inline-block;
+}
+
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.login-card { width: 100%; max-width: 380px; }
+.field { margin-bottom: 14px; }
+.error { color: #b3261e; font-size: 13px; margin-bottom: 12px; }
+
+/* Print: the coordinator's export path. */
+@media print {
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .panel { border: 1px solid #ccc; break-inside: avoid; }
+  .shell { padding: 0; max-width: none; }
+}

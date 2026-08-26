@@ -20,3 +20,4 @@ export * from './health';
 export * from './location';
 export * from './messaging';
 export * from './notificationCopy';
+export * from './enrollment';

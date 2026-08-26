@@ -13,12 +13,29 @@ import type { Challenge, DailyLog, Student } from './types';
  * whether the programme works, not who skipped leg day.
  */
 
+/**
+ * Local-date key, `YYYY-MM-DD`.
+ *
+ * NEVER use toISOString() for a day key. It converts to UTC first, so at any
+ * positive offset (IST is +5:30) local midnight lands on the PREVIOUS calendar
+ * day and every key silently shifts. The app writes local-date keys, so the
+ * dashboard has to read them the same way or nothing joins — which is exactly
+ * what happened here: day 1 reported 0% participation on a cohort that had
+ * trained, because the two sides disagreed about what "day 1" was called.
+ */
+const dayKey = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const dayList = (challenge: Challenge): string[] => {
   const out: string[] = [];
   const cursor = new Date(`${challenge.startDay}T00:00:00`);
   const end = new Date(`${challenge.endDay}T00:00:00`);
   while (cursor <= end) {
-    out.push(cursor.toISOString().slice(0, 10));
+    out.push(dayKey(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
   return out;
@@ -164,7 +181,7 @@ export function streakDistribution(
     n.setDate(n.getDate() + delta);
     return n;
   };
-  const key = (d: Date) => d.toISOString().slice(0, 10);
+  const key = dayKey;
 
   const streakOf = (days: Set<string>): number => {
     const start = new Date(`${today}T00:00:00`);
