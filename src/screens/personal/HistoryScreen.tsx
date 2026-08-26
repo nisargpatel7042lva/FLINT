@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { ChevronLeft, ChevronRight, Flame } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Flame, Timer, Trophy } from 'lucide-react-native';
 
 import {
   Card,
@@ -9,12 +9,15 @@ import {
   IconButton,
   ListRow,
   MonthCalendar,
+  PhotoCard,
   Screen,
   SegmentedControl,
+  StatPill,
   Text,
 } from '../../components';
 import { INTENSITY_LABEL, TRAINING_TODAY, intensityLevel } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
+import { placeholderPhoto, remote } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
 
 type View_ = 'calendar' | 'list';
@@ -22,7 +25,14 @@ type View_ = 'calendar' | 'list';
 const monthLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
-/** Activity history: a grid for consistency, a list for detail. */
+/**
+ * Activity history.
+ *
+ * The calendar stays the centre of the screen — shaded by session length, so it
+ * distinguishes a five-minute token effort from a full session. The chrome
+ * around it follows the reference: a photo-led hero carrying the headline
+ * numbers, and the grid housed in a card rather than floating bare on the page.
+ */
 export function HistoryScreen() {
   const theme = useTheme();
 
@@ -40,7 +50,8 @@ export function HistoryScreen() {
       }, {}),
     [logs],
   );
-  /** Day → minutes, the heatmap's intensity input. */
+
+  /** Day → minutes, the calendar's intensity input. */
   const minutesByDay = useMemo(
     () =>
       logs.reduce<Record<string, number>>((acc, l) => {
@@ -50,6 +61,20 @@ export function HistoryScreen() {
     [logs],
   );
 
+  /** Totals for whichever month is on screen, not for all time. */
+  const monthStats = useMemo(() => {
+    const prefix = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}`;
+    const inMonth = logs.filter(l => l.day.startsWith(prefix));
+    return {
+      sessions: inMonth.length,
+      minutes: inMonth.reduce((n, l) => n + l.minutes, 0),
+      longest: inMonth.reduce((n, l) => Math.max(n, l.minutes), 0),
+    };
+  }, [logs, month]);
+
   const selectedLog = selected ? byDay[selected] : undefined;
 
   const stepMonth = (delta: number) =>
@@ -57,18 +82,37 @@ export function HistoryScreen() {
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
-      <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
-        History
-      </Text>
-      <Text variant="displaySm" style={styles.title}>
-        Your record
-      </Text>
+      {/* Photo-led hero carrying the headline numbers. */}
+      <PhotoCard
+        source={remote(placeholderPhoto('running', 'history-hero', 900, 560))}
+        height={190}
+        layout="spread"
+        padding="lg"
+        style={styles.hero}>
+        <View style={styles.heroTop}>
+          <Chip
+            label=""
+            value={`${streak} day streak`}
+            variant="dark"
+            icon={<Flame color={theme.colors.accent} size={13} />}
+          />
+          <Chip
+            label="Best"
+            value={`${best}`}
+            variant="dark"
+            icon={<Trophy color={theme.colors.accent} size={13} />}
+          />
+        </View>
 
-      <View style={styles.summary}>
-        <Chip label="Streak" value={`${streak}`} variant="muted" />
-        <Chip label="Best" value={`${best}`} variant="muted" />
-        <Chip label="Sessions" value={`${stats.totalSessions}`} variant="muted" />
-      </View>
+        <View>
+          <Text variant="displaySm" tone="inverse">
+            Your record
+          </Text>
+          <Text variant="bodySm" tone="inverseMuted" style={styles.heroMeta}>
+            {stats.totalSessions} sessions · {stats.totalMinutes} minutes trained
+          </Text>
+        </View>
+      </PhotoCard>
 
       <SegmentedControl<View_>
         segments={[
@@ -82,55 +126,81 @@ export function HistoryScreen() {
 
       {mode === 'calendar' ? (
         <View>
-          <View style={styles.monthNav}>
-            <IconButton
-              accessibilityLabel="Previous month"
-              variant="muted"
-              size="sm"
-              onPress={() => stepMonth(-1)}>
-              <ChevronLeft color={theme.colors.text} size={18} />
-            </IconButton>
-            <Text variant="bodyStrong">{monthLabel(month)}</Text>
-            <IconButton
-              accessibilityLabel="Next month"
-              variant="muted"
-              size="sm"
-              onPress={() => stepMonth(1)}>
-              <ChevronRight color={theme.colors.text} size={18} />
-            </IconButton>
-          </View>
+          <Card variant="dark" padding="lg" radius="xxl" style={styles.calendarCard}>
+            <View style={styles.monthNav}>
+              <IconButton
+                accessibilityLabel="Previous month"
+                variant="muted"
+                size="sm"
+                onPress={() => stepMonth(-1)}>
+                <ChevronLeft color={theme.colors.text} size={18} />
+              </IconButton>
+              <Text variant="bodyStrong" tone="inverse">
+                {monthLabel(month)}
+              </Text>
+              <IconButton
+                accessibilityLabel="Next month"
+                variant="muted"
+                size="sm"
+                onPress={() => stepMonth(1)}>
+                <ChevronRight color={theme.colors.text} size={18} />
+              </IconButton>
+            </View>
 
-          <MonthCalendar
-            month={month}
-            minutesByDay={minutesByDay}
-            today={TRAINING_TODAY}
-            selectedDay={selected}
-            onSelectDay={setSelected}
-            style={styles.calendar}
-          />
+            <MonthCalendar
+              month={month}
+              minutesByDay={minutesByDay}
+              today={TRAINING_TODAY}
+              selectedDay={selected}
+              onSelectDay={setSelected}
+              style={styles.calendar}
+            />
+          </Card>
 
           {selected ? (
-            selectedLog ? (
-              <Card variant="light" padding="base" style={styles.detail}>
-                <Text variant="bodyStrong">{selectedLog.title}</Text>
-                <Text variant="caption" tone="muted" style={styles.detailMeta}>
-                  {selectedLog.day} ·{' '}
-                  {INTENSITY_LABEL[intensityLevel(minutesByDay[selectedLog.day] ?? 0)]}{' '}
-                  · {selectedLog.completedSets}/{selectedLog.totalSets} sets
-                </Text>
-              </Card>
-            ) : (
-              <Card variant="outline" padding="base" style={styles.detail}>
-                <Text variant="bodySm" tone="muted">
-                  Nothing logged on {selected}.
-                </Text>
-              </Card>
-            )
+            <Card
+              variant={selectedLog ? 'light' : 'outline'}
+              padding="base"
+              style={styles.detail}>
+              <Text variant="bodyStrong">
+                {selectedLog ? selectedLog.title : 'Rest day'}
+              </Text>
+              <Text variant="caption" tone="muted" style={styles.detailMeta}>
+                {selected} ·{' '}
+                {INTENSITY_LABEL[intensityLevel(minutesByDay[selected] ?? 0)]}
+                {selectedLog
+                  ? ` · ${selectedLog.completedSets}/${selectedLog.totalSets} sets`
+                  : ''}
+              </Text>
+            </Card>
           ) : (
             <Text variant="caption" tone="muted" style={styles.hint}>
               Brighter days are longer sessions. Tap one for detail.
             </Text>
           )}
+
+          {/* Totals for the month on screen, not for all time. */}
+          <View style={styles.monthStats}>
+            <StatPill
+              value={monthStats.sessions}
+              label="Sessions"
+              variant="light"
+              size="sm"
+            />
+            <StatPill
+              value={monthStats.minutes}
+              label="Minutes"
+              variant="light"
+              size="sm"
+              icon={<Timer color={theme.colors.accent} size={15} />}
+            />
+            <StatPill
+              value={monthStats.longest}
+              label="Longest"
+              variant="accent"
+              size="sm"
+            />
+          </View>
         </View>
       ) : null}
 
@@ -145,6 +215,7 @@ export function HistoryScreen() {
             logs.slice(0, 30).map(log => (
               <ListRow
                 key={log.id}
+                filled
                 title={log.title}
                 subtitle={`${log.day} · ${log.completedSets}/${log.totalSets} sets`}
                 leading={<Flame color={theme.colors.accent} size={20} />}
@@ -163,20 +234,26 @@ export function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 140 },
-  eyebrow: { paddingTop: 12 },
-  title: { marginTop: 6 },
-  summary: { flexDirection: 'row', columnGap: 10, marginTop: 18 },
-  tabs: { marginTop: 20 },
+  content: { paddingBottom: 160 },
+  hero: { marginTop: 14 },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    columnGap: 8,
+  },
+  heroMeta: { marginTop: 6 },
+  tabs: { marginTop: 18 },
+  calendarCard: { marginTop: 18 },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 22,
   },
-  calendar: { marginTop: 16 },
-  detail: { marginTop: 20 },
+  calendar: { marginTop: 18 },
+  detail: { marginTop: 16 },
   detailMeta: { marginTop: 4 },
-  hint: { marginTop: 20, textAlign: 'center' },
-  list: { marginTop: 12 },
+  hint: { marginTop: 16, textAlign: 'center' },
+  monthStats: { flexDirection: 'row', columnGap: 10, marginTop: 22 },
+  list: { marginTop: 14, rowGap: 8 },
 });

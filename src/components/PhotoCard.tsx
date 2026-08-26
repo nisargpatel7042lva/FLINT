@@ -114,12 +114,23 @@ export function PhotoCard({
   );
 }
 
-/** Bottom-anchored slices, largest and lightest first. */
+/**
+ * Bottom-anchored slices, largest and lightest first.
+ *
+ * Eight shallow steps rather than four: with four, the opacity jump between
+ * slices was large enough to read as visible horizontal banding across a light
+ * photograph. More steps with smaller deltas costs nothing (they are plain
+ * views) and the edges stop being perceptible.
+ */
 const GRADIENT_STEPS = [
-  { height: 70, alpha: 0.35 },
-  { height: 52, alpha: 0.55 },
-  { height: 36, alpha: 0.8 },
-  { height: 22, alpha: 1.0 },
+  { height: 78, alpha: 0.16 },
+  { height: 66, alpha: 0.3 },
+  { height: 56, alpha: 0.44 },
+  { height: 46, alpha: 0.58 },
+  { height: 37, alpha: 0.7 },
+  { height: 29, alpha: 0.82 },
+  { height: 21, alpha: 0.92 },
+  { height: 13, alpha: 1.0 },
 ];
 
 const styles = StyleSheet.create({
