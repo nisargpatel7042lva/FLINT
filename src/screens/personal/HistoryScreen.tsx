@@ -3,7 +3,6 @@ import { StyleSheet, View } from 'react-native';
 import { ChevronLeft, ChevronRight, Flame } from 'lucide-react-native';
 
 import {
-  ActivityHeatmap,
   Card,
   Chip,
   EmptyState,
@@ -18,7 +17,7 @@ import { INTENSITY_LABEL, TRAINING_TODAY, intensityLevel } from '../../services'
 import { useSessions } from '../../hooks/useSessions';
 import { useTheme } from '../../theme';
 
-type View_ = 'heatmap' | 'calendar' | 'list';
+type View_ = 'calendar' | 'list';
 
 const monthLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -27,8 +26,7 @@ const monthLabel = (d: Date) =>
 export function HistoryScreen() {
   const theme = useTheme();
 
-  // Heatmap first: consistency is the question this screen exists to answer.
-  const [mode, setMode] = useState<View_>('heatmap');
+  const [mode, setMode] = useState<View_>('calendar');
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState<string | undefined>(undefined);
 
@@ -42,8 +40,6 @@ export function HistoryScreen() {
       }, {}),
     [logs],
   );
-  const marked = useMemo(() => new Set(Object.keys(byDay)), [byDay]);
-
   /** Day → minutes, the heatmap's intensity input. */
   const minutesByDay = useMemo(
     () =>
@@ -76,7 +72,6 @@ export function HistoryScreen() {
 
       <SegmentedControl<View_>
         segments={[
-          { value: 'heatmap', label: 'Activity' },
           { value: 'calendar', label: 'Calendar' },
           { value: 'list', label: 'List' },
         ]}
@@ -84,41 +79,6 @@ export function HistoryScreen() {
         onChange={setMode}
         style={styles.tabs}
       />
-
-      {mode === 'heatmap' ? (
-        <View>
-          <ActivityHeatmap
-            minutesByDay={minutesByDay}
-            endDay={TRAINING_TODAY}
-            weeks={14}
-            selectedDay={selected}
-            onSelectDay={setSelected}
-            style={styles.heatmap}
-          />
-
-          {selected ? (
-            <Card
-              variant={selectedLog ? 'light' : 'outline'}
-              padding="base"
-              style={styles.detail}>
-              <Text variant="bodyStrong">
-                {selectedLog ? selectedLog.title : 'Rest day'}
-              </Text>
-              <Text variant="caption" tone="muted" style={styles.detailMeta}>
-                {selected} ·{' '}
-                {INTENSITY_LABEL[intensityLevel(minutesByDay[selected] ?? 0)]}
-                {selectedLog
-                  ? ` · ${selectedLog.completedSets}/${selectedLog.totalSets} sets`
-                  : ''}
-              </Text>
-            </Card>
-          ) : (
-            <Text variant="caption" tone="muted" style={styles.hint}>
-              Brighter squares are longer sessions. Tap one for detail.
-            </Text>
-          )}
-        </View>
-      ) : null}
 
       {mode === 'calendar' ? (
         <View>
@@ -142,7 +102,7 @@ export function HistoryScreen() {
 
           <MonthCalendar
             month={month}
-            markedDays={marked}
+            minutesByDay={minutesByDay}
             today={TRAINING_TODAY}
             selectedDay={selected}
             onSelectDay={setSelected}
@@ -154,8 +114,9 @@ export function HistoryScreen() {
               <Card variant="light" padding="base" style={styles.detail}>
                 <Text variant="bodyStrong">{selectedLog.title}</Text>
                 <Text variant="caption" tone="muted" style={styles.detailMeta}>
-                  {selectedLog.day} · {selectedLog.completedSets}/
-                  {selectedLog.totalSets} sets · {selectedLog.kcal} kcal
+                  {selectedLog.day} ·{' '}
+                  {INTENSITY_LABEL[intensityLevel(minutesByDay[selectedLog.day] ?? 0)]}{' '}
+                  · {selectedLog.completedSets}/{selectedLog.totalSets} sets
                 </Text>
               </Card>
             ) : (
@@ -167,7 +128,7 @@ export function HistoryScreen() {
             )
           ) : (
             <Text variant="caption" tone="muted" style={styles.hint}>
-              Tap a day to see what you did.
+              Brighter days are longer sessions. Tap one for detail.
             </Text>
           )}
         </View>
@@ -214,7 +175,6 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
   calendar: { marginTop: 16 },
-  heatmap: { marginTop: 22 },
   detail: { marginTop: 20 },
   detailMeta: { marginTop: 4 },
   hint: { marginTop: 20, textAlign: 'center' },

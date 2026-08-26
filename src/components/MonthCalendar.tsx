@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { useTheme } from '../theme';
+import { intensityLevel, type IntensityLevel } from '../services/training';
+import { useTheme, type Theme } from '../theme';
 import { Text } from './Text';
 
 export type MonthCalendarProps = {
   /** Any date inside the month to render. */
   month: Date;
-  /** `YYYY-MM-DD` keys that should read as "trained". */
-  markedDays: Set<string>;
+  /** Day key (`YYYY-MM-DD`) → minutes trained. Drives the colour intensity. */
+  minutesByDay: Record<string, number>;
   /** Highlighted with a ring. */
   today?: string;
   selectedDay?: string;
   onSelectDay?: (day: string) => void;
+  /** Show the Less→More key underneath. */
+  legend?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
@@ -27,18 +30,59 @@ const keyOf = (d: Date) => {
 };
 
 /**
- * NEW PATTERN (Phase 5): month grid.
+ * Applies alpha to a #rrggbb colour.
  *
- * History needs a shape that shows consistency at a glance — a list tells you
- * what you did, a grid tells you whether you are actually showing up. Marked
- * days are filled with the accent so gaps are the thing you notice.
+ * Returns the colour untouched if it is not a 6-digit hex — the accent is a
+ * token and could in principle be an rgba() string, and silently producing
+ * "#rgba(...)80" would be worse than no tint.
+ */
+function withAlpha(hex: string, alpha: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    return hex;
+  }
+  const a = Math.round(Math.min(Math.max(alpha, 0), 1) * 255)
+    .toString(16)
+    .padStart(2, '0');
+  return `${hex}${a}`;
+}
+
+/**
+ * Intensity ramp: pale accent for a short session, full strength for a long one.
+ *
+ * Built from accent + alpha rather than five hard-coded hexes, so it stays
+ * correct when the accent is swapped (lime/emerald) and reads sensibly in light
+ * mode, where the same ramp naturally becomes darker-is-more against cream.
+ */
+export function intensityColour(theme: Theme, level: IntensityLevel): string {
+  switch (level) {
+    case 0:
+      return theme.mode === 'dark' ? theme.colors.surfaceMuted : theme.colors.border;
+    case 1:
+      return withAlpha(theme.colors.accent, 0.3);
+    case 2:
+      return withAlpha(theme.colors.accent, 0.52);
+    case 3:
+      return withAlpha(theme.colors.accent, 0.78);
+    case 4:
+      return theme.colors.accentPressed;
+  }
+}
+
+/**
+ * Month grid, shaded by how long each session was.
+ *
+ * A plain "trained / did not train" calendar hides the difference between a
+ * five-minute token effort and a full session — which is exactly the difference
+ * the product is trying to build. Shading the day cells keeps the familiar
+ * month layout while making effort legible at a glance.
  */
 export function MonthCalendar({
   month,
-  markedDays,
+  minutesByDay,
   today,
   selectedDay,
   onSelectDay,
+  legend = true,
   style,
   testID,
 }: MonthCalendarProps) {
@@ -81,15 +125,20 @@ export function MonthCalendar({
           }
 
           const key = keyOf(date);
-          const marked = markedDays.has(key);
+          const minutes = minutesByDay[key] ?? 0;
+          const level = intensityLevel(minutes);
           const isToday = key === today;
           const selected = key === selectedDay;
+          const future = today ? key > today : false;
+
+          // Keep contrast readable across the whole ramp.
+          const tone = level >= 2 ? 'onAccent' : level === 0 ? 'muted' : 'default';
 
           return (
             <Pressable
               key={key}
               accessibilityRole="button"
-              accessibilityLabel={key}
+              accessibilityLabel={`${key}, ${minutes} minutes`}
               accessibilityState={{ selected }}
               onPress={() => onSelectDay?.(key)}
               style={styles.cell}>
@@ -97,9 +146,7 @@ export function MonthCalendar({
                 style={[
                   styles.pip,
                   {
-                    backgroundColor: marked
-                      ? theme.colors.accent
-                      : theme.colors.surfaceMuted,
+                    backgroundColor: intensityColour(theme, level),
                     borderColor: selected
                       ? theme.colors.text
                       : isToday
@@ -107,10 +154,9 @@ export function MonthCalendar({
                       : TRANSPARENT,
                   },
                   selected || isToday ? styles.ringed : null,
+                  future ? styles.future : null,
                 ]}>
-                <Text
-                  variant="caption"
-                  tone={marked ? 'onAccent' : 'muted'}>
+                <Text variant="caption" tone={tone}>
                   {date.getDate()}
                 </Text>
               </View>
@@ -118,6 +164,26 @@ export function MonthCalendar({
           );
         })}
       </View>
+
+      {legend ? (
+        <View style={styles.legend}>
+          <Text variant="label" tone="muted">
+            Less
+          </Text>
+          {([0, 1, 2, 3, 4] as IntensityLevel[]).map(l => (
+            <View
+              key={l}
+              style={[
+                styles.legendCell,
+                { backgroundColor: intensityColour(theme, l) },
+              ]}
+            />
+          ))}
+          <Text variant="label" tone="muted">
+            More
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -133,11 +199,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pip: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ringed: { borderWidth: 2 },
+  future: { opacity: 0.35 },
+  legend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    columnGap: 4,
+    marginTop: 16,
+  },
+  legendCell: { width: 14, height: 14, borderRadius: 4 },
 });
