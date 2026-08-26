@@ -18,7 +18,7 @@ import {
 import { INTENSITY_LABEL, TRAINING_TODAY, intensityLevel } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
 import { placeholderPhoto, remote } from '../../assets/placeholders';
-import { useTheme } from '../../theme';
+import { ThemeScope, useTheme } from '../../theme';
 
 type View_ = 'calendar' | 'list';
 
@@ -33,7 +33,16 @@ const monthLabel = (d: Date) =>
  * around it follows the reference: a photo-led hero carrying the headline
  * numbers, and the grid housed in a card rather than floating bare on the page.
  */
+/** Light-mode screen, per the reference's cream pages. */
 export function HistoryScreen() {
+  return (
+    <ThemeScope mode="light">
+      <HistoryContent />
+    </ThemeScope>
+  );
+}
+
+function HistoryContent() {
   const theme = useTheme();
 
   const [mode, setMode] = useState<View_>('calendar');
@@ -126,7 +135,7 @@ export function HistoryScreen() {
 
       {mode === 'calendar' ? (
         <View>
-          <Card variant="dark" padding="lg" radius="xxl" style={styles.calendarCard}>
+          <Card variant="light" padding="lg" radius="xxl" style={styles.calendarCard}>
             <View style={styles.monthNav}>
               <IconButton
                 accessibilityLabel="Previous month"
@@ -135,9 +144,7 @@ export function HistoryScreen() {
                 onPress={() => stepMonth(-1)}>
                 <ChevronLeft color={theme.colors.text} size={18} />
               </IconButton>
-              <Text variant="bodyStrong" tone="inverse">
-                {monthLabel(month)}
-              </Text>
+              <Text variant="bodyStrong">{monthLabel(month)}</Text>
               <IconButton
                 accessibilityLabel="Next month"
                 variant="muted"
@@ -175,7 +182,14 @@ export function HistoryScreen() {
             </Card>
           ) : (
             <Text variant="caption" tone="muted" style={styles.hint}>
-              Brighter days are longer sessions. Tap one for detail.
+              {/*
+                The ramp's direction flips with the mode: accent-over-black gets
+                brighter with effort, accent-over-white gets deeper. The hint has
+                to follow, or it contradicts what is on screen.
+              */}
+              {theme.mode === 'dark'
+                ? 'Brighter days are longer sessions. Tap one for detail.'
+                : 'Deeper orange means a longer session. Tap one for detail.'}
             </Text>
           )}
 

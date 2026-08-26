@@ -62,3 +62,32 @@ export function useThemeContext(): ThemeContextValue {
 export function useTheme(): Theme {
   return useThemeContext().theme;
 }
+
+/**
+ * Overrides the colour mode for one subtree.
+ *
+ * The reference design mixes cream screens with near-black ones inside a single
+ * app, so mode is a per-screen decision rather than a global setting. Wrapping
+ * a screen in this flips it without touching the rest of the app — including
+ * the tab bar, which is rendered by the navigator outside the screen and so
+ * stays dark, floating over the cream page exactly as the reference does.
+ *
+ * The accent is inherited from the parent rather than re-specified: hard-coding
+ * orange here would silently strand these screens if the app is swapped to lime
+ * or emerald.
+ *
+ * Named ThemeScope, not ThemeMode, because `ThemeMode` is already the
+ * 'light' | 'dark' union exported from theme.ts and a component sharing the
+ * name resolves to the type at the call site.
+ */
+export function ThemeScope({
+  mode,
+  children,
+}: PropsWithChildren<{ mode: ThemeMode }>) {
+  const parent = useContext(ThemeContext);
+  return (
+    <ThemeProvider initialMode={mode} initialAccent={parent?.accentName ?? 'orange'}>
+      {children}
+    </ThemeProvider>
+  );
+}

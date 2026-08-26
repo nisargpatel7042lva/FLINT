@@ -131,8 +131,18 @@ export function MonthCalendar({
           const selected = key === selectedDay;
           const future = today ? key > today : false;
 
-          // Keep contrast readable across the whole ramp.
-          const tone = level >= 2 ? 'onAccent' : level === 0 ? 'muted' : 'default';
+          /*
+           * Contrast across the ramp.
+           *
+           * The threshold has to differ by mode. In dark mode the accent sits
+           * on near-black, so it is vivid from level 2 up and takes white text.
+           * In light mode the same alphas sit on WHITE, so levels 1–2 come out
+           * pale peach — white text on them is unreadable, and only the top two
+           * bands are dark enough to carry it.
+           */
+          const whiteFrom = theme.mode === 'dark' ? 2 : 3;
+          const tone =
+            level >= whiteFrom ? 'onAccent' : level === 0 ? 'muted' : 'default';
 
           return (
             <Pressable

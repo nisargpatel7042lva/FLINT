@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import {
   ImageBackground,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useTheme, type RadiusKey, type SpacingKey } from '../theme';
 
@@ -36,10 +37,11 @@ export type PhotoCardProps = {
  * The reference design is photo-led — its hero cards are athlete photography
  * with type sitting on top, not a thumbnail beside a label. This is that card.
  *
- * The scrim is a plain translucent overlay rather than a gradient because a
- * gradient would mean pulling in a native linear-gradient module; at these card
- * sizes a flat scrim plus a stronger bottom band reads the same and costs
- * nothing.
+ * The scrim is a real SVG linear gradient, drawn with react-native-svg (already
+ * a dependency). It started as a stack of translucent slices to avoid pulling
+ * in a native gradient module, but no number of slices removes the problem: on
+ * a light photograph the opacity step between slices reads as visible
+ * horizontal banding. A genuine gradient has no steps to see.
  */
 export function PhotoCard({
   source,
@@ -55,6 +57,10 @@ export function PhotoCard({
 }: PhotoCardProps) {
   const theme = useTheme();
   const r = theme.radius[radius];
+
+  // SVG gradient ids are document-global, so two PhotoCards on one screen would
+  // otherwise share (and fight over) the same definition.
+  const gradientId = `photocard-scrim-${useId()}`;
 
   return (
     <ImageBackground
@@ -72,35 +78,21 @@ export function PhotoCard({
         highlighted ? [styles.highlight, { borderColor: theme.colors.accent }] : null,
         style,
       ]}>
-      {/* Flat scrim across the whole card. */}
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: `rgba(8,8,8,${scrim})`, borderRadius: r },
-        ]}
-      />
-      {/*
-        Stepped gradient toward the bottom, where the type sits.
-
-        A single band leaves a visible hard seam across the photo. Stacking a
-        few progressively darker slices approximates a gradient closely enough
-        at this size, without pulling in a native linear-gradient module.
-      */}
-      {GRADIENT_STEPS.map((step, i) => (
-        <View
-          key={i}
-          pointerEvents="none"
-          style={[
-            styles.step,
-            {
-              height: `${step.height}%`,
-              backgroundColor: `rgba(8,8,8,${Math.min(scrim * step.alpha, 0.92)})`,
-              borderBottomLeftRadius: r,
-              borderBottomRightRadius: r,
-            },
-          ]}
-        />
-      ))}
+      <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            {/* Light at the top so the photo still reads, heavy where type sits. */}
+            <Stop offset="0" stopColor={SCRIM_COLOR} stopOpacity={scrim * 0.55} />
+            <Stop offset="0.45" stopColor={SCRIM_COLOR} stopOpacity={scrim * 0.8} />
+            <Stop
+              offset="1"
+              stopColor={SCRIM_COLOR}
+              stopOpacity={Math.min(scrim + 0.42, 0.94)}
+            />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${gradientId})`} />
+      </Svg>
 
       <View
         style={[
@@ -114,29 +106,12 @@ export function PhotoCard({
   );
 }
 
-/**
- * Bottom-anchored slices, largest and lightest first.
- *
- * Eight shallow steps rather than four: with four, the opacity jump between
- * slices was large enough to read as visible horizontal banding across a light
- * photograph. More steps with smaller deltas costs nothing (they are plain
- * views) and the edges stop being perceptible.
- */
-const GRADIENT_STEPS = [
-  { height: 78, alpha: 0.16 },
-  { height: 66, alpha: 0.3 },
-  { height: 56, alpha: 0.44 },
-  { height: 46, alpha: 0.58 },
-  { height: 37, alpha: 0.7 },
-  { height: 29, alpha: 0.82 },
-  { height: 21, alpha: 0.92 },
-  { height: 13, alpha: 1.0 },
-];
+/** Near-black rather than pure black, matching the darkest palette ink. */
+const SCRIM_COLOR = '#080808';
 
 const styles = StyleSheet.create({
   root: { overflow: 'hidden' },
   highlight: { borderWidth: 2 },
-  step: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   content: { flex: 1 },
   spread: { justifyContent: 'space-between' },
   bottom: { justifyContent: 'flex-end' },

@@ -19,7 +19,7 @@ import {
 import { CHAR_STAGES, PROFILE, charStage } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
 import { placeholderPhoto, remote } from '../../assets/placeholders';
-import { useTheme } from '../../theme';
+import { ThemeScope, useTheme } from '../../theme';
 
 /**
  * Personal profile: who you are, where Char is, and what you've built.
@@ -29,7 +29,16 @@ import { useTheme } from '../../theme';
  * is a glowing ember, and it needs a dark ground to read as lit rather than as
  * an orange blob on a photograph.
  */
+/** Light-mode screen, per the reference's cream pages. */
 export function ProfileScreen() {
+  return (
+    <ThemeScope mode="light">
+      <ProfileContent />
+    </ThemeScope>
+  );
+}
+
+function ProfileContent() {
   const theme = useTheme();
 
   const { streak, atRisk, best, stats, source } = useSessions();
