@@ -84,3 +84,7 @@ functions/lib/
 *.keystore
 !android/app/debug.keystore
 android/keystore.properties
+
+# Firebase emulator artefacts, written by `npm run test:rules`
+*-debug.log
+.firebase/
