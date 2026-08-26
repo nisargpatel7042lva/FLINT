@@ -11,6 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from '../theme';
 import { useSessions } from '../hooks/useSessions';
 import {
+  AppearanceScreen,
   BarrierScreen,
   CharReactionScreen,
   CreateChallengeScreen,
@@ -115,6 +116,7 @@ export function RootNavigator() {
         <Stack.Screen name="TeamWar" component={TeamWarScreen} />
         <Stack.Screen name="ProofReview" component={ProofReviewScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="Appearance" component={AppearanceScreen} />
 
         {/* Personal tracking loop. */}
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />

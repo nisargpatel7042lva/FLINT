@@ -52,6 +52,9 @@ export const palette = {
 
 export type AccentName = 'orange' | 'lime' | 'emerald';
 
+/** Runtime list, so a settings screen can iterate the accents. */
+export const ACCENT_NAMES: AccentName[] = ['orange', 'lime', 'emerald'];
+
 export type Accent = {
   /** The bold accent itself — CTAs, active states, key numbers. */
   base: string;

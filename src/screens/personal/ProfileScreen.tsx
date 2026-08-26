@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
-import { Flame, Timer, Trophy } from 'lucide-react-native';
+import { ChevronRight, Flame, Palette, Timer, Trophy } from 'lucide-react-native';
 
 import {
   Avatar,
@@ -40,6 +41,7 @@ export function ProfileScreen() {
 
 function ProfileContent() {
   const theme = useTheme();
+  const navigation = useNavigation();
 
   const { streak, atRisk, best, stats, source } = useSessions();
   const { stage, next, progress, daysToNext } = useMemo(
@@ -165,6 +167,17 @@ function ProfileContent() {
         <StatPill value={stats.totalKcal} label="Kcal" variant="light" size="sm" />
       </View>
 
+      <SectionHeader title="Settings" style={styles.section} />
+      <ListRow
+        filled
+        title="Appearance"
+        subtitle="Theme, accent colour and the walkthrough"
+        leading={<Palette color={theme.colors.accent} size={20} />}
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('Appearance')}
+        style={styles.settingsRow}
+      />
+
       <SectionHeader
         title="All stages"
         subtitle="Driven by your current streak, so Char can fall back too"
@@ -234,4 +247,5 @@ const styles = StyleSheet.create({
   section: { marginTop: 30 },
   stats: { flexDirection: 'row', columnGap: 10, marginTop: 14 },
   stages: { marginTop: 10, rowGap: 8 },
+  settingsRow: { marginTop: 12 },
 });

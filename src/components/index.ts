@@ -47,3 +47,6 @@ export * from './MonthCalendar';
 
 // Phase 9 - charts.
 export * from './WeeklyBars';
+
+// Phase 10 - first-run walkthrough.
+export * from './tour';

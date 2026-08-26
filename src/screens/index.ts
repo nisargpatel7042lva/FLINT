@@ -5,6 +5,7 @@ export * from './personal/WorkoutDetailScreen';
 export * from './personal/WorkoutLogScreen';
 export * from './personal/HistoryScreen';
 export * from './personal/ProfileScreen';
+export * from './personal/AppearanceScreen';
 
 // First-60-seconds flow
 export * from './onboarding/SplashScreen';

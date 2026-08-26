@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import {
   ArrowRight,
   Bell,
@@ -25,8 +25,11 @@ import {
   SectionHeader,
   Slider,
   Text,
+  TourOverlay,
+  TourTarget,
   WeeklyBars,
   charStateForStreak,
+  useTour,
 } from '../../components';
 import {
   PROFILE,
@@ -37,8 +40,9 @@ import {
   type Focus,
 } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
+import { HOME_TOUR } from './homeTour';
 import { placeholderPhoto, remote, type PhotoTopic } from '../../assets/placeholders';
-import { useTheme } from '../../theme';
+import { useTheme, useThemeContext } from '../../theme';
 
 const RING = 74;
 
@@ -70,7 +74,40 @@ export function DashboardScreen() {
 
   const [minutes, setMinutes] = useState(15);
 
-  const { logs, streak, atRisk, stats } = useSessions();
+  const { logs, streak, atRisk, stats, loading } = useSessions();
+  const { tourDone, setTourDone } = useThemeContext();
+  const { start, active, steps, index } = useTour();
+  const isFocused = useIsFocused();
+
+  // The tour has no callback of its own, so the screen that owns the flag marks
+  // it done the moment the overlay closes after having been open.
+  const wasActive = React.useRef(false);
+  useEffect(() => {
+    if (active) {
+      wasActive.current = true;
+    } else if (wasActive.current) {
+      wasActive.current = false;
+      setTourDone(true);
+    }
+  }, [active, setTourDone, steps.length, index]);
+
+  /*
+   * First run only.
+   *
+   * Waits for `loading` to clear so the tour never starts against a half-drawn
+   * screen, and only fires once — the flag is written when it finishes or is
+   * skipped, so a reinstall shows it again but a relaunch does not.
+   *
+   * The focus check matters: the tab navigator keeps this screen mounted, so
+   * without it, replaying the tour from Settings would spotlight Home's
+   * coordinates on top of whichever tab is actually visible.
+   */
+  useEffect(() => {
+    if (isFocused && !tourDone && !active && !loading) {
+      const t = setTimeout(() => start(HOME_TOUR), 600);
+      return () => clearTimeout(t);
+    }
+  }, [isFocused, tourDone, active, loading, start]);
   const plan = useMemo(() => suggestPlan(minutes, TRAINING_TODAY), [minutes]);
 
   const minutesByDay = useMemo(
@@ -111,7 +148,8 @@ export function DashboardScreen() {
       </Text>
 
       {/* Char, the streak, and the week's shape in one card. */}
-      <Card variant="dark" padding="lg" radius="xxl" style={styles.charCard}>
+      <TourTarget id="streak" style={styles.charCard}>
+      <Card variant="dark" padding="lg" radius="xxl">
         <View style={styles.charRow}>
           <Char state={charState} size={104} />
           <View style={styles.streakBlock}>
@@ -139,9 +177,11 @@ export function DashboardScreen() {
           style={styles.bars}
         />
       </Card>
+      </TourTarget>
 
       {/* The check-in. One slider — the only decision on this screen. */}
-      <Card variant="light" padding="lg" radius="xxl" style={styles.checkinCard}>
+      <TourTarget id="checkin" style={styles.checkinCard}>
+      <Card variant="light" padding="lg" radius="xxl">
         <View style={styles.checkinHead}>
           <Timer color={theme.colors.accent} size={18} />
           <Text variant="bodyStrong" style={styles.flex}>
@@ -169,14 +209,15 @@ export function DashboardScreen() {
           style={styles.slider}
         />
       </Card>
+      </TourTarget>
 
       {/* The session, promoted to a photo card with the fit stated on it. */}
+      <TourTarget id="session" style={styles.sessionCard}>
       <PhotoCard
         source={remote(placeholderPhoto(PHOTO_FOR[plan.focus], plan.focus, 900, 620))}
         height={300}
         layout="spread"
-        padding="lg"
-        style={styles.sessionCard}>
+        padding="lg">
         <View style={styles.sessionTop}>
           <Chip
             label=""
@@ -207,6 +248,7 @@ export function DashboardScreen() {
           />
         </View>
       </PhotoCard>
+      </TourTarget>
 
       <SectionHeader
         title="This week"
@@ -255,6 +297,8 @@ export function DashboardScreen() {
           />
         ))}
       </View>
+
+      <TourOverlay />
     </Screen>
   );
 }

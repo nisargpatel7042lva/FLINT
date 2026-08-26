@@ -12,13 +12,17 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RootNavigator } from './src/navigation';
 import { ThemeProvider } from './src/theme';
+import { TourProvider } from './src/components';
 
 function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <ThemeProvider initialMode="dark" initialAccent="orange">
-          <RootNavigator />
+        {/* Mode and accent now come from the user's stored preference. */}
+        <ThemeProvider>
+          <TourProvider>
+            <RootNavigator />
+          </TourProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

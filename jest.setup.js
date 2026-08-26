@@ -80,3 +80,30 @@ jest.mock('@react-native-community/geolocation', () => ({
   watchPosition: jest.fn(() => 1),
   clearWatch: jest.fn(),
 }));
+
+/**
+ * AsyncStorage ships ESM that Jest cannot parse, and the native module does not
+ * exist in a JS test run. This version has no bundled jest mock, so a minimal
+ * in-memory one stands in — enough for preferences to round-trip under test.
+ */
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const store = new Map();
+  return {
+    __esModule: true,
+    default: {
+      getItem: jest.fn(key => Promise.resolve(store.get(key) ?? null)),
+      setItem: jest.fn((key, value) => {
+        store.set(key, value);
+        return Promise.resolve();
+      }),
+      removeItem: jest.fn(key => {
+        store.delete(key);
+        return Promise.resolve();
+      }),
+      clear: jest.fn(() => {
+        store.clear();
+        return Promise.resolve();
+      }),
+    },
+  };
+});

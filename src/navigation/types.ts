@@ -55,6 +55,7 @@ export type RootStackParamList = {
   ProofSubmit: { warId?: string } | undefined;
   ProofReview: undefined;
   Notifications: undefined;
+  Appearance: undefined;
 
   // Personal tracking
   WorkoutDetail: { minutes: number; focus: Focus };
