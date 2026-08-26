@@ -44,3 +44,6 @@ export * from './PhotoCard';
 // Phase 5 - personal tracking primitives.
 export * from './Stepper';
 export * from './MonthCalendar';
+
+// Phase 8 - activity heatmap.
+export * from './ActivityHeatmap';

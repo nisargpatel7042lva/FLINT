@@ -1,4 +1,5 @@
 import {
+  intensityLevel,
   buildPlan,
   charStage,
   currentStreak,
@@ -126,5 +127,27 @@ describe('char stages', () => {
 
   it('has no next stage at the top', () => {
     expect(charStage(100).next).toBeNull();
+  });
+});
+
+
+describe('intensity bands', () => {
+  it('treats a rest day as level 0 and any session as at least 1', () => {
+    expect(intensityLevel(0)).toBe(0);
+    expect(intensityLevel(5)).toBe(1);
+  });
+
+  it('rises monotonically with minutes', () => {
+    const levels = [0, 5, 12, 20, 30, 90].map(intensityLevel);
+    for (let i = 1; i < levels.length; i += 1) {
+      expect(levels[i]).toBeGreaterThanOrEqual(levels[i - 1]);
+    }
+  });
+
+  it('keeps a token effort and a real session in different bands', () => {
+    // A 5-minute session must never share a band with a 30-minute one, or the
+    // heatmap stops distinguishing a token effort from a real session.
+    expect(intensityLevel(5)).not.toBe(intensityLevel(30));
+    expect(intensityLevel(30)).toBe(4);
   });
 });

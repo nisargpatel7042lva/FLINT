@@ -307,6 +307,45 @@ export function computeStats(logs: SessionLog[], today: string): Stats {
   };
 }
 
+// ── Activity intensity ─────────────────────────────────────────────────────
+
+/**
+ * Heatmap intensity, 0–4.
+ *
+ * Thresholds are pinned to the app's own TIME_OPTIONS (5/10/15/20/30) rather
+ * than to quantiles of the user's history. Quantiles would look prettier but
+ * they move: a light week would silently re-colour every past day, and a level
+ * that means something different each time you open it is not a scale. Fixed
+ * bands mean "dark orange" always means the same amount of work, and the legend
+ * can state it plainly.
+ */
+export type IntensityLevel = 0 | 1 | 2 | 3 | 4;
+
+export function intensityLevel(minutes: number): IntensityLevel {
+  if (minutes <= 0) {
+    return 0;
+  }
+  if (minutes < 10) {
+    return 1; // a 5-minute session still counts
+  }
+  if (minutes < 15) {
+    return 2;
+  }
+  if (minutes < 25) {
+    return 3;
+  }
+  return 4;
+}
+
+/** Human-readable band, used by the legend and the day detail. */
+export const INTENSITY_LABEL: Record<IntensityLevel, string> = {
+  0: 'Rest day',
+  1: 'Under 10 min',
+  2: '10–14 min',
+  3: '15–24 min',
+  4: '25 min or more',
+};
+
 // ── Char evolution ─────────────────────────────────────────────────────────
 
 export type CharStageId = 'ember' | 'flame' | 'blaze' | 'wildfire' | 'forge';
