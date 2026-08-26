@@ -3,6 +3,7 @@ export * from './personal/DashboardScreen';
 export * from './personal/TrainScreen';
 export * from './personal/WorkoutDetailScreen';
 export * from './personal/WorkoutLogScreen';
+export * from './personal/TrackingScreen';
 export * from './personal/HistoryScreen';
 export * from './personal/ProfileScreen';
 export * from './personal/AppearanceScreen';
@@ -30,6 +31,7 @@ export * from './DesignSystemScreen';
 
 // Social / competitive layer
 export * from './social/GroupsScreen';
+export * from './social/FriendsScreen';
 export * from './social/GroupDetailScreen';
 export * from './social/CreateChallengeScreen';
 export * from './social/TeamWarScreen';

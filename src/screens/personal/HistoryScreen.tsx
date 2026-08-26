@@ -18,7 +18,7 @@ import {
 import { INTENSITY_LABEL, TRAINING_TODAY, intensityLevel } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
 import { placeholderPhoto, remote } from '../../assets/placeholders';
-import { ThemeScope, useTheme } from '../../theme';
+import { useTheme } from '../../theme';
 
 type View_ = 'calendar' | 'list';
 
@@ -33,16 +33,7 @@ const monthLabel = (d: Date) =>
  * around it follows the reference: a photo-led hero carrying the headline
  * numbers, and the grid housed in a card rather than floating bare on the page.
  */
-/** Light-mode screen, per the reference's cream pages. */
 export function HistoryScreen() {
-  return (
-    <ThemeScope mode="light">
-      <HistoryContent />
-    </ThemeScope>
-  );
-}
-
-function HistoryContent() {
   const theme = useTheme();
 
   const [mode, setMode] = useState<View_>('calendar');

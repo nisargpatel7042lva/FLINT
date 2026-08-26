@@ -15,6 +15,7 @@ export * from './Button';
 export * from './IconButton';
 export * from './StatPill';
 export * from './ProgressRing';
+export * from './RouteMap';
 export * from './SectionHeader';
 export * from './Input';
 export * from './Screen';

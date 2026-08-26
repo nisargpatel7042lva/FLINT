@@ -14,17 +14,21 @@ import {
   SectionHeader,
   Text,
 } from '../../components';
+import { CURRENT_USER_ID, MEMBERS, socialStore } from '../../services';
+import { useSocial } from '../../hooks';
 import { useTheme } from '../../theme';
 import { SetupHeader } from './SetupHeader';
 
-/** Stand-in results until the directory/contacts APIs are wired. */
-const SUGGESTIONS = [
-  { id: '1', name: 'Ava Cole', handle: '@avacole' },
-  { id: '2', name: 'Ben Ortiz', handle: '@benortiz' },
-  { id: '3', name: 'Cara Diaz', handle: '@caradiaz' },
-  { id: '4', name: 'Dan Reed', handle: '@danreed' },
-  { id: '5', name: 'Eve Shah', handle: '@eveshah' },
-];
+/**
+ * The directory people are picked from.
+ *
+ * Deliberately the same `MEMBERS` fixture the rest of the social layer uses,
+ * not a local list of look-alike names: friends added here are later nudged,
+ * added to groups and shown in leaderboards, all of which key off member id.
+ * A private list would have produced friends who resolve to "Unknown"
+ * everywhere else in the app.
+ */
+const DIRECTORY = MEMBERS.filter(m => m.id !== CURRENT_USER_ID);
 
 /** Step 3 of profile setup: find people to train with. */
 export function FindFriendsScreen() {
@@ -32,23 +36,25 @@ export function FindFriendsScreen() {
   const navigation = useNavigation();
 
   const [query, setQuery] = useState('');
-  const [added, setAdded] = useState<string[]>([]);
+  const { friendIds } = useSocial();
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
-      return SUGGESTIONS;
+      return DIRECTORY;
     }
-    return SUGGESTIONS.filter(
-      s =>
-        s.name.toLowerCase().includes(q) || s.handle.toLowerCase().includes(q),
+    return DIRECTORY.filter(
+      s => s.name.toLowerCase().includes(q) || s.handle.toLowerCase().includes(q),
     );
   }, [query]);
 
-  const toggle = (id: string) =>
-    setAdded(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
-    );
+  const toggle = (id: string) => {
+    if (friendIds.includes(id)) {
+      socialStore.removeFriend(id);
+    } else {
+      socialStore.addFriend(id);
+    }
+  };
 
   const finish = () => navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
 
@@ -93,13 +99,13 @@ export function FindFriendsScreen() {
 
       <SectionHeader
         title="Suggested"
-        subtitle={added.length > 0 ? `${added.length} selected` : undefined}
+        subtitle={friendIds.length > 0 ? `${friendIds.length} added` : undefined}
         style={styles.section}
       />
 
       <View style={styles.list}>
         {results.map(person => {
-          const isAdded = added.includes(person.id);
+          const isAdded = friendIds.includes(person.id);
           return (
             <ListRow
               key={person.id}
@@ -134,7 +140,7 @@ export function FindFriendsScreen() {
 
       <View style={styles.actions}>
         <Button
-          label={added.length > 0 ? `Continue with ${added.length}` : 'Continue'}
+          label={friendIds.length > 0 ? `Continue with ${friendIds.length}` : 'Continue'}
           size="lg"
           fullWidth
           onPress={finish}

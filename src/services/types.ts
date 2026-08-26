@@ -89,7 +89,10 @@ export type NotificationKind =
   | 'team_winning'
   | 'streak_reminder'
   | 'proof_pending'
-  | 'proof_verified';
+  | 'proof_verified'
+  /** Person-to-person: someone nudged you, or called you out. */
+  | 'nudge'
+  | 'challenge';
 
 export type AppNotification = {
   id: string;

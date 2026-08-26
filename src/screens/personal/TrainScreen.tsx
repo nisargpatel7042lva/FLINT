@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Clock } from 'lucide-react-native';
+import { Clock, Footprints, MapPin, Zap } from 'lucide-react-native';
 
 import {
   Button,
+  Card,
   Chip,
   PhotoCard,
   PressableScale,
@@ -78,6 +79,53 @@ export function TrainScreen() {
         ))}
       </View>
 
+      {/*
+        * Outdoor work is a different shape of thing: no plan, no sets, just a
+        * distance you did not have before. It sits above the library rather
+        * than inside it because it does not answer "how long have you got" —
+        * it answers "I'm going outside".
+        */}
+      <SectionHeader
+        title="Track outdoors"
+        subtitle="Live GPS, distance and pace"
+        style={styles.section}
+      />
+      <View style={styles.outdoor}>
+        {(['run', 'walk'] as const).map(kind => (
+          <PressableScale
+            key={kind}
+            accessibilityRole="button"
+            accessibilityLabel={kind === 'run' ? 'Track a run' : 'Track a walk'}
+            onPress={() => navigation.navigate('Tracking', { kind })}
+            style={styles.flex}>
+            <Card variant={kind === 'run' ? 'accent' : 'light'} padding="base" radius="xl">
+              <View style={styles.outdoorIcon}>
+                {kind === 'run' ? (
+                  <Zap color={theme.colors.onAccent} size={20} />
+                ) : (
+                  <Footprints color={theme.colors.text} size={20} />
+                )}
+              </View>
+              <Text
+                variant="bodyStrong"
+                tone={kind === 'run' ? 'onAccent' : 'default'}
+                style={styles.outdoorTitle}>
+                {kind === 'run' ? 'Run' : 'Walk'}
+              </Text>
+              <View style={styles.outdoorMeta}>
+                <MapPin
+                  color={kind === 'run' ? theme.colors.onAccent : theme.colors.textMuted}
+                  size={12}
+                />
+                <Text variant="caption" tone={kind === 'run' ? 'onAccent' : 'muted'}>
+                  GPS tracked
+                </Text>
+              </View>
+            </Card>
+          </PressableScale>
+        ))}
+      </View>
+
       <SectionHeader
         title={`${minutes}-minute sessions`}
         subtitle="Every one of these fits your budget"
@@ -137,6 +185,11 @@ export function TrainScreen() {
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
   eyebrow: { paddingTop: 12 },
+  flex: { flex: 1 },
+  outdoor: { flexDirection: 'row', columnGap: 12, marginTop: 12 },
+  outdoorIcon: { marginBottom: 10 },
+  outdoorTitle: { marginBottom: 4 },
+  outdoorMeta: { flexDirection: 'row', alignItems: 'center', columnGap: 5 },
   title: { marginTop: 6 },
   times: {
     flexDirection: 'row',

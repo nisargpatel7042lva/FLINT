@@ -1,7 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Share, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { ArrowLeft, Copy, Swords, Trophy } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Hand,
+  LogOut,
+  Share2,
+  Swords,
+  Trophy,
+  UserPlus,
+} from 'lucide-react-native';
 
 import {
   Avatar,
@@ -13,20 +21,25 @@ import {
   ListRow,
   MeterBar,
   Screen,
+  SectionHeader,
   SegmentedControl,
   Text,
 } from '../../components';
 import {
+  CURRENT_USER_ID,
   INDIVIDUAL_CHALLENGES,
   SUBMISSIONS,
   TODAY,
+  todayKey,
   counts,
   effortPoints,
   feedSubmissions,
   groupById,
   groupContributions,
   memberById,
+  socialStore,
 } from '../../services';
+import { useSocial } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
 
@@ -37,9 +50,19 @@ export function GroupDetailScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'GroupDetail'>>();
-  const group = groupById(route.params.groupId);
 
+  const { groupById: fromStore, friends, pokes } = useSocial();
   const [tab, setTab] = useState<Tab>('activity');
+
+  /*
+   * Store first, fixtures second.
+   *
+   * A group the user created only exists in the store, and the fixture lookup
+   * silently falls back to the first seed group rather than failing — so
+   * checking the store first is what stops a brand-new squad from rendering as
+   * somebody else's.
+   */
+  const group = fromStore(route.params.groupId) ?? groupById(route.params.groupId);
 
   const activity = useMemo(() => feedSubmissions(group.id).slice(0, 12), [group.id]);
   const contributions = useMemo(
@@ -47,6 +70,25 @@ export function GroupDetailScreen() {
     [group],
   );
   const challenges = INDIVIDUAL_CHALLENGES.filter(c => c.groupId === group.id);
+
+  const today = todayKey();
+
+  /** Friends who are not in this group yet — the pool the invite list offers. */
+  const addable = friends.filter(f => !group.memberIds.includes(f.id));
+
+  const invite = () => {
+    Share.share({
+      message: `Join my group "${group.name}" on Kasrat. Code: ${group.code}`,
+    }).catch(() => {
+      // A dismissed share sheet rejects on some Android builds. Nothing to
+      // recover from — the user simply chose not to send it.
+    });
+  };
+
+  const leave = () => {
+    socialStore.leaveGroup(group.id);
+    navigation.goBack();
+  };
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -65,7 +107,7 @@ export function GroupDetailScreen() {
         {group.name}
       </Text>
       <Text variant="body" tone="muted" style={styles.subtitle}>
-        {group.memberIds.length} members
+        {group.memberIds.length} {group.memberIds.length === 1 ? 'member' : 'members'}
       </Text>
 
       <View style={styles.actions}>
@@ -79,7 +121,8 @@ export function GroupDetailScreen() {
           label="Invite"
           variant="outline"
           size="md"
-          iconLeft={<Copy color={theme.colors.text} size={16} />}
+          onPress={invite}
+          iconLeft={<Share2 color={theme.colors.text} size={16} />}
         />
       </View>
 
@@ -127,21 +170,91 @@ export function GroupDetailScreen() {
       ) : null}
 
       {tab === 'members' ? (
-        <View style={styles.list}>
-          {contributions.map(c => {
-            const m = memberById(c.memberId);
-            return (
-              <ListRow
-                key={c.memberId}
-                title={m.name}
-                subtitle={`${m.handle} · ${c.points} pts today`}
-                leading={<Avatar name={m.name} size="md" />}
-                trailing={
-                  c.wasCapped ? <Chip label="Capped" variant="muted" /> : undefined
-                }
-              />
-            );
-          })}
+        <View>
+          <View style={styles.list}>
+            {contributions.map(c => {
+              const m = memberById(c.memberId);
+              const isMe = c.memberId === CURRENT_USER_ID;
+              // Read from `pokes` rather than calling the store directly, so
+              // the button re-renders the moment a nudge is spent.
+              const spent = pokes.some(
+                n =>
+                  n.fromId === CURRENT_USER_ID &&
+                  n.toId === c.memberId &&
+                  n.kind === 'poke' &&
+                  n.day === today,
+              );
+              return (
+                <ListRow
+                  key={c.memberId}
+                  title={isMe ? `${m.name} (you)` : m.name}
+                  subtitle={`${m.handle} · ${c.points} pts today`}
+                  leading={<Avatar name={m.name} size="md" />}
+                  trailing={
+                    isMe ? (
+                      c.wasCapped ? (
+                        <Chip label="Capped" variant="muted" />
+                      ) : undefined
+                    ) : (
+                      <Button
+                        label={spent ? 'Nudged' : 'Nudge'}
+                        size="sm"
+                        variant={spent ? 'ghost' : 'outline'}
+                        disabled={spent}
+                        onPress={() => socialStore.sendPoke(c.memberId, 'poke', group.id)}
+                        iconLeft={
+                          <Hand
+                            color={spent ? theme.colors.textMuted : theme.colors.text}
+                            size={14}
+                          />
+                        }
+                      />
+                    )
+                  }
+                />
+              );
+            })}
+          </View>
+
+          <SectionHeader
+            title="Add friends"
+            subtitle="They join straight away — no invite to accept"
+            style={styles.section}
+          />
+          {addable.length === 0 ? (
+            <Text variant="bodySm" tone="muted" style={styles.note}>
+              Everyone you've added is already in this group. Share the code to
+              bring in someone new.
+            </Text>
+          ) : (
+            <View style={styles.list}>
+              {addable.map(f => (
+                <ListRow
+                  key={f.id}
+                  title={f.name}
+                  subtitle={f.handle}
+                  leading={<Avatar name={f.name} size="md" />}
+                  trailing={
+                    <Button
+                      label="Add"
+                      size="sm"
+                      onPress={() => socialStore.addToGroup(group.id, f.id)}
+                      iconLeft={<UserPlus color={theme.colors.onAccent} size={14} />}
+                    />
+                  }
+                />
+              ))}
+            </View>
+          )}
+
+          <Button
+            label="Leave group"
+            variant="ghost"
+            size="md"
+            style={styles.leave}
+            onPress={leave}
+            iconLeft={<LogOut color={theme.colors.accent} size={16} />}
+          />
         </View>
       ) : null}
 
@@ -203,6 +316,9 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', columnGap: 10, marginTop: 20 },
   tabs: { marginTop: 24 },
   list: { marginTop: 12, rowGap: 4 },
+  section: { marginTop: 30 },
+  note: { marginTop: 10 },
+  leave: { marginTop: 26, alignSelf: 'flex-start' },
   challenge: { marginBottom: 8 },
   challengeMeta: { marginTop: 4 },
   challengeBar: { marginTop: 12 },

@@ -75,7 +75,7 @@ export function DashboardScreen() {
   const [minutes, setMinutes] = useState(15);
 
   const { logs, streak, atRisk, stats, loading } = useSessions();
-  const { tourDone, setTourDone } = useThemeContext();
+  const { tourDone, setTourDone, loading: prefsLoading } = useThemeContext();
   const { start, active, steps, index } = useTour();
   const isFocused = useIsFocused();
 
@@ -101,13 +101,17 @@ export function DashboardScreen() {
    * The focus check matters: the tab navigator keeps this screen mounted, so
    * without it, replaying the tour from Settings would spotlight Home's
    * coordinates on top of whichever tab is actually visible.
+   *
+   * `prefsLoading` matters just as much: until stored preferences are read,
+   * `tourDone` is still its default `false`. Without this the tour replays on
+   * every cold start for someone who already finished it.
    */
   useEffect(() => {
-    if (isFocused && !tourDone && !active && !loading) {
+    if (isFocused && !tourDone && !active && !loading && !prefsLoading) {
       const t = setTimeout(() => start(HOME_TOUR), 600);
       return () => clearTimeout(t);
     }
-  }, [isFocused, tourDone, active, loading, start]);
+  }, [isFocused, tourDone, active, loading, prefsLoading, start]);
   const plan = useMemo(() => suggestPlan(minutes, TRAINING_TODAY), [minutes]);
 
   const minutesByDay = useMemo(

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
   ArrowLeft,
   Flame,
+  Hand,
   ShieldCheck,
   Swords,
   Trophy,
@@ -20,9 +21,28 @@ import {
   SectionHeader,
   Text,
 } from '../../components';
-import { NOTIFICATIONS, memberById } from '../../services';
-import type { AppNotification, NotificationKind } from '../../services';
+import { NOTIFICATIONS, memberById, socialStore } from '../../services';
+import type { AppNotification, NotificationKind, Poke } from '../../services';
+import { useSocial } from '../../hooks';
 import { useTheme } from '../../theme';
+
+/**
+ * A received nudge rendered as a notification.
+ *
+ * Pokes live in their own store because they are written by the app, while
+ * `NOTIFICATIONS` is fixture data — but they are the same thing to a reader,
+ * so they are projected into one shape and one sorted list rather than given a
+ * separate section nobody would think to scroll to.
+ */
+const pokeToNotification = (p: Poke): AppNotification => ({
+  id: p.id,
+  kind: p.kind === 'challenge' ? 'challenge' : 'nudge',
+  title: `${memberById(p.fromId).name} ${p.kind === 'challenge' ? 'challenged you' : 'nudged you'}`,
+  body: `${memberById(p.fromId).name} ${p.message}`,
+  createdAt: p.createdAt,
+  read: p.read,
+  memberId: p.fromId,
+});
 
 const relativeTime = (iso: string) => {
   const mins = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -37,7 +57,16 @@ const relativeTime = (iso: string) => {
 export function NotificationsScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
-  const [items, setItems] = useState<AppNotification[]>(NOTIFICATIONS);
+  const { received } = useSocial();
+  const [fixtures, setFixtures] = useState<AppNotification[]>(NOTIFICATIONS);
+
+  const items = useMemo(
+    () =>
+      [...received.map(pokeToNotification), ...fixtures].sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt),
+      ),
+    [received, fixtures],
+  );
 
   const unread = items.filter(n => !n.read);
   const earlier = items.filter(n => n.read);
@@ -55,13 +84,19 @@ export function NotificationsScreen() {
         return <ShieldCheck color={c} size={18} />;
       case 'streak_reminder':
         return <Flame color={c} size={18} />;
+      case 'nudge':
+        return <Hand color={c} size={18} />;
+      case 'challenge':
+        return <Swords color={c} size={18} />;
       default:
         return <Trophy color={c} size={18} />;
     }
   };
 
-  const markAllRead = () =>
-    setItems(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllRead = () => {
+    setFixtures(prev => prev.map(n => ({ ...n, read: true })));
+    socialStore.markPokesRead();
+  };
 
   const renderRow = (n: AppNotification) => (
     // Unread takes the *brighter* surface. In dark mode `light` and `dark`

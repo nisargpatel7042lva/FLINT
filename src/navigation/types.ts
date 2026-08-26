@@ -16,6 +16,7 @@ import type { Focus } from '../services/training';
 export type MainTabParamList = {
   Home: undefined;
   Train: undefined;
+  Squad: undefined;
   History: undefined;
   Profile: undefined;
 };
@@ -56,10 +57,13 @@ export type RootStackParamList = {
   ProofReview: undefined;
   Notifications: undefined;
   Appearance: undefined;
+  Friends: undefined;
 
   // Personal tracking
   WorkoutDetail: { minutes: number; focus: Focus };
   WorkoutLog: { minutes: number; focus: Focus };
+  /** Live GPS session. Defaults to a run when no kind is given. */
+  Tracking: { kind: 'run' | 'walk' } | undefined;
 
   // Social screens, kept reachable but off the tab bar this phase.
   Feed: undefined;

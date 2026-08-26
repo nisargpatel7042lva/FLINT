@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Plus, Swords, Users } from 'lucide-react-native';
+import { Bell, Check, Plus, Swords, UserRound, Users } from 'lucide-react-native';
 
 import {
   AvatarGroup,
@@ -9,6 +9,7 @@ import {
   Card,
   Chip,
   EmptyState,
+  IconButton,
   Input,
   ListRow,
   Screen,
@@ -23,11 +24,12 @@ import {
   WAR,
   groupDayScore,
   memberById,
-  myGroups,
   pluralDays,
+  socialStore,
   warGroups,
   warStanding,
 } from '../../services';
+import { useSocial } from '../../hooks';
 import { useTheme } from '../../theme';
 
 type Mode = 'mine' | 'join';
@@ -40,23 +42,69 @@ export function GroupsScreen() {
   const [mode, setMode] = useState<Mode>('mine');
   const [code, setCode] = useState('');
   const [newName, setNewName] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const mine = useMemo(() => myGroups(), []);
+  const { groups: mine, received } = useSocial();
+
   const groups = useMemo(() => warGroups(), []);
   const standing = useMemo(
     () => warStanding(WAR, groups, SUBMISSIONS, TODAY),
     [groups],
   );
 
-  const joinTarget = GROUPS.find(
-    g => g.code.toLowerCase() === code.trim().toLowerCase(),
-  );
+  const trimmedCode = code.trim().toUpperCase();
+  const alreadyIn = mine.some(g => g.code.toUpperCase() === trimmedCode);
+  const joinTarget = GROUPS.find(g => g.code.toUpperCase() === trimmedCode);
+
+  const create = () => {
+    const group = socialStore.createGroup(newName);
+    setNewName('');
+    setMode('mine');
+    navigation.navigate('GroupDetail', { groupId: group.id });
+  };
+
+  const join = () => {
+    const joined = socialStore.joinGroup(trimmedCode);
+    if (!joined) {
+      setNotice('No group matches that code.');
+      return;
+    }
+    setCode('');
+    setNotice(null);
+    setMode('mine');
+    navigation.navigate('GroupDetail', { groupId: joined.id });
+  };
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
-      <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
-        Squads
-      </Text>
+      <View style={styles.topBar}>
+        <Text variant="label" tone="accent" uppercase>
+          Squads
+        </Text>
+        <View style={styles.topActions}>
+          <IconButton
+            accessibilityLabel="Notifications"
+            variant="muted"
+            size="md"
+            onPress={() => navigation.navigate('Notifications')}>
+            <Bell color={theme.colors.text} size={18} />
+          </IconButton>
+          <IconButton
+            accessibilityLabel={
+              received.length > 0
+                ? `Friends, ${received.length} waiting`
+                : 'Friends'
+            }
+            variant={received.length > 0 ? 'accent' : 'muted'}
+            size="md"
+            onPress={() => navigation.navigate('Friends')}>
+            <UserRound
+              color={received.length > 0 ? theme.colors.onAccent : theme.colors.text}
+              size={18}
+            />
+          </IconButton>
+        </View>
+      </View>
       <Text variant="displaySm" style={styles.title}>
         Your groups
       </Text>
@@ -146,6 +194,7 @@ export function GroupsScreen() {
             value={newName}
             onChangeText={setNewName}
             autoCapitalize="words"
+            hint="You get a join code to share the moment it exists."
             containerStyle={styles.input}
           />
           <Button
@@ -154,6 +203,7 @@ export function GroupsScreen() {
             fullWidth
             disabled={newName.trim().length < 3}
             style={styles.createCta}
+            onPress={create}
             iconLeft={<Plus color={theme.colors.onAccent} size={18} />}
           />
 
@@ -162,13 +212,16 @@ export function GroupsScreen() {
             label="Invite code"
             placeholder="e.g. WOLF42"
             value={code}
-            onChangeText={setCode}
+            onChangeText={next => {
+              setCode(next);
+              setNotice(null);
+            }}
             autoCapitalize="characters"
             hint="Ask a member for the group's code."
             containerStyle={styles.input}
           />
 
-          {code.trim().length > 0 ? (
+          {trimmedCode.length > 0 ? (
             joinTarget ? (
               <ListRow
                 filled
@@ -182,7 +235,17 @@ export function GroupsScreen() {
                     borderColor={theme.colors.surface}
                   />
                 }
-                trailing={<Button label="Join" size="sm" />}
+                trailing={
+                  alreadyIn ? (
+                    <Chip
+                      label="Joined"
+                      variant="muted"
+                      icon={<Check color={theme.colors.textMuted} size={14} />}
+                    />
+                  ) : (
+                    <Button label="Join" size="sm" onPress={join} />
+                  )
+                }
                 style={styles.joinResult}
               />
             ) : (
@@ -190,6 +253,12 @@ export function GroupsScreen() {
                 No group matches that code.
               </Text>
             )
+          ) : null}
+
+          {notice ? (
+            <Text variant="bodySm" tone="muted" style={styles.joinResult}>
+              {notice}
+            </Text>
           ) : null}
         </View>
       )}
@@ -199,7 +268,13 @@ export function GroupsScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
-  eyebrow: { paddingTop: 12 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+  },
+  topActions: { flexDirection: 'row', columnGap: 8 },
   title: { marginTop: 6 },
   tabs: { marginTop: 20 },
   warCard: { marginTop: 20 },

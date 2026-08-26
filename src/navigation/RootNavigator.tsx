@@ -16,6 +16,7 @@ import {
   CharReactionScreen,
   CreateChallengeScreen,
   FindFriendsScreen,
+  FriendsScreen,
   GroupDetailScreen,
   NotificationsScreen,
   OnboardingScreen,
@@ -29,6 +30,7 @@ import {
   SplashScreen,
   TeamWarScreen,
   TimeBudgetScreen,
+  TrackingScreen,
   WorkoutDetailScreen,
   WorkoutLogScreen,
   FeedScreen,
@@ -117,9 +119,11 @@ export function RootNavigator() {
         <Stack.Screen name="ProofReview" component={ProofReviewScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="Appearance" component={AppearanceScreen} />
+        <Stack.Screen name="Friends" component={FriendsScreen} />
 
         {/* Personal tracking loop. */}
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
+        <Stack.Screen name="Tracking" component={TrackingScreen} />
         <Stack.Screen
           name="WorkoutLog"
           component={WorkoutLogScreen}

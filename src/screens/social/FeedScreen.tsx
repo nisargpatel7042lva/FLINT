@@ -24,21 +24,9 @@ import {
 import type { ReactionKey, Submission } from '../../services';
 import { placeholderPhoto, remote } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
+import { relativeTime } from './relativeTime';
 
 type Filter = 'all' | 'war' | 'pending';
-
-const relativeTime = (iso: string) => {
-  const then = new Date(iso).getTime();
-  const mins = Math.max(1, Math.round((Date.now() - then) / 60000));
-  if (mins < 60) {
-    return `${mins}m ago`;
-  }
-  const hours = Math.round(mins / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-  return `${Math.round(hours / 24)}d ago`;
-};
 
 const summarise = (s: Submission) => {
   const bits: string[] = [];

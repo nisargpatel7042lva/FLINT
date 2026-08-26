@@ -6,3 +6,6 @@
  */
 
 export { useTheme, useThemeContext } from '../theme';
+
+export { useSessions } from './useSessions';
+export { useSocial } from './useSocial';
