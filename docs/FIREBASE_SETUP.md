@@ -97,10 +97,13 @@ password sense, but it identifies your project.
 4. **Create**.
 
 **If you did not choose `asia-south1`**, open `functions/src/index.ts` and change
-this line to match:
+the `region` in `setGlobalOptions` to match:
 
 ```ts
-setGlobalOptions({ region: 'asia-south1' });
+setGlobalOptions({
+  region: 'asia-south1',   // <- must equal the Firestore location
+  maxInstances: 10,
+});
 ```
 
 A 2nd-gen Firestore trigger deployed to a different region than its database
