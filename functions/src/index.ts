@@ -3,13 +3,25 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { logger } from 'firebase-functions';
+import { logger, setGlobalOptions } from 'firebase-functions';
 
 import { comebackNudge, milestoneNudge, streakAtRiskNudge } from './copy';
 import { pokeNudge, seedFrom, type PokeKind } from './pokeCopy';
 
 initializeApp();
 const db = getFirestore();
+
+/**
+ * Deployment region.
+ *
+ * MUST match the Firestore database's location. A 2nd-gen Firestore trigger
+ * deployed to a different region than its database fails to deploy — and the
+ * database location is chosen once, at creation, and can never be changed.
+ *
+ * Change this line if you picked a different location in the console.
+ * `asia-south1` is Mumbai; `us-central1` is the Firebase default.
+ */
+setGlobalOptions({ region: 'asia-south1' });
 
 /** Local-date key. Never toISOString() — see the note in src/services/training.ts. */
 const dayKey = (d: Date): string => {
