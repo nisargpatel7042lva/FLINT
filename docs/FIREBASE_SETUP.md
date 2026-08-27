@@ -138,6 +138,36 @@ the function logs `poke stored but not pushed: no token`.
 2. Link or create a Cloud Billing account.
 3. When it offers a **budget alert**, set one. 5 USD is plenty. Take it.
 
+### Will this actually cost anything?
+
+A card is required, but there is no upfront fee, no monthly minimum, and the
+free quotas survive the upgrade — Blaze bills only past them.
+
+| Service | Free allowance | Two people testing nudges |
+|---|---|---|
+| Cloud Functions | 2M invocations/month | one per nudge |
+| Firestore | 50k reads + 20k writes **per day** | tens |
+| Cloud Messaging | unlimited, always free | — |
+| Auth (anonymous, email) | free | — |
+
+Two honest caveats:
+
+- Deploying a 2nd-gen function stores a container image in Artifact Registry,
+  and that storage is not entirely free. It is pennies, but it is why a bill
+  can read `$0.03` rather than `$0.00`.
+- Adding an Indian card may trigger a small temporary authorisation hold that
+  is refunded. That is the card network verifying, not a charge.
+
+`setGlobalOptions` in `functions/src/index.ts` caps concurrency at
+`maxInstances: 10`. The default is 100, and a trigger bug that rewrites its own
+document would otherwise scale a loop as fast as containers can be allocated.
+The cap turns that into a slow queue instead of a bill.
+
+**Prefer not to add a card?** Everything except the push notification still
+works on the free Spark plan: nudges write to Firestore and appear in the
+recipient's in-app inbox next time they open it. Do steps 1–5 and 8, skip 6 and
+9.
+
 ---
 
 ## 7. Point this repo at the project

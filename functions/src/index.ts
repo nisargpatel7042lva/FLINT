@@ -21,7 +21,20 @@ const db = getFirestore();
  * Change this line if you picked a different location in the console.
  * `asia-south1` is Mumbai; `us-central1` is the Firebase default.
  */
-setGlobalOptions({ region: 'asia-south1' });
+setGlobalOptions({
+  region: 'asia-south1',
+  /*
+   * A hard ceiling on concurrency, and the only thing standing between a bug
+   * and a bill.
+   *
+   * 2nd-gen functions default to scaling out to 100 instances. Nothing here
+   * needs that — a nudge is one small write and one push — and a trigger that
+   * accidentally rewrites the document that triggered it would otherwise scale
+   * a loop as fast as Google can allocate containers. Ten is far more than the
+   * real workload and turns a runaway into a slow queue instead of a bill.
+   */
+  maxInstances: 10,
+});
 
 /** Local-date key. Never toISOString() — see the note in src/services/training.ts. */
 const dayKey = (d: Date): string => {
