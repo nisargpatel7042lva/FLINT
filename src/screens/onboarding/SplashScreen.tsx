@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowRight } from 'lucide-react-native';
 
-import { Button, Char, Screen, Text } from '../../components';
+import { Button, Char, Logo, Screen, Text } from '../../components';
 import { useTheme } from '../../theme';
 
 /**
@@ -20,6 +20,7 @@ export function SplashScreen() {
   return (
     <Screen padding="lg" contentContainerStyle={styles.content}>
       <View style={styles.top}>
+        <Logo size={30} />
         <Text variant="label" tone="accent" uppercase>
           Flint
         </Text>
@@ -54,7 +55,10 @@ export function SplashScreen() {
 
 const styles = StyleSheet.create({
   content: { flex: 1, paddingBottom: 24 },
-  top: { paddingTop: 12 },
+  top: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 10, paddingTop: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   headline: { marginTop: 48 },
   body: { marginTop: 12, maxWidth: 300 },

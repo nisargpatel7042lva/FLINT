@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { ArrowRight, Play } from 'lucide-react-native';
 
 import {
+  Logo,
   AvatarGroup,
   Button,
   Card,
@@ -29,9 +30,12 @@ export function WelcomeScreen() {
   return (
     <Screen padding="lg" contentContainerStyle={styles.content}>
       <View style={styles.top}>
-        <Text variant="label" tone="accent" uppercase>
-          Flint
-        </Text>
+        <View style={styles.brand}>
+          <Logo size={30} />
+          <Text variant="label" tone="accent" uppercase>
+            Flint
+          </Text>
+        </View>
 
         <Text variant="displayLg" style={styles.headline}>
           Stay Healthy{'\n'}Keep Body
@@ -103,6 +107,7 @@ export function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   content: { flex: 1, paddingBottom: 24 },
+  brand: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
   top: { paddingTop: 16 },
   headline: { marginTop: 10 },
   highlightRow: { flexDirection: 'row', marginTop: 6 },

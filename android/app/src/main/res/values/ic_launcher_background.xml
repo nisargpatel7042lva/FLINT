@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The adaptive icon's background layer.
+
+      Near-black rather than the accent: the mark is pale stone with a warm
+      spark, and it only reads as "struck in the dark" against a dark ground —
+      which is also how the whole app is drawn.
+    -->
+    <color name="ic_launcher_background">#0D0D0D</color>
+    <!-- Tints the notification icon and accents the notification itself. -->
+    <color name="notification_accent">#FF6B1A</color>
+</resources>

@@ -46,6 +46,24 @@
         manifest declares this same key with an empty value, so the merger needs
         an explicit override rather than treating ours as a conflict.
       -->
+      <!--
+        Notification icon and tint.
+
+        Android draws the small icon as an alpha mask. Without this, FCM uses
+        the launcher icon and the full-colour mark flattens to a white square.
+      -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_icon"
+        android:resource="@drawable/ic_notification" />
+      <!--
+        `tools:replace` for the same reason the channel id needs it: RNFirebase's
+        own manifest declares this meta-data, and the merger refuses two values
+        for one key unless told which wins.
+      -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_color"
+        android:resource="@color/notification_accent"
+        tools:replace="android:resource" />
       <meta-data
         android:name="com.google.firebase.messaging.default_notification_channel_id"
         android:value="@string/default_notification_channel_id"

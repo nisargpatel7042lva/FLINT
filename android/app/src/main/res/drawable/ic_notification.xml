@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Status-bar notification icon: the SPARK, not the stones.
+
+  Android renders notification small icons as a pure alpha mask — every opaque
+  pixel becomes white. That rules out the full mark, which would flatten into
+  an unreadable square, and it also rules out the stone silhouette: two angular
+  shards forming a V is the part of this mark that most resembles other logos,
+  and it is the part with no meaning of its own. The spark is what says Flint.
+
+  It also survives the mask better. A burst of rays reads at 24dp; a filled
+  chevron reads as a filled chevron.
+
+  Scaled up because the spark occupies a small part of the source's 1024
+  canvas — correct in the full mark, far too small alone in a status bar.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <group android:scaleX="3" android:scaleY="3"
+        android:translateX="-1128.25" android:translateY="-712">
+        <path android:pathData="M579,278.5L526.5,503L620,265L579,278.5Z" android:fillColor="#FFFFFF"/>
+        <path android:pathData="M519,551L483,467.5L519,513.5L581,474.5L519,551Z" android:fillColor="#FFFFFF"/>
+        <path android:pathData="M489,398.5L465,393L510,486.5L489,398.5Z" android:fillColor="#FFFFFF"/>
+        <path android:pathData="M522.5,340L506.5,350L521,451L522.5,340Z" android:fillColor="#FFFFFF"/>
+        <path android:pathData="M628.5,375L619,358.5L586,424.5L628.5,375Z" android:fillColor="#FFFFFF"/>
+    </group>
+</vector>
