@@ -123,9 +123,11 @@ const restFor = (minutes: number, focus: Focus) =>
  * count and set count are chosen so the estimate lands inside the budget rather
  * than merely near it.
  *
- * TODO: this does not yet consider goal, equipment, fitness level, injury
- * history, recovery, or what was trained yesterday. A real programmer needs all
- * of those; the signature (budget in, fitted plan out) is what should survive.
+ * Superseded for SUGGESTIONS by `exercises.generateFocusSession`, which draws
+ * from the real library and honours the user's equipment, level and goal. This
+ * remains as the fallback in `resolvePlan` for a plan referenced only by focus
+ * and minutes, and as the reference implementation of the fit maths that the
+ * library generator matches.
  */
 export function buildPlan(minutes: number, focus: Focus): WorkoutPlan {
   const budget = minutes * 60;
@@ -188,9 +190,6 @@ export function suggestFocus(day: string): Focus {
   const dayIndex = Math.floor(d.getTime() / 86400000);
   return order[Math.abs(dayIndex) % order.length];
 }
-
-export const suggestPlan = (minutes: number, day: string): WorkoutPlan =>
-  buildPlan(minutes, suggestFocus(day));
 
 /** Every budget the library offers. */
 export const TIME_OPTIONS = [5, 10, 15, 20, 30] as const;

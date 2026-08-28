@@ -32,14 +32,20 @@ import {
   useTour,
 } from '../../components';
 import {
+  PLACE_LABEL,
   PROFILE,
   TRAINING_TODAY,
+  categoriesFor,
+  equipmentFor,
   estimateSeconds,
-  suggestPlan,
+  generateFocusSession,
+  levelsFor,
+  suggestFocus,
   totalSets,
   type Focus,
 } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
+import { useProfile } from '../../hooks';
 import { HOME_TOUR } from './homeTour';
 import { placeholderPhoto, remote, type PhotoTopic } from '../../assets/placeholders';
 import { useTheme, useThemeContext } from '../../theme';
@@ -112,7 +118,25 @@ export function DashboardScreen() {
       return () => clearTimeout(t);
     }
   }, [isFocused, tourDone, active, loading, prefsLoading, start]);
-  const plan = useMemo(() => suggestPlan(minutes, TRAINING_TODAY), [minutes]);
+  const { profile } = useProfile();
+
+  /*
+   * The day's suggestion, drawn from the library and filtered by the profile.
+   *
+   * This used to call `suggestPlan`, which read the old hardcoded bodyweight
+   * pools — so somebody who told us they train at a gym got press-ups on the
+   * one screen they see every day, while the Train tab correctly offered them
+   * barbells. The home screen is where the answer matters most.
+   */
+  const plan = useMemo(
+    () =>
+      generateFocusSession(suggestFocus(TRAINING_TODAY), minutes, {
+        equipment: equipmentFor(profile),
+        levels: levelsFor(profile),
+        categories: categoriesFor(profile),
+      }).plan,
+    [minutes, profile],
+  );
 
   const minutesByDay = useMemo(
     () =>
@@ -237,8 +261,8 @@ export function DashboardScreen() {
             {plan.title}
           </Text>
           <Text variant="bodySm" tone="inverseMuted" style={styles.sessionMeta}>
-            {plan.exercises.length} moves · {totalSets(plan)} sets ·{' '}
-            {plan.exercises[0]?.name}
+            {PLACE_LABEL[profile.place]} · {plan.exercises.length} moves ·{' '}
+            {totalSets(plan)} sets · {plan.exercises[0]?.name}
           </Text>
           <Button
             label="Start session"
@@ -246,7 +270,13 @@ export function DashboardScreen() {
             fullWidth
             style={styles.sessionCta}
             onPress={() =>
-              navigation.navigate('WorkoutDetail', { minutes, focus: plan.focus })
+              navigation.navigate('WorkoutDetail', {
+                minutes,
+                focus: plan.focus,
+                // Carry the exact session, so the detail screen shows this one
+                // rather than re-deriving it.
+                exerciseIds: plan.exercises.map(e => e.id),
+              })
             }
             iconRight={<ArrowRight color={theme.colors.onAccent} size={20} />}
           />

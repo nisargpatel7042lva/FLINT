@@ -22,6 +22,45 @@ export type MonthCalendarProps = {
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
+/** Monday-first column index for a date. Sunday is 6, not 0. */
+export const columnOf = (d: Date): number => (d.getDay() + 6) % 7;
+
+/**
+ * The month laid out as whole weeks of exactly seven cells.
+ *
+ * Returning WEEKS rather than a flat list is the point. The grid used to be a
+ * flat array in a `flexWrap` row with each cell at `100/7`% — which is
+ * 14.285714…%, and seven of those round to fractionally over 100%, so Yoga
+ * wrapped the seventh cell onto the next line. The result was six date columns
+ * under seven weekday headers, and every date after the 1st sat under the
+ * wrong day: in August 2026, Sunday the 2nd appeared beneath Monday.
+ *
+ * Weeks of seven with `flex: 1` cells cannot drift, because the row structure
+ * no longer depends on rounding. It also makes the alignment testable — see
+ * the invariant in the calendar tests.
+ */
+export function monthGrid(month: Date): (Date | null)[][] {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const first = new Date(year, monthIndex, 1);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+  const cells: (Date | null)[] = Array.from({ length: columnOf(first) }, () => null);
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    cells.push(new Date(year, monthIndex, d));
+  }
+  // Pad the final week so every row is a full seven and the last one aligns.
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+
+  const weeks: (Date | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+  return weeks;
+}
+
 const keyOf = (d: Date) => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -88,23 +127,7 @@ export function MonthCalendar({
 }: MonthCalendarProps) {
   const theme = useTheme();
 
-  const cells = useMemo(() => {
-    const first = new Date(month.getFullYear(), month.getMonth(), 1);
-    const daysInMonth = new Date(
-      month.getFullYear(),
-      month.getMonth() + 1,
-      0,
-    ).getDate();
-
-    // Monday-first offset.
-    const lead = (first.getDay() + 6) % 7;
-
-    const out: (Date | null)[] = Array.from({ length: lead }, () => null);
-    for (let d = 1; d <= daysInMonth; d += 1) {
-      out.push(new Date(month.getFullYear(), month.getMonth(), d));
-    }
-    return out;
-  }, [month]);
+  const weeks = useMemo(() => monthGrid(month), [month]);
 
   return (
     <View testID={testID} style={style}>
@@ -118,10 +141,11 @@ export function MonthCalendar({
         ))}
       </View>
 
-      <View style={styles.grid}>
-        {cells.map((date, i) => {
+      {weeks.map((week, w) => (
+        <View key={`week-${w}`} style={styles.weekRow}>
+          {week.map((date, i) => {
           if (!date) {
-            return <View key={`pad-${i}`} style={styles.cell} />;
+            return <View key={`pad-${w}-${i}`} style={styles.cell} />;
           }
 
           const key = keyOf(date);
@@ -172,8 +196,9 @@ export function MonthCalendar({
               </View>
             </Pressable>
           );
-        })}
-      </View>
+          })}
+        </View>
+      ))}
 
       {legend ? (
         <View style={styles.legend}>
@@ -201,10 +226,17 @@ export function MonthCalendar({
 const TRANSPARENT = 'transparent';
 
 const styles = StyleSheet.create({
-  weekRow: { flexDirection: 'row', marginBottom: 8 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 6 },
+  weekRow: { flexDirection: 'row', marginBottom: 6 },
+  /*
+   * `flex: 1`, never a percentage width.
+   *
+   * `100/7`% is 14.285714…%; seven of them round to fractionally over 100% and
+   * the last cell wraps, which is what put six date columns under seven
+   * weekday headers. Seven flex-1 cells in a fixed row divide the space
+   * exactly, whatever the rounding.
+   */
   cell: {
-    width: `${100 / 7}%`,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
