@@ -15,9 +15,12 @@ import {
   BarrierScreen,
   CharReactionScreen,
   CreateChallengeScreen,
+  ExerciseDetailScreen,
+  ExerciseLibraryScreen,
   FindFriendsScreen,
   FriendsScreen,
   GroupDetailScreen,
+  MuscleGroupScreen,
   NotificationsScreen,
   OnboardingScreen,
   ProfileGoalScreen,
@@ -124,6 +127,11 @@ export function RootNavigator() {
         {/* Personal tracking loop. */}
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
         <Stack.Screen name="Tracking" component={TrackingScreen} />
+
+        {/* Exercise library — 873 movements, bundled and offline. */}
+        <Stack.Screen name="ExerciseLibrary" component={ExerciseLibraryScreen} />
+        <Stack.Screen name="MuscleGroup" component={MuscleGroupScreen} />
+        <Stack.Screen name="ExerciseDetail" component={ExerciseDetailScreen} />
         <Stack.Screen
           name="WorkoutLog"
           component={WorkoutLogScreen}

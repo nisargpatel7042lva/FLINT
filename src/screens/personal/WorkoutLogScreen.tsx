@@ -16,7 +16,7 @@ import {
   Stepper,
   Text,
 } from '../../components';
-import { TRAINING_TODAY, buildPlan, totalSets } from '../../services';
+import { TRAINING_TODAY, resolvePlan, totalSets } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
 import type { RootStackParamList } from '../../navigation/types';
 import { duration, useTheme } from '../../theme';
@@ -37,9 +37,12 @@ export function WorkoutLogScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'WorkoutLog'>>();
-  const { minutes, focus } = route.params;
+  const { minutes, focus, region, seed } = route.params;
 
-  const plan = useMemo(() => buildPlan(minutes, focus), [minutes, focus]);
+  const plan = useMemo(
+    () => resolvePlan({ minutes, focus, region, seed }),
+    [minutes, focus, region, seed],
+  );
   const planSets = totalSets(plan);
 
   const [done, setDone] = useState<Record<string, number>>({});

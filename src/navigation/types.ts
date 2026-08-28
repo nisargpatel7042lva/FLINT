@@ -1,6 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { BarrierId } from '../services/onboarding';
+import type { BodyRegion, Muscle } from '../services/exercises';
 import type { Focus } from '../services/training';
 
 /**
@@ -60,8 +61,18 @@ export type RootStackParamList = {
   Friends: undefined;
 
   // Personal tracking
-  WorkoutDetail: { minutes: number; focus: Focus };
-  WorkoutLog: { minutes: number; focus: Focus };
+  /**
+   * `region` is set when the session was generated from the exercise library;
+   * both this screen and WorkoutLog rebuild the identical plan from these
+   * params via `resolvePlan`.
+   */
+  WorkoutDetail: { minutes: number; focus: Focus; region?: BodyRegion; seed?: number };
+  WorkoutLog: { minutes: number; focus: Focus; region?: BodyRegion; seed?: number };
+
+  // Exercise library
+  ExerciseLibrary: undefined;
+  MuscleGroup: { region: BodyRegion; muscle?: Muscle };
+  ExerciseDetail: { id: string };
   /** Live GPS session. Defaults to a run when no kind is given. */
   Tracking: { kind: 'run' | 'walk' } | undefined;
 

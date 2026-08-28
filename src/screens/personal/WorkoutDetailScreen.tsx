@@ -14,7 +14,7 @@ import {
   SectionHeader,
   Text,
 } from '../../components';
-import { buildPlan, estimateSeconds, totalSets } from '../../services';
+import { estimateSeconds, resolvePlan, totalSets } from '../../services';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
 
@@ -29,9 +29,12 @@ export function WorkoutDetailScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'WorkoutDetail'>>();
-  const { minutes, focus } = route.params;
+  const { minutes, focus, region, seed } = route.params;
 
-  const plan = useMemo(() => buildPlan(minutes, focus), [minutes, focus]);
+  const plan = useMemo(
+    () => resolvePlan({ minutes, focus, region, seed }),
+    [minutes, focus, region, seed],
+  );
   const fitSeconds = estimateSeconds(plan);
   const fitMinutes = Math.round(fitSeconds / 60);
 
@@ -112,7 +115,7 @@ export function WorkoutDetailScreen() {
         size="lg"
         fullWidth
         style={styles.cta}
-        onPress={() => navigation.navigate('WorkoutLog', { minutes, focus })}
+        onPress={() => navigation.navigate('WorkoutLog', { minutes, focus, region, seed })}
         iconLeft={<Play color={theme.colors.onAccent} size={20} fill={theme.colors.onAccent} />}
       />
     </Screen>

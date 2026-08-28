@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Clock, Footprints, MapPin, Zap } from 'lucide-react-native';
+import { ChevronRight, Clock, Dumbbell, Footprints, MapPin, Zap } from 'lucide-react-native';
 
 import {
   Button,
   Card,
   Chip,
+  ListRow,
   PhotoCard,
   PressableScale,
   Screen,
@@ -14,6 +15,7 @@ import {
   Text,
 } from '../../components';
 import {
+  EXERCISES,
   FOCUS_LABEL,
   TIME_OPTIONS,
   TRAINING_TODAY,
@@ -78,6 +80,27 @@ export function TrainScreen() {
           />
         ))}
       </View>
+
+      {/*
+        * The library, above the generated sessions.
+        *
+        * The five foci below are a curated shortcut; this is the whole
+        * catalogue for someone who wants to train a specific body part or look
+        * up how a movement is actually performed.
+        */}
+      <ListRow
+        filled
+        title="Browse exercises"
+        subtitle={`${EXERCISES.length} movements, by body part`}
+        style={styles.library}
+        leading={
+          <View style={styles.libraryIcon}>
+            <Dumbbell color={theme.colors.accent} size={20} />
+          </View>
+        }
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('ExerciseLibrary')}
+      />
 
       {/*
         * Outdoor work is a different shape of thing: no plan, no sets, just a
@@ -186,6 +209,8 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
   eyebrow: { paddingTop: 12 },
   flex: { flex: 1 },
+  library: { marginTop: 24 },
+  libraryIcon: { width: 26, alignItems: 'center' },
   outdoor: { flexDirection: 'row', columnGap: 12, marginTop: 12 },
   outdoorIcon: { marginBottom: 10 },
   outdoorTitle: { marginBottom: 4 },
