@@ -1,26 +1,31 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowRight, Dumbbell, Flame, Heart, Zap } from 'lucide-react-native';
 
 import { Button, OptionCard, Screen } from '../../components';
+import { GOAL_LABEL, type GoalId } from '../../services';
+import { useProfile } from '../../hooks';
 import { useTheme } from '../../theme';
 import { SetupHeader } from './SetupHeader';
 
-type GoalId = 'lose' | 'build' | 'endurance' | 'healthy';
-
-const GOALS: { id: GoalId; title: string; description: string }[] = [
-  { id: 'lose', title: 'Lose weight', description: 'Burn fat with steady cardio and calorie tracking.' },
-  { id: 'build', title: 'Build muscle', description: 'Progressive strength work and rep tracking.' },
-  { id: 'endurance', title: 'Boost endurance', description: 'Run longer, recover faster, raise your ceiling.' },
-  { id: 'healthy', title: 'Stay healthy', description: 'Move daily and keep a consistent streak.' },
+/**
+ * Titles come from `GOAL_LABEL` so the wording is identical here and in the
+ * settings screen that edits it later.
+ */
+const GOALS: { id: GoalId; description: string }[] = [
+  { id: 'lose', description: 'Cardio and plyometrics alongside strength work.' },
+  { id: 'build', description: 'Strength and powerlifting movements.' },
+  { id: 'endurance', description: 'Conditioning work that raises your ceiling.' },
+  { id: 'healthy', description: 'Strength and cardio, nothing extreme.' },
 ];
 
 /** Step 2 of profile setup: pick a primary fitness goal. */
 export function ProfileGoalScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
-  const [goal, setGoal] = useState<GoalId | null>(null);
+  const { profile, update } = useProfile();
+  const goal = profile.goal;
 
   const iconFor = (id: GoalId, selected: boolean) => {
     const color = selected ? theme.colors.onAccent : theme.colors.text;
@@ -39,7 +44,7 @@ export function ProfileGoalScreen() {
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
       <SetupHeader
-        step={1}
+        step={3}
         title={"What's your\nmain goal?"}
         subtitle="We'll tailor your plan and challenges around this."
       />
@@ -51,10 +56,10 @@ export function ProfileGoalScreen() {
         {GOALS.map(g => (
           <OptionCard
             key={g.id}
-            title={g.title}
+            title={GOAL_LABEL[g.id]}
             description={g.description}
             selected={goal === g.id}
-            onPress={() => setGoal(g.id)}
+            onPress={() => update({ goal: g.id })}
             icon={iconFor(g.id, goal === g.id)}
           />
         ))}
@@ -64,7 +69,6 @@ export function ProfileGoalScreen() {
         label="Continue"
         size="lg"
         fullWidth
-        disabled={goal === null}
         onPress={() => navigation.navigate('FindFriends')}
         iconRight={<ArrowRight color={theme.colors.onAccent} size={20} />}
         style={styles.submit}

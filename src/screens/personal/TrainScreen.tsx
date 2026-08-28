@@ -17,14 +17,19 @@ import {
 import {
   EXERCISES,
   FOCUS_LABEL,
+  PLACE_LABEL,
   TIME_OPTIONS,
   TRAINING_TODAY,
-  buildPlan,
+  categoriesFor,
+  equipmentFor,
   estimateSeconds,
+  generateFocusSession,
+  levelsFor,
   suggestFocus,
   totalSets,
   type Focus,
 } from '../../services';
+import { useProfile } from '../../hooks';
 import { placeholderPhoto, remote, type PhotoTopic } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
 
@@ -57,7 +62,25 @@ export function TrainScreen() {
   const [minutes, setMinutes] = useState<number>(15);
   const todaysFocus = suggestFocus(TRAINING_TODAY);
 
-  const plans = useMemo(() => ALL_FOCI.map(f => buildPlan(minutes, f)), [minutes]);
+  const { profile } = useProfile();
+
+  /*
+   * Sessions come from the 873-exercise library, filtered by the profile.
+   * These used to be thirty hand-written bodyweight moves, which meant
+   * somebody who told us they train at a gym was still offered press-ups.
+   */
+  const plans = useMemo(
+    () =>
+      ALL_FOCI.map(
+        f =>
+          generateFocusSession(f, minutes, {
+            equipment: equipmentFor(profile),
+            levels: levelsFor(profile),
+            categories: categoriesFor(profile),
+          }).plan,
+      ),
+    [minutes, profile],
+  );
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -66,6 +89,9 @@ export function TrainScreen() {
       </Text>
       <Text variant="displaySm" style={styles.title}>
         How long have{'\n'}you got?
+      </Text>
+      <Text variant="bodySm" tone="muted" style={styles.place}>
+        {PLACE_LABEL[profile.place]} · change in Profile → Training
       </Text>
 
       {/* Budget first. Everything below re-fits to it. */}
@@ -166,7 +192,13 @@ export function TrainScreen() {
               accessibilityRole="button"
               accessibilityLabel={plan.title}
               onPress={() =>
-                navigation.navigate('WorkoutDetail', { minutes, focus: plan.focus })
+                navigation.navigate('WorkoutDetail', {
+                  minutes,
+                  focus: plan.focus,
+                  // Carry the exact session, so the detail screen shows what
+                  // this card showed rather than re-deriving from the profile.
+                  exerciseIds: plan.exercises.map(e => e.id),
+                })
               }>
               <PhotoCard
                 source={remote(
@@ -209,6 +241,7 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
   eyebrow: { paddingTop: 12 },
   flex: { flex: 1 },
+  place: { marginTop: 8 },
   library: { marginTop: 24 },
   libraryIcon: { width: 26, alignItems: 'center' },
   outdoor: { flexDirection: 'row', columnGap: 12, marginTop: 12 },

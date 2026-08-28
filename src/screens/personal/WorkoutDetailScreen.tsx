@@ -29,11 +29,11 @@ export function WorkoutDetailScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'WorkoutDetail'>>();
-  const { minutes, focus, region, seed } = route.params;
+  const { minutes, focus, region, exerciseIds } = route.params;
 
   const plan = useMemo(
-    () => resolvePlan({ minutes, focus, region, seed }),
-    [minutes, focus, region, seed],
+    () => resolvePlan({ minutes, focus, region, exerciseIds }),
+    [minutes, focus, region, exerciseIds],
   );
   const fitSeconds = estimateSeconds(plan);
   const fitMinutes = Math.round(fitSeconds / 60);
@@ -115,7 +115,7 @@ export function WorkoutDetailScreen() {
         size="lg"
         fullWidth
         style={styles.cta}
-        onPress={() => navigation.navigate('WorkoutLog', { minutes, focus, region, seed })}
+        onPress={() => navigation.navigate('WorkoutLog', { minutes, focus, region, exerciseIds })}
         iconLeft={<Play color={theme.colors.onAccent} size={20} fill={theme.colors.onAccent} />}
       />
     </Screen>

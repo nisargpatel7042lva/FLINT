@@ -16,8 +16,9 @@ import {
   Stepper,
   Text,
 } from '../../components';
-import { TRAINING_TODAY, resolvePlan, totalSets } from '../../services';
+import { TRAINING_TODAY, kcalFor, resolvePlan, totalSets } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
+import { useProfile } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
 import { duration, useTheme } from '../../theme';
 
@@ -37,11 +38,11 @@ export function WorkoutLogScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'WorkoutLog'>>();
-  const { minutes, focus, region, seed } = route.params;
+  const { minutes, focus, region, exerciseIds } = route.params;
 
   const plan = useMemo(
-    () => resolvePlan({ minutes, focus, region, seed }),
-    [minutes, focus, region, seed],
+    () => resolvePlan({ minutes, focus, region, exerciseIds }),
+    [minutes, focus, region, exerciseIds],
   );
   const planSets = totalSets(plan);
 
@@ -53,6 +54,7 @@ export function WorkoutLogScreen() {
   // The streak comes from the repository, so it updates once the write lands
   // rather than being guessed locally.
   const { streak: liveStreak, addSession } = useSessions();
+  const { profile } = useProfile();
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -95,9 +97,16 @@ export function WorkoutLogScreen() {
       minutes: plan.minutes,
       completedSets: completed,
       totalSets: planSets,
-      // TODO: replace with Health Connect active calories for the session
-      // window once permissions are granted (services/health.ts).
-      kcal: Math.round(plan.minutes * 8),
+      /*
+       * Estimated from body mass when we have it, via the standard MET
+       * formula. Without a weight there is nothing to scale by and this falls
+       * back to a flat per-minute figure — a guess, and `canEstimateCalories`
+       * is what the UI uses to avoid presenting it as more than that.
+       *
+       * TODO: replace with Health Connect active calories for the session
+       * window once permissions are granted (services/health.ts).
+       */
+      kcal: kcalFor(profile, plan.minutes),
     }).catch(e => setSaveError(e instanceof Error ? e.message : String(e)));
   };
 

@@ -23,3 +23,4 @@ export * from './notificationCopy';
 export * from './enrollment';
 export * from './social';
 export * from './exercises';
+export * from './profile';

@@ -45,6 +45,13 @@ export type RootStackParamList = {
   SignIn: undefined;
   SignUp: undefined;
   ProfileName: undefined;
+  TrainingSetup: undefined;
+  /**
+   * `inSetup` distinguishes the onboarding step from the same screen reached
+   * later from Settings — it decides whether there are progress dots and
+   * where Continue goes.
+   */
+  BodyBasics: { inSetup?: boolean } | undefined;
   ProfileGoal: undefined;
   FindFriends: undefined;
   Tabs: NavigatorScreenParams<MainTabParamList>;
@@ -58,16 +65,28 @@ export type RootStackParamList = {
   ProofReview: undefined;
   Notifications: undefined;
   Appearance: undefined;
+  TrainingPreferences: undefined;
   Friends: undefined;
 
   // Personal tracking
   /**
-   * `region` is set when the session was generated from the exercise library;
-   * both this screen and WorkoutLog rebuild the identical plan from these
-   * params via `resolvePlan`.
+   * `region` + `exerciseIds` are set when the session came from the exercise
+   * library. Both screens rebuild the identical plan from these params via
+   * `resolvePlan`, and carrying the ids means neither has to re-derive a
+   * selection from the user's profile and hope they agree.
    */
-  WorkoutDetail: { minutes: number; focus: Focus; region?: BodyRegion; seed?: number };
-  WorkoutLog: { minutes: number; focus: Focus; region?: BodyRegion; seed?: number };
+  WorkoutDetail: {
+    minutes: number;
+    focus: Focus;
+    region?: BodyRegion;
+    exerciseIds?: string[];
+  };
+  WorkoutLog: {
+    minutes: number;
+    focus: Focus;
+    region?: BodyRegion;
+    exerciseIds?: string[];
+  };
 
   // Exercise library
   ExerciseLibrary: undefined;

@@ -16,17 +16,22 @@ import {
 } from '../../components';
 import {
   MUSCLE_LABEL,
+  PLACE_LABEL,
   REGION_FOCUS,
   REGION_LABEL,
   REGION_MUSCLES,
   TIME_OPTIONS,
+  categoriesFor,
   describe,
+  equipmentFor,
   estimateSeconds,
   findExercises,
   generateSession,
+  levelsFor,
   totalSets,
   type Muscle,
 } from '../../services';
+import { useProfile } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
 
@@ -48,9 +53,22 @@ export function MuscleGroupScreen() {
   const [seed, setSeed] = useState(0);
   const [muscle, setMuscle] = useState<Muscle | undefined>(route.params.muscle);
 
+  const { profile } = useProfile();
+
+  /*
+   * The session is filtered by the profile, which is the whole reason setup
+   * asks where you train: a gym answer puts barbells and machines in here, a
+   * home answer keeps it to what fits in a living room.
+   */
   const { plan, pool } = useMemo(
-    () => generateSession(region, minutes, { seed }),
-    [region, minutes, seed],
+    () =>
+      generateSession(region, minutes, {
+        seed,
+        equipment: equipmentFor(profile),
+        levels: levelsFor(profile),
+        categories: categoriesFor(profile),
+      }),
+    [region, minutes, seed, profile],
   );
 
   const fitMinutes = Math.round(estimateSeconds(plan) / 60);
@@ -66,7 +84,8 @@ export function MuscleGroupScreen() {
       minutes,
       focus: REGION_FOCUS[region],
       region,
-      seed,
+      // The exact session shown above, not a recipe for regenerating it.
+      exerciseIds: plan.exercises.map(e => e.id),
     });
 
   return (
@@ -158,7 +177,9 @@ export function MuscleGroupScreen() {
         title="All exercises"
         subtitle={
           pool.length < listed.length
-            ? 'The session above draws from the ones you can do at home'
+            ? `The session above uses what you have ${PLACE_LABEL[
+                profile.place
+              ].toLowerCase()}`
             : undefined
         }
         style={styles.section}

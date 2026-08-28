@@ -1,7 +1,14 @@
 import React, { useMemo } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
-import { ChevronRight, Flame, Palette, Timer, Trophy } from 'lucide-react-native';
+import {
+  ChevronRight,
+  Dumbbell,
+  Flame,
+  Palette,
+  Timer,
+  Trophy,
+} from 'lucide-react-native';
 
 import {
   Avatar,
@@ -17,8 +24,16 @@ import {
   Text,
   charStateForStreak,
 } from '../../components';
-import { CHAR_STAGES, PROFILE, charStage } from '../../services';
+import {
+  CHAR_STAGES,
+  EXPERIENCE_LABEL,
+  GOAL_LABEL,
+  PLACE_LABEL,
+  PROFILE,
+  charStage,
+} from '../../services';
 import { useSessions } from '../../hooks/useSessions';
+import { useProfile } from '../../hooks';
 import { placeholderPhoto, remote } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
 
@@ -35,6 +50,7 @@ export function ProfileScreen() {
   const navigation = useNavigation();
 
   const { streak, atRisk, best, stats, source } = useSessions();
+  const { profile } = useProfile();
   const { stage, next, progress, daysToNext } = useMemo(
     () => charStage(streak),
     [streak],
@@ -159,6 +175,17 @@ export function ProfileScreen() {
       </View>
 
       <SectionHeader title="Settings" style={styles.section} />
+      <ListRow
+        filled
+        title="Training"
+        subtitle={`${PLACE_LABEL[profile.place]} · ${EXPERIENCE_LABEL[
+          profile.experience
+        ].toLowerCase()} · ${GOAL_LABEL[profile.goal].toLowerCase()}`}
+        leading={<Dumbbell color={theme.colors.accent} size={20} />}
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('TrainingPreferences')}
+        style={styles.settingsRow}
+      />
       <ListRow
         filled
         title="Appearance"

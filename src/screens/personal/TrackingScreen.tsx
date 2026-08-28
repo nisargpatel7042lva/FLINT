@@ -18,11 +18,12 @@ import {
   TRAINING_TODAY,
   formatDuration,
   formatPace,
+  kcalFor,
   startTracking,
   type LocationTracker,
   type TrackSummary,
 } from '../../services';
-import { useSessions } from '../../hooks';
+import { useProfile, useSessions } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
 
@@ -53,6 +54,7 @@ export function TrackingScreen() {
   const kind = route.params?.kind ?? 'run';
 
   const { addSession } = useSessions();
+  const { profile } = useProfile();
 
   const [status, setStatus] = useState<Status>('idle');
   const [summary, setSummary] = useState<TrackSummary>(EMPTY_SUMMARY);
@@ -131,9 +133,10 @@ export function TrackingScreen() {
   const kcal = useMemo(() => {
     const fromDistance = Math.round(summary.distanceKm * KCAL_PER_KM[kind]);
     // Indoors or with no fix yet, distance is 0 and a time-based estimate is
-    // the only thing left that is not simply a lie.
-    return fromDistance > 0 ? fromDistance : Math.round((elapsed / 60) * 6);
-  }, [summary.distanceKm, elapsed, kind]);
+    // the only thing left that is not simply a lie. With a body weight on the
+    // profile that estimate is MET-scaled rather than a flat guess.
+    return fromDistance > 0 ? fromDistance : kcalFor(profile, elapsed / 60, kind);
+  }, [summary.distanceKm, elapsed, kind, profile]);
 
   const finish = () => {
     const final = tracker.current?.stop() ?? summary;

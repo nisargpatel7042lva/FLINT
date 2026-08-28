@@ -1,4 +1,10 @@
-import { buildPlan, type ExercisePlan, type Focus, type WorkoutPlan } from './training';
+import {
+  buildPlan,
+  FOCUS_LABEL,
+  type ExercisePlan,
+  type Focus,
+  type WorkoutPlan,
+} from './training';
 
 /**
  * The exercise library.
@@ -315,12 +321,25 @@ const idHash = (id: string): number => {
  * movement to hand somebody whose ability we have never seen. A beginner
  * dumbbell press is the better suggestion even though it needs a dumbbell.
  */
-const sessionRank = (e: Exercise): number => {
+const sessionRank = (e: Exercise, equipmentOrder: Equipment[]): number => {
   const category = e.category === 'strength' ? 0 : e.category === 'cardio' ? 1 : 2;
   const compound = e.mechanic === 'compound' ? 0 : 1;
   const level = { beginner: 0, intermediate: 1, expert: 2 }[e.level];
-  const bodyweight = equipmentOf(e) === 'body only' ? 0 : 1;
-  return category * 1000 + compound * 400 + level * 100 + bodyweight * 50;
+
+  /*
+   * Equipment preference is the ORDER of the caller's list, not a hardcoded
+   * "bodyweight first".
+   *
+   * Hardcoded, answering "I train at a gym" changed almost nothing: bodyweight
+   * always won and gym members were handed press-ups. Now the home kit leads
+   * with bodyweight and the gym kit leads with barbells, so the answer
+   * visibly does something. The weight keeps it below `level`, so it steers
+   * rather than overrides — a beginner at a gym still gets beginner lifts.
+   */
+  const position = equipmentOrder.indexOf(equipmentOf(e));
+  const equipment = position === -1 ? equipmentOrder.length : position;
+
+  return category * 1000 + compound * 400 + level * 100 + equipment * 8;
 };
 
 export type GeneratedSession = {
@@ -329,36 +348,63 @@ export type GeneratedSession = {
   pool: Exercise[];
 };
 
-/**
- * Builds a time-fitted session for a body region from the real library.
- *
- * The fit maths matches `training.buildPlan` exactly — each set costs work +
- * rest and each exercise adds a setup cost — so a generated session makes the
- * same promise the rest of the app makes about the clock.
- */
-export function generateSession(
-  region: BodyRegion,
-  minutes: number,
-  options: { equipment?: Equipment[]; level?: Level; seed?: number } = {},
-): GeneratedSession {
+export type SessionOptions = {
+  equipment?: Equipment[];
+  /** Widening set, not a single level — see `levelsFor` in profile.ts. */
+  levels?: Level[];
+  categories?: Category[];
+  seed?: number;
+};
+
+/** Candidate exercises for a set of muscles, honouring the profile filters. */
+function poolFor(muscles: Muscle[], options: SessionOptions): Exercise[] {
   const equipment = options.equipment ?? HOME_EQUIPMENT;
+  const categories = options.categories ?? SESSION_CATEGORIES;
 
-  let pool = findExercises({ region, equipment, category: SESSION_CATEGORIES });
+  const matches = (e: Exercise) => hitsMuscles(e, muscles);
 
-  // Someone with a full gym selected may still filter down to nothing for a
-  // small region. Widening beats returning an empty session.
+  let pool = EXERCISES.filter(
+    e =>
+      matches(e) &&
+      categories.includes(e.category) &&
+      equipment.includes(equipmentOf(e)),
+  );
+
+  // A narrow kit can filter a small region down to nothing. Widening beats an
+  // empty session: a workout you cannot quite do as prescribed is more useful
+  // than no workout at all.
   if (pool.length < 3) {
-    pool = findExercises({ region, category: SESSION_CATEGORIES });
+    pool = EXERCISES.filter(e => matches(e) && categories.includes(e.category));
   }
-  if (options.level) {
-    const byLevel = pool.filter(e => e.level === options.level);
+
+  if (options.levels?.length) {
+    const byLevel = pool.filter(e => options.levels!.includes(e.level));
     if (byLevel.length >= 3) {
       pool = byLevel;
     }
   }
 
+  return pool;
+}
+
+/**
+ * Orders and fits a pool into a session that lands inside the budget.
+ *
+ * `spread` picks exercises with distinct primary muscles first. Without it a
+ * "Full Body" session is whatever ranks highest overall, which in practice is
+ * four chest movements — technically correct and obviously not full body.
+ */
+function fitSession(
+  pool: Exercise[],
+  minutes: number,
+  title: string,
+  focus: Focus,
+  seed: number,
+  equipmentOrder: Equipment[],
+  spread = false,
+): GeneratedSession {
   const ordered = [...pool].sort((a, b) => {
-    const r = sessionRank(a) - sessionRank(b);
+    const r = sessionRank(a, equipmentOrder) - sessionRank(b, equipmentOrder);
     return r !== 0 ? r : idHash(a.id) - idHash(b.id);
   });
 
@@ -368,10 +414,8 @@ export function generateSession(
    *
    * The stride is a quarter of the pool rather than one: rotating by a single
    * place shares three of four exercises with the previous session, which does
-   * not read as a new suggestion. Quartering means each tap moves to a
-   * genuinely different part of the ranking and four taps return to the top.
+   * not read as a new suggestion.
    */
-  const seed = options.seed ?? 0;
   const stride = Math.max(1, Math.floor(ordered.length / 4));
   const offset = ordered.length > 0 ? (seed * stride) % ordered.length : 0;
   const rotated = [...ordered.slice(offset), ...ordered.slice(0, offset)];
@@ -391,7 +435,27 @@ export function generateSession(
   }
   count = Math.min(Math.max(count, 2), rotated.length);
 
-  const chosen = rotated.slice(0, count);
+  let chosen: Exercise[];
+  if (spread) {
+    const used = new Set<Muscle>();
+    chosen = rotated.filter(e => {
+      if (used.size >= count) {
+        return false;
+      }
+      const muscle = e.primaryMuscles[0];
+      if (muscle && used.has(muscle)) {
+        return false;
+      }
+      used.add(muscle);
+      return true;
+    });
+    // Distinct muscles may run out before the budget does.
+    if (chosen.length < count) {
+      chosen = [...chosen, ...rotated.filter(e => !chosen.includes(e))].slice(0, count);
+    }
+  } else {
+    chosen = rotated.slice(0, count);
+  }
 
   const exercises: ExercisePlan[] = chosen.map(e => ({
     id: e.id,
@@ -404,15 +468,74 @@ export function generateSession(
 
   return {
     pool: rotated,
-    plan: {
-      id: `${region}-${minutes}-${seed}`,
-      title: `${minutes}-minute ${REGION_LABEL[region]}`,
-      // The logging screen and history key off `Focus`; a region maps onto it.
-      focus: REGION_FOCUS[region],
-      minutes,
-      exercises,
-    },
+    plan: { id: `${focus}-${minutes}-${seed}`, title, focus, minutes, exercises },
   };
+}
+
+/**
+ * Builds a time-fitted session for a body region from the real library.
+ *
+ * The fit maths matches `training.buildPlan` exactly — each set costs work plus
+ * rest and each exercise adds a setup cost — so a generated session makes the
+ * same promise about the clock that the rest of the app makes.
+ */
+export function generateSession(
+  region: BodyRegion,
+  minutes: number,
+  options: SessionOptions = {},
+): GeneratedSession {
+  return fitSession(
+    poolFor(REGION_MUSCLES[region], options),
+    minutes,
+    `${minutes}-minute ${REGION_LABEL[region]}`,
+    REGION_FOCUS[region],
+    options.seed ?? 0,
+    options.equipment ?? HOME_EQUIPMENT,
+  );
+}
+
+/**
+ * The muscles each of the five foci covers.
+ *
+ * `Focus` predates the library and is what history, streaks and the calendar
+ * key off, so it stays — but the Train tab's sessions now come from the same
+ * 873 exercises as everything else, which is what lets somebody who trains at
+ * a gym get barbells there instead of press-ups.
+ */
+const FOCUS_MUSCLES: Record<Focus, Muscle[]> = {
+  legs: REGION_MUSCLES.legs,
+  upper: [
+    ...REGION_MUSCLES.chest,
+    ...REGION_MUSCLES.back,
+    ...REGION_MUSCLES.arms,
+    ...REGION_MUSCLES.shoulders,
+  ],
+  core: REGION_MUSCLES.core,
+  full: ['chest', 'lats', 'quadriceps', 'abdominals', 'shoulders', 'hamstrings', 'glutes'],
+  cardio: Object.values(REGION_MUSCLES).flat(),
+};
+
+/** Cardio means the category, not a muscle group. */
+const FOCUS_CATEGORIES: Partial<Record<Focus, Category[]>> = {
+  cardio: ['cardio', 'plyometrics'],
+};
+
+/** A session for one of the five foci, drawn from the library. */
+export function generateFocusSession(
+  focus: Focus,
+  minutes: number,
+  options: SessionOptions = {},
+): GeneratedSession {
+  const categories = FOCUS_CATEGORIES[focus] ?? options.categories;
+  return fitSession(
+    poolFor(FOCUS_MUSCLES[focus], { ...options, categories }),
+    minutes,
+    `${minutes}-minute ${FOCUS_LABEL[focus]}`,
+    focus,
+    options.seed ?? 0,
+    options.equipment ?? HOME_EQUIPMENT,
+    focus === 'full' || focus === 'cardio',
+  );
 }
 
 /**
@@ -445,11 +568,70 @@ export type PlanRequest = {
   focus: Focus;
   /** Present when the session came from the exercise library. */
   region?: BodyRegion;
-  seed?: number;
+  /** The exact exercises chosen upstream. Wins over re-deriving. */
+  exerciseIds?: string[];
 };
 
+/**
+ * Rebuilds a plan for the exact exercises given, fitted to the budget.
+ *
+ * Sets, reps and rest are derived the same way `generateSession` derives them,
+ * so a plan rebuilt from ids matches the one that produced them.
+ */
+export function planFromIds(
+  ids: string[],
+  minutes: number,
+  focus: Focus,
+  region?: BodyRegion,
+): WorkoutPlan {
+  const chosen = ids.map(exerciseById).filter((e): e is Exercise => Boolean(e));
+  const rest = minutes <= 8 ? 20 : minutes <= 15 ? 30 : 40;
+  const perSet = WORK_SECONDS + rest;
+
+  let sets = 3;
+  while (sets > 1 && chosen.length * (sets * perSet + SETUP_SECONDS) > minutes * 60) {
+    sets -= 1;
+  }
+
+  return {
+    id: `${region ?? focus}-${minutes}-${ids.length}`,
+    title: `${minutes}-minute ${region ? REGION_LABEL[region] : FOCUS_LABEL[focus]}`,
+    focus,
+    minutes,
+    exercises: chosen.map(e => ({
+      id: e.id,
+      name: e.name,
+      cue: describe(e),
+      sets,
+      restSeconds: rest,
+      ...prescribe(e),
+    })),
+  };
+}
+
+/**
+ * The single place that decides how route params become a plan.
+ *
+ * `WorkoutDetail` and `WorkoutLog` are separate screens that must show the SAME
+ * session — the second is the first being performed.
+ *
+ * When the session came from the library, the chosen exercise IDS travel
+ * through navigation rather than a region and a seed. Re-deriving would mean
+ * both screens independently reading the user's profile and agreeing on it,
+ * which is a race on first launch and a silent mismatch if the profile changes
+ * between the preview and the set. Carrying the ids makes the session you
+ * looked at literally the session you perform.
+ */
 export function resolvePlan(request: PlanRequest): WorkoutPlan {
+  if (request.exerciseIds?.length) {
+    return planFromIds(
+      request.exerciseIds,
+      request.minutes,
+      request.focus,
+      request.region,
+    );
+  }
   return request.region
-    ? generateSession(request.region, request.minutes, { seed: request.seed }).plan
+    ? generateSession(request.region, request.minutes).plan
     : buildPlan(request.minutes, request.focus);
 }
