@@ -1,4 +1,4 @@
-# Kasrat
+# Flint
 
 Android-first fitness tracking app. React Native CLI (not Expo), TypeScript.
 

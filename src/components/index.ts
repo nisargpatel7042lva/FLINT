@@ -1,5 +1,5 @@
 /**
- * Kasrat component library.
+ * Flint component library.
  *
  * Screens should build exclusively from these primitives. If a screen needs a
  * one-off style, that is a signal the primitive needs a new variant — add it

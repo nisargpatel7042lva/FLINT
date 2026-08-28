@@ -1,5 +1,5 @@
 /**
- * Kasrat — app root.
+ * Flint — app root.
  *
  * Provider order matters:
  *   GestureHandlerRootView → SafeAreaProvider → ThemeProvider → navigation

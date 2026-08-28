@@ -1,9 +1,11 @@
 {
-  "name": "kasrat-functions",
-  "description": "Cloud Functions for Kasrat: streak recomputation and Char-voiced nudges.",
+  "name": "flint-functions",
+  "description": "Cloud Functions for Flint: streak recomputation and Char-voiced nudges.",
   "private": true,
   "main": "lib/index.js",
-  "engines": { "node": "20" },
+  "engines": {
+    "node": "20"
+  },
   "scripts": {
     "build": "tsc",
     "lint": "tsc --noEmit",

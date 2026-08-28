@@ -91,7 +91,7 @@ export function FindFriendsScreen() {
           <View style={styles.contactsCopy}>
             <Text variant="bodyStrong">Sync your contacts</Text>
             <Text variant="bodySm" tone="muted">
-              See which of your contacts already train on Kasrat.
+              See which of your contacts already train on Flint.
             </Text>
           </View>
         </View>

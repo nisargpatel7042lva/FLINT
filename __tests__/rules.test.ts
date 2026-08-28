@@ -33,7 +33,7 @@ let env: RulesTestEnvironment;
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
-    projectId: 'kasrat-rules-test',
+    projectId: 'flint-rules-test',
     firestore: {
       rules: fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8'),
       host: '127.0.0.1',

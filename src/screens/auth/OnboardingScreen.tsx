@@ -185,7 +185,7 @@ const SLIDES = [
     key: 'tracking',
     eyebrow: 'Track',
     title: 'Every rep,\ncounted',
-    body: 'Log workouts, steps and calories. Kasrat turns your daily effort into progress you can actually see.',
+    body: 'Log workouts, steps and calories. Flint turns your daily effort into progress you can actually see.',
     Art: TrackingArt,
   },
   {

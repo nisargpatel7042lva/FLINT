@@ -48,7 +48,7 @@ Use `arm64-v8a` for a physical phone.
 
 ## Debug APK — Android Studio
 
-1. **File → Open** → select `C:\dev\Kasrat\android` (open the `android` folder,
+1. **File → Open** → select the repo's `android` folder (open that folder,
    **not** the project root — Android Studio needs the Gradle project).
 2. Wait for **Gradle sync** to finish. First sync downloads the Android Gradle
    Plugin and dependencies and takes a while.
@@ -64,7 +64,7 @@ Common first-run problems:
 | --- | --- |
 | `SDK location not found` | Create `android/local.properties` with `sdk.dir=C\:\\Users\\Asus\\AppData\\Local\\Android\\Sdk` |
 | `Unsupported class file major version` | Wrong JDK. **File → Settings → Build Tools → Gradle → Gradle JDK** → pick the bundled **JBR 21**. |
-| `google-services.json is missing` | It is not — the plugin is skipped when the file is absent (see `android/app/build.gradle`). If you *added* the file and it now fails, the package name inside it is not `com.kasrat`. |
+| `google-services.json is missing` | It is not — the plugin is skipped when the file is absent (see `android/app/build.gradle`). If you *added* the file and it now fails, the package name inside it is not `com.kasrat` — which is correct and deliberate: the app is called Flint but its package id was left unchanged, because changing a package id makes Android treat it as a different app. |
 | `minSdkVersion 24 cannot be smaller than 26` | Something reset `minSdkVersion` in `android/build.gradle`; Health Connect needs 26. |
 | Build succeeds, app crashes instantly | Usually Metro is not running. `npm start` in the project root. |
 
@@ -75,12 +75,12 @@ Common first-run problems:
 **Generate it:**
 
 ```bash
-keytool -genkeypair -v -storetype PKCS12 -keystore kasrat-release.keystore -alias kasrat -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkeypair -v -storetype PKCS12 -keystore flint-release.keystore -alias flint -keyalg RSA -keysize 2048 -validity 10000
 ```
 
 It asks for a password and your details. Then:
 
-- Move `kasrat-release.keystore` to `android/app/`.
+- Move `flint-release.keystore` to `android/app/`.
 - **Back it up somewhere safe.** If you lose this file you can never publish an
   update to the same Play listing again — it is not recoverable, by design.
 - It is git-ignored. Keep it that way.
@@ -88,9 +88,9 @@ It asks for a password and your details. Then:
 **Create `android/keystore.properties`** (also git-ignored):
 
 ```properties
-storeFile=kasrat-release.keystore
+storeFile=flint-release.keystore
 storePassword=YOUR_PASSWORD
-keyAlias=kasrat
+keyAlias=flint
 keyPassword=YOUR_PASSWORD
 ```
 

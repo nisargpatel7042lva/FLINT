@@ -40,7 +40,7 @@ export function DesignSystemScreen() {
       <View style={styles.headerRow}>
         <View style={styles.flex}>
           <Text variant="label" tone="accent" uppercase>
-            Kasrat
+            Flint
           </Text>
           <Text variant="displayMd" style={styles.title}>
             Discipline{'\n'}is Power

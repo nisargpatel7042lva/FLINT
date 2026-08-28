@@ -98,7 +98,7 @@ export function SignInScreen() {
 
         <View style={styles.footer}>
           <Text variant="bodySm" tone="muted">
-            New to Kasrat?
+            New to Flint?
           </Text>
           <Button
             label="Create account"

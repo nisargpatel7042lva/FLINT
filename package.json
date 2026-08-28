@@ -1,5 +1,5 @@
 {
-  "name": "Kasrat",
+  "name": "Flint",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "test:rules": "firebase emulators:exec --only firestore --project kasrat-rules-test \"jest --config jest.rules.config.js\"",
+    "test:rules": "firebase emulators:exec --only firestore --project flint-rules-test \"jest --config jest.rules.config.js\"",
     "typecheck:rules": "tsc -p tsconfig.rules.json"
   },
   "dependencies": {

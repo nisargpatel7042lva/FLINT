@@ -23,7 +23,7 @@ export function Invite({
   const link = `https://kasrat.app/join/${challenge.joinCode}`;
   const poster =
     `Join the ${challenge.name}\n\n` +
-    `1. Download Kasrat\n` +
+    `1. Download Flint\n` +
     `2. Enter code ${challenge.joinCode} when you sign up\n` +
     `3. Your first session takes five minutes\n\n` +
     `Runs ${challenge.startDay} to ${challenge.endDay}.`;

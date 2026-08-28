@@ -37,7 +37,7 @@ const PILL_HEIGHT = 40;
  * Owning the bar also removes the need for the old `insets.bottom` override:
  * the spacing below is this component's own margin.
  */
-export function KasratTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function FlintTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const theme = useTheme();
   const [barWidth, setBarWidth] = useState(0);
 

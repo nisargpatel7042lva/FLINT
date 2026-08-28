@@ -30,7 +30,7 @@ export function WelcomeScreen() {
     <Screen padding="lg" contentContainerStyle={styles.content}>
       <View style={styles.top}>
         <Text variant="label" tone="accent" uppercase>
-          Kasrat
+          Flint
         </Text>
 
         <Text variant="displayLg" style={styles.headline}>

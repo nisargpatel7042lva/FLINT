@@ -27,7 +27,7 @@ export function Login({ onSignedIn }: { onSignedIn: (s: AdminSession) => void })
       <div className="login-card">
         <div style={{ marginBottom: 22 }}>
           <div className="brand" style={{ fontSize: 20 }}>
-            Kasrat <span className="muted" style={{ fontWeight: 400 }}>for Colleges</span>
+            Flint <span className="muted" style={{ fontWeight: 400 }}>for Colleges</span>
           </div>
           <p className="faint" style={{ marginTop: 6 }}>
             Programme dashboard for wellness coordinators.
@@ -75,7 +75,7 @@ export function Login({ onSignedIn }: { onSignedIn: (s: AdminSession) => void })
           </button>
 
           <p className="faint" style={{ marginTop: 14 }}>
-            Coordinator accounts are created by Kasrat. This is separate from the
+            Coordinator accounts are created by Flint. This is separate from the
             student app — a student account cannot sign in here.
           </p>
         </form>

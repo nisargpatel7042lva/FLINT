@@ -30,8 +30,8 @@ they open the app. Only the buzz is missing.
 ## 1. Create the project
 
 1. <https://console.firebase.google.com> → **Create a project**.
-2. Name it `Kasrat`. The project *id* underneath becomes something like
-   `kasrat-1a2b3` — note it, you need it in step 7.
+2. Name it `Flint`. The project *id* underneath becomes something like
+   `flint-1a2b3` — note it, you need it in step 7.
 3. Google Analytics: **not required**. Turn it off unless you want it; nothing
    here uses it and it adds a consent step.
 4. **Create project** → wait → **Continue**.
@@ -47,8 +47,14 @@ they open the app. Only the buzz is missing.
    com.kasrat
    ```
 
+   **Yes, `kasrat`, not `flint`.** The app was renamed to Flint; the package id
+   deliberately was not. A package id is an identity, not a label: changing it
+   makes Android treat this as a different app, so existing installs would not
+   upgrade, and on the Play Store it can never be changed again. Nobody but you
+   ever sees it.
+
    A typo here produces an app that builds fine and silently never connects.
-3. App nickname: `Kasrat` (optional).
+3. App nickname: `Flint` (optional).
 4. **Debug signing certificate SHA-1: leave blank for now.** It is only needed
    for Google Sign-In and phone auth, neither of which is wired up. You can add
    it later without recreating the app. When you do need it, this repo's

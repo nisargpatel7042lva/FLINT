@@ -8,7 +8,7 @@ import { TrainScreen } from '../screens/personal/TrainScreen';
 import { HistoryScreen } from '../screens/personal/HistoryScreen';
 import { ProfileScreen } from '../screens/personal/ProfileScreen';
 import { GroupsScreen } from '../screens/social/GroupsScreen';
-import { KasratTabBar } from './KasratTabBar';
+import { FlintTabBar } from './FlintTabBar';
 import type { MainTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -16,7 +16,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 type TabIconProps = { color: string; size: number };
 
 /**
- * Icons only — the active pill is drawn and animated by `KasratTabBar`, which
+ * Icons only — the active pill is drawn and animated by `FlintTabBar`, which
  * slides one element between tabs instead of toggling a background per item.
  */
 const HomeIcon = ({ color, size }: TabIconProps) => <House color={color} size={size} />;
@@ -29,7 +29,7 @@ const HistoryIcon = ({ color, size }: TabIconProps) => (
 const SquadIcon = ({ color, size }: TabIconProps) => <Users color={color} size={size} />;
 const ProfileIcon = ({ color, size }: TabIconProps) => <User color={color} size={size} />;
 
-const renderTabBar = (props: BottomTabBarProps) => <KasratTabBar {...props} />;
+const renderTabBar = (props: BottomTabBarProps) => <FlintTabBar {...props} />;
 
 /**
  * Personal loop plus the social layer.

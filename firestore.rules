@@ -1,7 +1,7 @@
 rules_version = '2';
 
 /**
- * Kasrat Firestore rules.
+ * Flint Firestore rules.
  *
  * Training data is private. Sessions are a subcollection of the owning user,
  * so ownership is a single uid comparison rather than a field check that could

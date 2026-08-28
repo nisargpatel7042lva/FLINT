@@ -241,7 +241,7 @@ export function TrackingScreen() {
         <Card variant="light" padding="base" radius="xl" style={styles.notice}>
           <Text variant="bodyStrong">Location is off</Text>
           <Text variant="bodySm" tone="muted" style={styles.noticeBody}>
-            Kasrat needs location to measure distance. Turn it on in Settings and
+            Flint needs location to measure distance. Turn it on in Settings and
             come back — nothing is recorded until you press start.
           </Text>
         </Card>

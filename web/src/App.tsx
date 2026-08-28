@@ -30,7 +30,7 @@ export default function App() {
     <>
       <header className="topbar no-print">
         <div className="topbar-inner">
-          <span className="brand">Kasrat</span>
+          <span className="brand">Flint</span>
           <span className="muted">{session.collegeName}</span>
           <div className="spacer" />
           <button onClick={() => setView('create')}>New challenge</button>

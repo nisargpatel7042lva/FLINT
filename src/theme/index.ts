@@ -1,5 +1,5 @@
 /**
- * Kasrat design system — token entry point.
+ * Flint design system — token entry point.
  *
  * Import everything theme-related from `src/theme`, never from the individual
  * files, so the internal layout can change without churn at call sites.

@@ -82,7 +82,7 @@ export function GroupDetailScreen() {
 
   const invite = () => {
     Share.share({
-      message: `Join my group "${group.name}" on Kasrat. Code: ${group.code}`,
+      message: `Join my group "${group.name}" on Flint. Code: ${group.code}`,
     }).catch(() => {
       // A dismissed share sheet rejects on some Android builds. Nothing to
       // recover from — the user simply chose not to send it.

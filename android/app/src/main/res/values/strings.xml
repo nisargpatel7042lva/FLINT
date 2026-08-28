@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Kasrat</string>
+    <string name="app_name">Flint</string>
     <!-- Channel Cloud Messaging posts to when a payload omits one. -->
     <string name="default_notification_channel_id">kasrat_streak</string>
 </resources>
