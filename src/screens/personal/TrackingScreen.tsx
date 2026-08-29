@@ -1,7 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { ArrowLeft, Check, Footprints, Pause, Play, Square, Zap } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Check,
+  Compass,
+  Footprints,
+  Pause,
+  Play,
+  Square,
+  Zap,
+} from 'lucide-react-native';
 
 import {
   Button,
@@ -15,6 +24,10 @@ import {
 } from '../../components';
 import {
   EMPTY_SUMMARY,
+  explorationSummary,
+  loadExplored,
+  recordTrack,
+  saveExplored,
   TRAINING_TODAY,
   formatDuration,
   formatPace,
@@ -60,6 +73,10 @@ export function TrackingScreen() {
   const [summary, setSummary] = useState<TrackSummary>(EMPTY_SUMMARY);
   const [elapsed, setElapsed] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** What this session added to the explored map, filled in on finish. */
+  const [explored, setExplored] = useState<{ discovered: number; text: string } | null>(
+    null,
+  );
 
   const tracker = useRef<LocationTracker | null>(null);
 
@@ -143,6 +160,24 @@ export function TrackingScreen() {
     tracker.current = null;
     setSummary(final);
     setStatus('saved');
+
+    /*
+     * Fold the route into the explored map.
+     *
+     * Deliberately after the session is saved and not awaited: uncovering
+     * ground is the reward, and a storage hiccup must never be the reason a
+     * finished workout fails to log.
+     */
+    loadExplored()
+      .then(current => {
+        const { discovered, revisited, next } = recordTrack(current, final.segments);
+        setExplored({
+          discovered: discovered.length,
+          text: explorationSummary(discovered.length, revisited.length),
+        });
+        return saveExplored(next);
+      })
+      .catch(() => {});
 
     const minutes = Math.max(1, Math.round(elapsed / 60));
     addSession({
@@ -229,6 +264,26 @@ export function TrackingScreen() {
           </View>
         </View>
       </Card>
+
+      {/* What today added to the map. Only after finishing — mid-run it would
+          be a distraction from the run. */}
+      {done && explored ? (
+        <Card variant="light" padding="base" radius="xl" style={styles.explored}>
+          <View style={styles.exploredRow}>
+            <Compass color={theme.colors.accent} size={20} />
+            <View style={styles.flex}>
+              <Text variant="bodyStrong">
+                {explored.discovered > 0
+                  ? `${explored.discovered} new blocks`
+                  : 'Familiar ground'}
+              </Text>
+              <Text variant="bodySm" tone="muted" style={styles.exploredText}>
+                {explored.text}
+              </Text>
+            </View>
+          </View>
+        </Card>
+      ) : null}
 
       <RouteMap
         segments={summary.segments}
@@ -347,6 +402,10 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row' },
   stat: { flex: 1 },
   statValue: { marginTop: 4 },
+  flex: { flex: 1 },
+  explored: { marginTop: 16 },
+  exploredRow: { flexDirection: 'row', alignItems: 'center', columnGap: 14 },
+  exploredText: { marginTop: 2 },
   map: { marginTop: 16 },
   notice: { marginTop: 16 },
   noticeBody: { marginTop: 4 },

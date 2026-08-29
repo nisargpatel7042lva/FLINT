@@ -10,6 +10,7 @@ export * from './personal/ExerciseDetailScreen';
 export * from './profile/TrainingSetupScreen';
 export * from './profile/BodyBasicsScreen';
 export * from './personal/TrainingPreferencesScreen';
+export * from './personal/ExploredScreen';
 export * from './personal/HistoryScreen';
 export * from './personal/ProfileScreen';
 export * from './personal/AppearanceScreen';

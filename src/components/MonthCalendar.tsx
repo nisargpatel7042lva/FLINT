@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { intensityLevel, type IntensityLevel } from '../services/training';
-import { useTheme, type Theme } from '../theme';
+import { useTheme, withAlpha, type Theme } from '../theme';
 import { Text } from './Text';
 
 export type MonthCalendarProps = {
@@ -67,23 +67,6 @@ const keyOf = (d: Date) => {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
-
-/**
- * Applies alpha to a #rrggbb colour.
- *
- * Returns the colour untouched if it is not a 6-digit hex — the accent is a
- * token and could in principle be an rgba() string, and silently producing
- * "#rgba(...)80" would be worse than no tint.
- */
-function withAlpha(hex: string, alpha: number): string {
-  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
-    return hex;
-  }
-  const a = Math.round(Math.min(Math.max(alpha, 0), 1) * 255)
-    .toString(16)
-    .padStart(2, '0');
-  return `${hex}${a}`;
-}
 
 /**
  * Intensity ramp: pale accent for a short session, full strength for a long one.

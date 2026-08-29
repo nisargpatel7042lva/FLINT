@@ -66,6 +66,7 @@ export type RootStackParamList = {
   Notifications: undefined;
   Appearance: undefined;
   TrainingPreferences: undefined;
+  Explored: undefined;
   Friends: undefined;
 
   // Personal tracking

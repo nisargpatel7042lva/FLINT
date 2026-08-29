@@ -52,3 +52,4 @@ export * from './WeeklyBars';
 // Phase 10 - first-run walkthrough.
 export * from './tour';
 export * from './Logo';
+export * from './ExploredMap';

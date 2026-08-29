@@ -50,6 +50,26 @@ export const palette = {
   green500: '#30A46C',
 } as const;
 
+/**
+ * Applies alpha to a #rrggbb colour.
+ *
+ * Returns the colour untouched if it is not a 6-digit hex, because an accent
+ * could in principle be an rgba() string and silently producing
+ * "#rgba(...)80" would be worse than no tint.
+ *
+ * Lives here rather than in a component because the semantic tokens need it:
+ * a soft accent has to be DERIVED from the accent, not written out beside it.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    return hex;
+  }
+  const a = Math.round(Math.min(Math.max(alpha, 0), 1) * 255)
+    .toString(16)
+    .padStart(2, '0');
+  return `${hex}${a}`;
+}
+
 export type AccentName = 'orange' | 'lime' | 'emerald';
 
 /** Runtime list, so a settings screen can iterate the accents. */

@@ -1,7 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronRight, Clock, Dumbbell, Footprints, MapPin, Zap } from 'lucide-react-native';
+import {
+  ChevronRight,
+  Clock,
+  Compass,
+  Dumbbell,
+  Footprints,
+  MapPin,
+  Zap,
+} from 'lucide-react-native';
 
 import {
   Button,
@@ -174,6 +182,21 @@ export function TrainScreen() {
           </PressableScale>
         ))}
       </View>
+
+      {/* Sits under the tracking cards because it is what they add up to. */}
+      <ListRow
+        filled
+        title="Explored"
+        subtitle="The ground you've covered, and what's just past the edge"
+        style={styles.library}
+        leading={
+          <View style={styles.libraryIcon}>
+            <Compass color={theme.colors.accent} size={20} />
+          </View>
+        }
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('Explored')}
+      />
 
       <SectionHeader
         title={`${minutes}-minute sessions`}

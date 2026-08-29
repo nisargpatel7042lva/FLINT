@@ -1,4 +1,4 @@
-import { Accent, AccentName, accents, palette } from './colors';
+import { Accent, AccentName, accents, palette, withAlpha } from './colors';
 import { radius, spacing } from './spacing';
 import { shadows } from './shadows';
 import { fontFamily, fontWeight, typography } from './typography';
@@ -115,7 +115,12 @@ const darkColors = (accent: Accent): ThemeColors => ({
 
   accent: accent.base,
   accentPressed: accent.pressed,
-  accentSoft: 'rgba(255, 107, 26, 0.16)',
+  /*
+   * Derived, not written out. This was a hardcoded orange rgba, so every
+   * soft-accent surface in dark mode stayed orange no matter which accent the
+   * user picked — Volt and Jade both painted orange washes.
+   */
+  accentSoft: withAlpha(accent.base, 0.16),
   onAccent: accent.on,
 
   success: palette.green500,
