@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import {
+  useIsFocused,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import {
   ArrowRight,
   Bell,
@@ -47,6 +52,7 @@ import {
 } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
 import { useProfile } from '../../hooks';
+import type { MainTabParamList } from '../../navigation/types';
 import { HOME_TOUR } from './homeTour';
 import { placeholderPhoto, remote, type PhotoTopic } from '../../assets/placeholders';
 import { useTheme, useThemeContext } from '../../theme';
@@ -106,6 +112,16 @@ export function DashboardScreen() {
   const { start, active, steps, index } = useTour();
   const isFocused = useIsFocused();
 
+  /*
+   * Set by the last screen of the opening flow, and true only for that one
+   * arrival. Landing here straight out of the introduction and being handed a
+   * second walkthrough makes the whole thing read as one long tutorial, so the
+   * tour waits until the next time the app is opened — by which point the
+   * streak card it explains actually has something in it.
+   */
+  const route = useRoute<RouteProp<MainTabParamList, 'Home'>>();
+  const justOnboarded = route.params?.justOnboarded ?? false;
+
   // The tour has no callback of its own, so the screen that owns the flag marks
   // it done the moment the overlay closes after having been open.
   const wasActive = React.useRef(false);
@@ -134,11 +150,18 @@ export function DashboardScreen() {
    * every cold start for someone who already finished it.
    */
   useEffect(() => {
-    if (isFocused && !tourDone && !active && !loading && !prefsLoading) {
+    if (
+      isFocused &&
+      !justOnboarded &&
+      !tourDone &&
+      !active &&
+      !loading &&
+      !prefsLoading
+    ) {
       const t = setTimeout(() => start(HOME_TOUR), 600);
       return () => clearTimeout(t);
     }
-  }, [isFocused, tourDone, active, loading, prefsLoading, start]);
+  }, [isFocused, justOnboarded, tourDone, active, loading, prefsLoading, start]);
   const { profile } = useProfile();
 
   /*
@@ -177,8 +200,14 @@ export function DashboardScreen() {
       <View style={styles.header}>
         <Avatar name={PROFILE.name} size="md" ring />
         <View style={styles.flex}>
+          {/*
+            "Welcome back" to somebody who has never been here is a small lie
+            told in the first four words of the app. The identity below it is
+            still fixture data — see PROFILE in trainingData — and moving the
+            whole app onto the repository's profile is its own change.
+          */}
           <Text variant="caption" tone="muted">
-            Welcome back
+            {logs.length > 0 ? 'Welcome back' : 'Welcome to Flint'}
           </Text>
           <Text variant="h2" numberOfLines={1}>
             {PROFILE.name}

@@ -15,7 +15,15 @@ import type { Focus } from '../services/training';
  * out of the tab bar so the individual loop can be judged on its own.
  */
 export type MainTabParamList = {
-  Home: undefined;
+  /**
+   * `justOnboarded` is set by the last screen of the opening flow.
+   *
+   * It exists so the home walkthrough does not start in the same breath as the
+   * introduction that just finished. Two tutorials back to back read as one
+   * long tutorial, and the second one teaches a streak card that the first one
+   * already explained.
+   */
+  Home: { justOnboarded?: boolean } | undefined;
   Train: undefined;
   Squad: undefined;
   History: undefined;

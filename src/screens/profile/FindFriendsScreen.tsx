@@ -62,7 +62,15 @@ export function FindFriendsScreen() {
     };
   }, [query, searchProfiles]);
 
-  const finish = () => navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+  const finish = () => navigation.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'Tabs',
+                  params: { screen: 'Home', params: { justOnboarded: true } },
+                },
+              ],
+            });
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>

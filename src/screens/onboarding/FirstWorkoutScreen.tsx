@@ -20,6 +20,7 @@ import {
   categoriesFor,
   equipmentFor,
   estimateSeconds,
+  exerciseInstructions,
   generateFocusSession,
   kcalFor,
   levelsFor,
@@ -97,6 +98,36 @@ export function FirstWorkoutScreen() {
   const first = plan.exercises[0];
   const firstMinutes = first ? minutesFor(plan, first) : 1;
 
+  /*
+   * The first movement gets a real instruction rather than the library's
+   * factual descriptor.
+   *
+   * Everywhere else "Barbell · Beginner" is the right line — the app does not
+   * invent form cues for 873 exercises, because inventing technique advice at
+   * scale is how people get hurt. But this is the one exercise somebody is
+   * being asked to do before they have seen anything else in the app, and the
+   * dataset ships genuine instructions for it. Showing the first one is using
+   * what we have, not writing something new.
+   */
+  const firstCue = useMemo(() => {
+    if (!first) {
+      return '';
+    }
+    return exerciseInstructions(first.id)[0] ?? first.cue;
+  }, [first]);
+
+  /*
+   * "That's one." next to a zero is the exact contradiction this screen exists
+   * to avoid, and there is a window where it happens: the repository write is
+   * in flight, so `streak` is still the pre-session value.
+   *
+   * They finished a set today, so the streak is at least one — unless the write
+   * was actually REJECTED, in which case nothing was recorded and inventing a
+   * number would be the lie rather than the truth. The failure line below says
+   * what happened.
+   */
+  const shownStreak = saveError ? streak : Math.max(streak, 1);
+
   const complete = useCallback(() => {
     // The celebration is not conditional on the write landing. They did the
     // work; a storage failure is ours to report, not theirs to be denied.
@@ -141,7 +172,7 @@ export function FirstWorkoutScreen() {
               <View style={styles.streakRow}>
                 <Flame color={theme.colors.accent} size={30} />
                 <AnimatedCounter
-                  value={streak}
+                  value={shownStreak}
                   variant="statLg"
                   tone="inverse"
                   durationMs={520}
@@ -172,7 +203,7 @@ export function FirstWorkoutScreen() {
             )}>
             <Text variant="bodySm" tone="muted" align="center" style={styles.igniteBody}>
               Your spark is lit. It stays that way as long as you keep showing up —
-              and it dims if you don't. The rest of that session is waiting on your
+              and it dims if you don't. Your next session is already waiting on the
               home screen.
             </Text>
             {saveError ? (
@@ -181,7 +212,8 @@ export function FirstWorkoutScreen() {
                 tone="muted"
                 align="center"
                 style={styles.saveError}>
-                Saved on this device only for now — it will sync when it can.
+                That one could not be saved. Check your connection, then log it
+                again from the home screen.
               </Text>
             ) : null}
           </Animated.View>
@@ -201,7 +233,15 @@ export function FirstWorkoutScreen() {
             size="md"
             fullWidth
             style={styles.skip}
-            onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] })}
+            onPress={() => navigation.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'Tabs',
+                  params: { screen: 'Home', params: { justOnboarded: true } },
+                },
+              ],
+            })}
           />
         </Animated.View>
       </Screen>
@@ -246,6 +286,13 @@ export function FirstWorkoutScreen() {
           </Text>
           <Text variant="bodySm" tone="onAccent" style={styles.firstDetail}>
             {first.sets} × {prescription(first)} · {first.cue}
+          </Text>
+          <Text
+            variant="bodySm"
+            tone="onAccent"
+            numberOfLines={3}
+            style={styles.firstCue}>
+            {firstCue}
           </Text>
           <Button
             label="I did it"
@@ -299,6 +346,7 @@ const styles = StyleSheet.create({
   firstCard: { marginTop: 20 },
   firstName: { marginTop: 8 },
   firstDetail: { marginTop: 4 },
+  firstCue: { marginTop: 12, opacity: 0.85 },
   firstCta: { marginTop: 20 },
   restLabel: { marginTop: 28 },
   rest: { marginTop: 4 },

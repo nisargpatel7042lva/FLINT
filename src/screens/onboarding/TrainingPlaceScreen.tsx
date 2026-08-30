@@ -72,6 +72,7 @@ export function TrainingPlaceScreen() {
         {PLACES.map(p => (
           <OptionCard
             key={p}
+            mode="action"
             title={PLACE_LABEL[p]}
             description={PLACE_EFFECT[p]}
             icon={iconFor(p)}

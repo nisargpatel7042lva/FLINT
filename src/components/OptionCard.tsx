@@ -1,9 +1,18 @@
 import React from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { Check, ChevronRight } from 'lucide-react-native';
 
 import { useTheme } from '../theme';
 import { Text } from './Text';
+
+/**
+ * `select` is a member of a radio group: it holds a selected state and waits
+ * for a Continue elsewhere on the screen. `action` commits the moment it is
+ * tapped, so it carries a chevron instead — an empty radio on a card that
+ * navigates away reads as an unanswered form, and invites a second tap that
+ * does not exist.
+ */
+export type OptionCardMode = 'select' | 'action';
 
 export type OptionCardProps = {
   title: string;
@@ -11,6 +20,7 @@ export type OptionCardProps = {
   /** A lucide icon element shown in the leading slot. */
   icon?: React.ReactNode;
   selected?: boolean;
+  mode?: OptionCardMode;
   onPress?: () => void;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -29,6 +39,7 @@ export function OptionCard({
   description,
   icon,
   selected = false,
+  mode = 'select',
   onPress,
   disabled = false,
   style,
@@ -39,8 +50,10 @@ export function OptionCard({
   return (
     <Pressable
       testID={testID}
-      accessibilityRole="radio"
-      accessibilityState={{ selected, disabled }}
+      accessibilityRole={mode === 'action' ? 'button' : 'radio'}
+      accessibilityState={
+        mode === 'action' ? { disabled } : { selected, disabled }
+      }
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
@@ -80,16 +93,22 @@ export function OptionCard({
         ) : null}
       </View>
 
-      <View
-        style={[
-          styles.check,
-          {
-            borderColor: selected ? theme.colors.accent : theme.colors.borderStrong,
-            backgroundColor: selected ? theme.colors.accent : TRANSPARENT,
-          },
-        ]}>
-        {selected ? <Check color={theme.colors.onAccent} size={14} strokeWidth={3} /> : null}
-      </View>
+      {mode === 'action' ? (
+        <ChevronRight color={theme.colors.textMuted} size={20} />
+      ) : (
+        <View
+          style={[
+            styles.check,
+            {
+              borderColor: selected ? theme.colors.accent : theme.colors.borderStrong,
+              backgroundColor: selected ? theme.colors.accent : TRANSPARENT,
+            },
+          ]}>
+          {selected ? (
+            <Check color={theme.colors.onAccent} size={14} strokeWidth={3} />
+          ) : null}
+        </View>
+      )}
     </Pressable>
   );
 }
