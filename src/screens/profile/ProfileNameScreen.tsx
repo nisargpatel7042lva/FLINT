@@ -66,7 +66,7 @@ export function ProfileNameScreen() {
     setError(null);
     try {
       await claimProfile(name, check.handle);
-      navigation.navigate('TrainingSetup');
+      navigation.navigate('ProfileGoal');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

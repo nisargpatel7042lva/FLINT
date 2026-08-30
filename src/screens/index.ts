@@ -7,7 +7,6 @@ export * from './personal/TrackingScreen';
 export * from './personal/ExerciseLibraryScreen';
 export * from './personal/MuscleGroupScreen';
 export * from './personal/ExerciseDetailScreen';
-export * from './profile/TrainingSetupScreen';
 export * from './profile/BodyBasicsScreen';
 export * from './personal/TrainingPreferencesScreen';
 export * from './personal/ExploredScreen';
@@ -19,6 +18,7 @@ export * from './personal/AppearanceScreen';
 export * from './onboarding/SplashScreen';
 export * from './onboarding/BarrierScreen';
 export * from './onboarding/SparkReactionScreen';
+export * from './onboarding/TrainingPlaceScreen';
 export * from './onboarding/TimeBudgetScreen';
 export * from './onboarding/FirstWorkoutScreen';
 

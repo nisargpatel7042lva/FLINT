@@ -32,11 +32,13 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   /**
    * First-60-seconds flow. Auth deliberately sits AFTER the first win:
-   * Splash -> Barrier -> SparkReaction -> TimeBudget -> FirstWorkout -> SignUp
+   * Splash -> Barrier -> SparkReaction -> TrainingPlace -> TimeBudget
+   *        -> FirstWorkout -> SignUp
    */
   Splash: undefined;
   Barrier: undefined;
   SparkReaction: { barrierId: BarrierId };
+  TrainingPlace: undefined;
   TimeBudget: undefined;
   FirstWorkout: { minutes: number } | undefined;
 
@@ -45,7 +47,6 @@ export type RootStackParamList = {
   SignIn: undefined;
   SignUp: undefined;
   ProfileName: undefined;
-  TrainingSetup: undefined;
   /**
    * `inSetup` distinguishes the onboarding step from the same screen reached
    * later from Settings — it decides whether there are progress dots and

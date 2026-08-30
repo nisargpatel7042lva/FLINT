@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react-native';
 
 import { AnimatedCounter, Button, Spark, Screen, Slider, Text } from '../../components';
 import { useTheme } from '../../theme';
+import { FlowHeader } from './FlowHeader';
 
 const MIN = 5;
 const MAX = 30;
@@ -24,6 +25,8 @@ export function TimeBudgetScreen() {
 
   return (
     <Screen padding="lg" contentContainerStyle={styles.content}>
+      <FlowHeader step="Time" />
+
       <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
         Today only
       </Text>
@@ -87,7 +90,7 @@ export function TimeBudgetScreen() {
 
 const styles = StyleSheet.create({
   content: { flex: 1, paddingBottom: 24 },
-  eyebrow: { paddingTop: 12 },
+  eyebrow: { marginTop: 28 },
   title: { marginTop: 6 },
   center: { flex: 1, justifyContent: 'center' },
   spark: { alignSelf: 'center' },

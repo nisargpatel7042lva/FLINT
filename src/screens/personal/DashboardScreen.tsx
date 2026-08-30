@@ -35,6 +35,7 @@ import {
   PLACE_LABEL,
   PROFILE,
   TRAINING_TODAY,
+  barrierReminder,
   categoriesFor,
   equipmentFor,
   estimateSeconds,
@@ -81,6 +82,26 @@ export function DashboardScreen() {
   const [minutes, setMinutes] = useState(15);
 
   const { logs, streak, atRisk, stats, loading } = useSessions();
+
+  /*
+   * Three states, not two.
+   *
+   * `atRisk` is false both when today is already logged AND when there is no
+   * streak to lose, so keying the copy off it alone told somebody on their
+   * very first morning that their spark was burning and today was logged.
+   * Nothing erodes trust faster than a status line that is wrong about what
+   * you just did.
+   */
+  const loggedToday = useMemo(
+    () => logs.some(l => l.day === TRAINING_TODAY),
+    [logs],
+  );
+
+  const hero = loggedToday
+    ? 'Your spark is\nburning.'
+    : atRisk
+    ? 'Keep it lit.'
+    : "Let's light it.";
   const { tourDone, setTourDone, loading: prefsLoading } = useThemeContext();
   const { start, active, steps, index } = useTour();
   const isFocused = useIsFocused();
@@ -172,7 +193,7 @@ export function DashboardScreen() {
       </View>
 
       <Text variant="displayMd" style={styles.hero}>
-        {atRisk ? 'Keep it lit.' : 'Your spark is\nburning.'}
+        {hero}
       </Text>
 
       {/* Spark, the streak, and the week's shape in one card. */}
@@ -191,10 +212,19 @@ export function DashboardScreen() {
           </View>
         </View>
 
+        {/*
+          On a cold day Spark repeats the promise made during the opening, in
+          the words of the barrier that person named. It is the one place where
+          knowing why somebody started is worth more than another statistic.
+        */}
         <Text variant="bodySm" tone="inverseMuted" style={styles.streakNote}>
-          {atRisk
+          {loggedToday
+            ? 'Logged today. Your spark stays lit.'
+            : atRisk
             ? 'Nothing logged yet today. Train to hold it.'
-            : 'Logged today. Your spark stays lit.'}
+            : profile.barrier
+            ? barrierReminder(profile.barrier)
+            : 'Nothing logged yet. One session starts the streak.'}
         </Text>
 
         <WeeklyBars

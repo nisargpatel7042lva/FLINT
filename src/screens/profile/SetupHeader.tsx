@@ -6,7 +6,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { IconButton, PageDots, Text } from '../../components';
 import { useTheme } from '../../theme';
 
-export const SETUP_STEPS = 5;
+export const SETUP_STEPS = 4;
 
 export type SetupHeaderProps = {
   /** Zero-based step index. */

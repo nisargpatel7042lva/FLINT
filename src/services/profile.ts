@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { BARRIER_IDS, type BarrierId } from './onboarding';
 import type { Category, Equipment, Level } from './exercises';
 
 /**
@@ -47,6 +48,15 @@ export type TrainingProfile = {
   birthYear?: number;
   heightCm?: number;
   weightKg?: number;
+  /**
+   * The obstacle named on the first screen.
+   *
+   * Stored because the whole opening asks somebody to admit something, and an
+   * app that asks and then never refers to it again has taken an answer
+   * without giving anything back. It is what Spark answers with once the first
+   * set is done, and what the streak-at-risk copy leans on later.
+   */
+  barrier?: BarrierId;
   /** True once the person has been through setup, so we stop asking. */
   completed: boolean;
 };
@@ -72,6 +82,8 @@ const isSex = (v: unknown): v is Sex =>
   v === 'male' || v === 'female' || v === 'unspecified';
 const isGoal = (v: unknown): v is GoalId =>
   v === 'lose' || v === 'build' || v === 'endurance' || v === 'healthy';
+const isBarrier = (v: unknown): v is BarrierId =>
+  BARRIER_IDS.includes(v as BarrierId);
 
 /** Bounds that reject nonsense without rejecting real people. */
 const inRange = (v: unknown, lo: number, hi: number): number | undefined =>
@@ -95,6 +107,7 @@ export async function loadProfile(): Promise<TrainingProfile> {
       birthYear: inRange(p.birthYear, thisYear - 100, thisYear - 10),
       heightCm: inRange(p.heightCm, 100, 250),
       weightKg: inRange(p.weightKg, 25, 300),
+      barrier: isBarrier(p.barrier) ? p.barrier : undefined,
       completed: Boolean(p.completed),
     };
   } catch {
@@ -119,6 +132,20 @@ export const PLACE_LABEL: Record<TrainingPlace, string> = {
   home: 'At home',
   gym: 'At a gym',
   both: 'Both',
+};
+
+/**
+ * What each answer actually changes, said plainly on the card.
+ *
+ * People answer setup questions better when they can see the consequence, and
+ * a question whose consequence you cannot state is a question worth deleting.
+ * It lives here rather than on a screen because two screens ask it — the
+ * opening flow and Settings — and they must not drift.
+ */
+export const PLACE_EFFECT: Record<TrainingPlace, string> = {
+  home: 'Bodyweight, dumbbells and bands.',
+  gym: 'Machines, barbells, cables — the full floor.',
+  both: 'Everything, and you pick per session.',
 };
 
 export const EXPERIENCE_LABEL: Record<Experience, string> = {

@@ -1,14 +1,27 @@
 import type { SparkState } from '../components/spark/Spark';
 
 /**
- * First-60-seconds onboarding content.
+ * The opening flow.
  *
- * The barriers mirror the real survey answers. `weight` drives visual
- * hierarchy, not ordering logic — "No time" is the dominant real-world answer
- * so it gets the larger card, but the other three stay fully visible rather
- * than being demoted behind a "more" affordance.
+ * Six taps, no account, no form. The shape is: name the thing that stops you,
+ * hear Spark answer that exact thing, say where you train and how long you
+ * have, then finish one movement. The account offer comes last, once there is
+ * something worth saving.
+ *
+ * Everything in this module is copy and structure — no generation, no storage.
+ * The first session comes from the real exercise library via
+ * `exercises.generateFocusSession`, filtered by the answers given here, and it
+ * is logged through the same repository as every session after it.
  */
 export type BarrierId = 'no_time' | 'lose_interest' | 'no_push' | 'no_plan';
+
+/** Runtime list, so stored values can be validated without a second source. */
+export const BARRIER_IDS: BarrierId[] = [
+  'no_time',
+  'lose_interest',
+  'no_push',
+  'no_plan',
+];
 
 export type Barrier = {
   id: BarrierId;
@@ -25,6 +38,23 @@ export type Barrier = {
     /** One supporting sentence. Concrete, no motivational filler. */
     detail: string;
   };
+  /**
+   * What Spark says the moment the first set is done.
+   *
+   * This is the point of asking. The opening asks somebody to admit the thing
+   * that has beaten them before; if the app never refers to it again it has
+   * taken an answer and given nothing back. `{minutes}` is substituted with
+   * what the session actually cost, because the strongest possible reply to
+   * "I have no time" is a true number.
+   */
+  payoff: string;
+  /**
+   * The same promise, in the present tense, for later in the app.
+   *
+   * Shown on the profile and used by the streak-at-risk copy, so the reason
+   * somebody started is still visible on the day they nearly stop.
+   */
+  reminder: string;
 };
 
 export const BARRIERS: Barrier[] = [
@@ -39,6 +69,8 @@ export const BARRIERS: Barrier[] = [
       detail:
         'Tell me what you actually have today — even five minutes — and I will build around that number, not around a plan you have to fit into.',
     },
+    payoff: 'You said you had no time. That cost you {minutes}.',
+    reminder: 'Every session is built around the minutes you actually have.',
   },
   {
     id: 'lose_interest',
@@ -51,6 +83,8 @@ export const BARRIERS: Barrier[] = [
       detail:
         'Week three is where most apps lose you. Your sessions change, and your streak becomes the thing you do not want to break.',
     },
+    payoff: 'Week three is the one to beat. This is day one of it.',
+    reminder: 'Week three is the target. Your sessions change so it stays interesting.',
   },
   {
     id: 'no_push',
@@ -63,6 +97,8 @@ export const BARRIERS: Barrier[] = [
       detail:
         'You will be put against real people in Team Wars, where your effort adds to a group score and going missing is visible.',
     },
+    payoff: 'Nobody pushed you into that one. Remember that when somebody does.',
+    reminder: 'Friends can see your streak, and they can nudge you when it slips.',
   },
   {
     id: 'no_plan',
@@ -75,62 +111,42 @@ export const BARRIERS: Barrier[] = [
       detail:
         'I pick the session, the order and the timing. You just start it — beginning right now, with one.',
     },
+    payoff: 'You did not have to pick a thing. That is how it stays.',
+    reminder: 'The session is always already chosen. You only have to start it.',
   },
 ];
 
 export const barrierById = (id: BarrierId): Barrier =>
   BARRIERS.find(b => b.id === id) ?? BARRIERS[0];
 
-// ── Workout generation ─────────────────────────────────────────────────────
+/**
+ * Spark's reply to the barrier, once the first movement is done.
+ *
+ * The minutes are phrased rather than printed raw — "four minutes" reads as a
+ * remark and "4" reads as a metric, and this is the one line in the flow that
+ * is meant to sound like somebody talking.
+ */
+export function barrierPayoff(id: BarrierId, minutes: number): string {
+  const spent = minutes <= 1 ? 'about a minute' : `${minutes} minutes`;
+  return barrierById(id).payoff.replace('{minutes}', spent);
+}
 
-export type GeneratedExercise = {
-  id: string;
-  name: string;
-  detail: string;
-  seconds: number;
-};
+export const barrierReminder = (id: BarrierId): string =>
+  barrierById(id).reminder;
 
-export type GeneratedWorkout = {
-  title: string;
-  minutes: number;
-  exercises: GeneratedExercise[];
-};
+// ── Flow shape ─────────────────────────────────────────────────────────────
 
 /**
- * TODO: replace with real workout generation.
+ * The steps that carry a progress indicator.
  *
- * This is a deliberate stub. It fills the requested time budget from a fixed
- * pool at a fixed ratio and does not consider the user's goal, equipment,
- * fitness level, injury history, recovery state, or what they did yesterday —
- * all of which the real generator must.
- *
- * The signature is the contract worth keeping: minutes in, an ordered list of
- * timed exercises out, summing to the budget.
+ * Splash is excluded on purpose: it is the invitation, and putting "1 of 5"
+ * under it turns a one-sentence opening into a form somebody is about to
+ * start filling in. Counting begins once they have said yes.
  */
-export function generateWorkout(minutes: number): GeneratedWorkout {
-  const POOL: Omit<GeneratedExercise, 'seconds' | 'id'>[] = [
-    { name: 'Jumping jacks', detail: 'Warm up, steady pace' },
-    { name: 'Bodyweight squats', detail: 'Chest up, full depth' },
-    { name: 'Push-ups', detail: 'Knees down is fine' },
-    { name: 'Reverse lunges', detail: 'Alternate legs' },
-    { name: 'Plank', detail: 'Hold, hips level' },
-    { name: 'Glute bridges', detail: 'Squeeze at the top' },
-    { name: 'Mountain climbers', detail: 'Controlled, not frantic' },
-    { name: 'Dead bug', detail: 'Slow, ribs down' },
-  ];
+export const FLOW_STEPS = ['Barrier', 'Place', 'Time', 'Session'] as const;
 
-  // One exercise per ~2.5 minutes, clamped so a 5-minute session is not a
-  // single move and a 30-minute one is not an unreadable wall.
-  const count = Math.min(Math.max(Math.round(minutes / 2.5), 2), 8);
-  const perExercise = Math.round((minutes * 60) / count);
+export type FlowStep = (typeof FLOW_STEPS)[number];
 
-  return {
-    title: `${minutes}-minute starter`,
-    minutes,
-    exercises: POOL.slice(0, count).map((e, i) => ({
-      ...e,
-      id: `ex${i + 1}`,
-      seconds: perExercise,
-    })),
-  };
-}
+export const FLOW_LENGTH = FLOW_STEPS.length;
+
+export const flowIndex = (step: FlowStep): number => FLOW_STEPS.indexOf(step);

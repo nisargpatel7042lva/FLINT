@@ -9,6 +9,7 @@ import {
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useTheme } from '../theme';
+import { useProfile } from '../hooks';
 import { useSessions } from '../hooks/useSessions';
 import {
   AppearanceScreen,
@@ -36,8 +37,8 @@ import {
   TeamWarScreen,
   TimeBudgetScreen,
   TrackingScreen,
+  TrainingPlaceScreen,
   TrainingPreferencesScreen,
-  TrainingSetupScreen,
   WorkoutDetailScreen,
   WorkoutLogScreen,
   FeedScreen,
@@ -74,16 +75,23 @@ export function RootNavigator() {
   const theme = useTheme();
 
   /**
-   * Returning users skip onboarding.
+   * Returning users skip the opening.
    *
-   * Having training history IS the signal that someone has been here before —
-   * no separate "hasOnboarded" flag to keep in sync, and it behaves correctly
-   * on a fresh install (no sessions -> onboarding) and on reinstall against an
-   * existing account (sessions sync -> straight into the app).
+   * Two independent signals, either of which is enough:
+   *
+   *  - Training history. Correct on a reinstall against an existing account —
+   *    the sessions sync and the person lands straight in the app.
+   *  - `profile.completed`, written the moment the first session is finished.
+   *
+   * The flag is not redundant. Somebody can finish the opening while offline,
+   * or decline the account and later clear their history, and without it the
+   * app greets them as a stranger and replays the whole introduction — having
+   * already been told, once, what stops them from training.
    */
   const { logs, loading } = useSessions();
+  const { profile, loading: profileLoading } = useProfile();
 
-  if (loading) {
+  if (loading || profileLoading) {
     // Brief, and on-theme — a white flash here would be the first thing anyone
     // sees on a cold start.
     return (
@@ -93,7 +101,7 @@ export function RootNavigator() {
     );
   }
 
-  const initialRouteName = logs.length > 0 ? 'Tabs' : 'Splash';
+  const initialRouteName = logs.length > 0 || profile.completed ? 'Tabs' : 'Splash';
 
   return (
     <NavigationContainer theme={navTheme}>
@@ -104,6 +112,7 @@ export function RootNavigator() {
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Barrier" component={BarrierScreen} />
         <Stack.Screen name="SparkReaction" component={SparkReactionScreen} />
+        <Stack.Screen name="TrainingPlace" component={TrainingPlaceScreen} />
         <Stack.Screen name="TimeBudget" component={TimeBudgetScreen} />
         <Stack.Screen name="FirstWorkout" component={FirstWorkoutScreen} />
 
@@ -113,7 +122,6 @@ export function RootNavigator() {
         <Stack.Screen name="SignUp" component={SignUpScreen} />
         <Stack.Screen name="SignIn" component={SignInScreen} />
         <Stack.Screen name="ProfileName" component={ProfileNameScreen} />
-        <Stack.Screen name="TrainingSetup" component={TrainingSetupScreen} />
         <Stack.Screen name="BodyBasics" component={BodyBasicsScreen} />
         <Stack.Screen name="ProfileGoal" component={ProfileGoalScreen} />
         <Stack.Screen name="FindFriends" component={FindFriendsScreen} />

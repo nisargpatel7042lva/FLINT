@@ -30,6 +30,8 @@ import {
   GOAL_LABEL,
   PLACE_LABEL,
   PROFILE,
+  barrierById,
+  barrierReminder,
   sparkStage,
 } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
@@ -152,6 +154,26 @@ export function ProfileScreen() {
         </Card>
       </View>
 
+      {/*
+        Why this person started, in their own words from the first screen.
+        A streak explains what somebody has done; this explains what it is for,
+        and it is the only thing on this screen that will still mean something
+        on the day they consider stopping.
+      */}
+      {profile.barrier ? (
+        <Card variant="light" padding="base" radius="xl" style={styles.why}>
+          <Text variant="label" tone="muted" uppercase>
+            Why you started
+          </Text>
+          <Text variant="bodyStrong" style={styles.whyTitle}>
+            {barrierById(profile.barrier).title}
+          </Text>
+          <Text variant="bodySm" tone="muted" style={styles.whyBlurb}>
+            {barrierReminder(profile.barrier)}
+          </Text>
+        </Card>
+      ) : null}
+
       <SectionHeader
         title="Lifetime"
         subtitle={`Training since ${PROFILE.joinedDay}`}
@@ -262,6 +284,9 @@ const styles = StyleSheet.create({
   streakRow: { flexDirection: 'row', columnGap: 12, marginTop: 16 },
   streakCard: { flex: 1 },
   streakInner: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
+  why: { marginTop: 20 },
+  whyTitle: { marginTop: 8 },
+  whyBlurb: { marginTop: 4 },
   section: { marginTop: 30 },
   stats: { flexDirection: 'row', columnGap: 10, marginTop: 14 },
   stages: { marginTop: 10, rowGap: 8 },

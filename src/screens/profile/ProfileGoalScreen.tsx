@@ -44,7 +44,7 @@ export function ProfileGoalScreen() {
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
       <SetupHeader
-        step={3}
+        step={1}
         title={"What's your\nmain goal?"}
         subtitle="We'll tailor your plan and challenges around this."
       />
@@ -69,7 +69,7 @@ export function ProfileGoalScreen() {
         label="Continue"
         size="lg"
         fullWidth
-        onPress={() => navigation.navigate('FindFriends')}
+        onPress={() => navigation.navigate('BodyBasics', { inSetup: true })}
         iconRight={<ArrowRight color={theme.colors.onAccent} size={20} />}
         style={styles.submit}
       />

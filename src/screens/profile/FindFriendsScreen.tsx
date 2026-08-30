@@ -67,7 +67,7 @@ export function FindFriendsScreen() {
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
       <SetupHeader
-        step={4}
+        step={3}
         title={'Find your\ntraining partners'}
         subtitle="Friends make streaks stick. You can skip and add people later."
       />

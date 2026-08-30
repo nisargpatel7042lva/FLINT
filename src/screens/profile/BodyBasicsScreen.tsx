@@ -91,7 +91,7 @@ export function BodyBasicsScreen() {
     }
 
     if (inSetup) {
-      navigation.navigate('ProfileGoal');
+      navigation.navigate('FindFriends');
     } else {
       navigation.goBack();
     }

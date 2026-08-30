@@ -4,8 +4,10 @@ import { useNavigation } from '@react-navigation/native';
 
 import { Card, PressableScale, Screen, Text } from '../../components';
 import { BARRIERS, type Barrier } from '../../services';
+import { useProfile } from '../../hooks';
 import { placeholderPhoto, remote } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
+import { FlowHeader } from './FlowHeader';
 
 /**
  * Step 2: name the obstacle.
@@ -17,14 +19,28 @@ import { useTheme } from '../../theme';
  */
 export function BarrierScreen() {
   const navigation = useNavigation();
+  const { update } = useProfile();
 
   const primary = BARRIERS.find(b => b.weight === 'primary');
   const rest = BARRIERS.filter(b => b.weight !== 'primary');
 
-  const go = (b: Barrier) => navigation.navigate('SparkReaction', { barrierId: b.id });
+  /*
+   * The answer is stored, not just passed along the stack.
+   *
+   * Asking somebody to admit what has beaten them before and then forgetting
+   * it by the next screen is the worst version of this question. Spark quotes
+   * it back the moment the first set is done, and the profile keeps it after
+   * that.
+   */
+  const go = (b: Barrier) => {
+    update({ barrier: b.id });
+    navigation.navigate('SparkReaction', { barrierId: b.id });
+  };
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
+      <FlowHeader step="Barrier" />
+
       <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
         Be honest
       </Text>
@@ -95,7 +111,7 @@ function BarrierCard({
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 40 },
-  eyebrow: { paddingTop: 12 },
+  eyebrow: { marginTop: 28 },
   title: { marginTop: 6 },
   tallWrap: { marginTop: 24 },
   tall: {},

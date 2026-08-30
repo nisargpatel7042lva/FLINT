@@ -55,7 +55,7 @@ export function SparkReactionScreen() {
           label="Keep going"
           size="lg"
           fullWidth
-          onPress={() => navigation.navigate('TimeBudget')}
+          onPress={() => navigation.navigate('TrainingPlace')}
           iconRight={<ArrowRight color={theme.colors.onAccent} size={20} />}
         />
       </Animated.View>
