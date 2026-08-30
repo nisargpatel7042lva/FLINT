@@ -1,19 +1,19 @@
 /**
- * Char's notification voice.
+ * Spark's notification voice.
  *
- * Char is warm and never guilt-trips. That is a product rule, not a style
+ * Spark is warm and never guilt-trips. That is a product rule, not a style
  * preference: the whole premise is that people already feel bad about not
  * training, and an app that adds to that gets uninstalled.
  *
  * ── The rules ─────────────────────────────────────────────────────────────
  *  1. Never shame. No "you missed", "don't break", "you're falling behind",
  *     no countdown pressure, no red-alert language.
- *  2. Never imply loss is the user's fault. Char dims; the user is not blamed.
+ *  2. Never imply loss is the user's fault. Spark dims; the user is not blamed.
  *  3. Offer the smallest next step, not a demand. "A few minutes" beats
  *     "complete your workout".
  *  4. Be specific. Reference the real streak number or the real time budget,
  *     never a generic "time to work out!".
- *  5. Char may speak about itself, lightly. It is an ember, not a coach with
+ *  5. Spark may speak about itself, lightly. It is an ember, not a coach with
  *     a whistle.
  *  6. Short enough to read on a lock screen: title under ~40 chars.
  *
@@ -43,7 +43,7 @@ export function streakAtRiskNudge(streak: number, seed = 0): Nudge {
     `I'm still glowing. Whenever you have a moment, I'll be here.`,
   ];
   return {
-    title: 'Char is still lit',
+    title: 'Your spark is still lit',
     body: pick(bodies, seed),
   };
 }

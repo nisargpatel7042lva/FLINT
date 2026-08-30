@@ -16,9 +16,9 @@ import { duration, easing, scale as scaleToken, spring, useTheme } from '../../t
 import { Text } from '../Text';
 
 /**
- * Char — the user's consistency, personified.
+ * Spark — the user's consistency, personified.
  *
- * Char is deliberately abstract: a soft glowing ember, not a character with a
+ * Spark is deliberately abstract: a soft glowing ember, not a character with a
  * face. That is a performance decision as much as an aesthetic one. Everything
  * animated here is `transform` and `opacity` on a handful of layers, so all
  * four states run on the UI thread at 60fps. A detailed creature would need
@@ -26,21 +26,21 @@ import { Text } from '../Text';
  * "expensive to animate badly" trap.
  *
  * States map to streak health, never to a level or score:
- *   dim         - no active streak. Char is asleep, barely breathing.
+ *   dim         - no active streak. Spark is asleep, barely breathing.
  *   glowing     - streak alive. Warm, steady, gently bobbing.
  *   concerned   - streak at risk today. Flickers, shrinks, sits lower.
  *   celebrating - milestone hit. One spring pop and an expanding halo ring.
  *
- * All timings come from `theme/motion.ts` so Char feels like the rest of the
+ * All timings come from `theme/motion.ts` so Spark feels like the rest of the
  * app rather than its own thing.
  */
-export type CharState = 'dim' | 'glowing' | 'concerned' | 'celebrating';
+export type SparkState = 'dim' | 'glowing' | 'concerned' | 'celebrating';
 
-export type CharProps = {
-  state?: CharState;
+export type SparkProps = {
+  state?: SparkState;
   /** Overall diameter in dp, including the halo. */
   size?: number;
-  /** Optional caption rendered under Char. */
+  /** Optional caption rendered under Spark. */
   label?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -51,13 +51,13 @@ const BODY =
   'M12 2.2c0 0 6.6 5.6 6.6 10.6a6.6 6.6 0 0 1-13.2 0C5.4 7.8 12 2.2 12 2.2z';
 const CORE = 'M12 9.4c0 0 3.1 2.7 3.1 5.1a3.1 3.1 0 0 1-6.2 0c0-2.4 3.1-5.1 3.1-5.1z';
 
-export function Char({
+export function Spark({
   state = 'glowing',
   size = 96,
   label,
   style,
   testID,
-}: CharProps) {
+}: SparkProps) {
   const theme = useTheme();
 
   // One shared value per animated property, reused across states.
@@ -232,13 +232,13 @@ export function Char({
 }
 
 /**
- * Maps streak data to Char's state, so every screen tells the same story.
+ * Maps streak data to Spark's state, so every screen tells the same story.
  * `atRisk` means the streak is alive but nothing has been logged today.
  */
-export function charStateForStreak(
+export function sparkStateForStreak(
   streakDays: number,
   opts: { atRisk?: boolean; celebrating?: boolean } = {},
-): CharState {
+): SparkState {
   if (opts.celebrating) {
     return 'celebrating';
   }

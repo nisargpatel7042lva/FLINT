@@ -8,7 +8,7 @@ import {
   AnimatedCounter,
   Button,
   Card,
-  Char,
+  Spark,
   Chip,
   IconButton,
   MeterBar,
@@ -138,7 +138,7 @@ export function WorkoutLogScreen() {
     return (
       <Screen padding="lg" contentContainerStyle={styles.doneContent}>
         <View style={styles.center}>
-          <Char state="celebrating" size={168} />
+          <Spark state="celebrating" size={168} />
 
           <Animated.View entering={FadeIn.delay(duration.base)}>
             <Text variant="displaySm" align="center" style={styles.doneTitle}>

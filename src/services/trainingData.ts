@@ -5,7 +5,7 @@ import { FOCUS_LABEL, type Focus, type SessionLog } from './training';
  *
  * Deterministic, so streaks and stats are stable across reloads. Today is left
  * deliberately UNLOGGED: that puts the streak "at risk", which is the state
- * worth designing against — Char concerned, and a clear reason to open the app.
+ * worth designing against — Spark concerned, and a clear reason to open the app.
  */
 
 /**

@@ -25,7 +25,7 @@ import { Easing } from 'react-native-reanimated';
  * 4. ENTRANCES decelerate (`easing.decelerate`); EXITS accelerate
  *    (`easing.accelerate`). Things arrive gently and leave briskly.
  *
- * 5. AMBIENT loops (Char breathing, live pulses) run on `duration.ambient` or
+ * 5. AMBIENT loops (Spark breathing, live pulses) run on `duration.ambient` or
  *    slower, at low amplitude. They must never compete with content for
  *    attention or drain battery — transform and opacity only.
  *
@@ -64,7 +64,7 @@ export const easing = {
   accelerate: Easing.bezier(0.3, 0, 1, 1),
   /** Ambient loops. Sine in/out avoids a visible "stop" at each end. */
   breathe: Easing.inOut(Easing.sin),
-  /** Attention without alarm — used by Char's concerned flicker. */
+  /** Attention without alarm — used by Spark's concerned flicker. */
   flicker: Easing.inOut(Easing.quad),
 } as const;
 

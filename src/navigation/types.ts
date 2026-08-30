@@ -32,11 +32,11 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   /**
    * First-60-seconds flow. Auth deliberately sits AFTER the first win:
-   * Splash -> Barrier -> CharReaction -> TimeBudget -> FirstWorkout -> SignUp
+   * Splash -> Barrier -> SparkReaction -> TimeBudget -> FirstWorkout -> SignUp
    */
   Splash: undefined;
   Barrier: undefined;
-  CharReaction: { barrierId: BarrierId };
+  SparkReaction: { barrierId: BarrierId };
   TimeBudget: undefined;
   FirstWorkout: { minutes: number } | undefined;
 

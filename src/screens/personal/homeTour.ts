@@ -7,13 +7,13 @@ import type { TourStep } from '../../components';
  * this app's whole premise is that people have no time, and a nine-step tour
  * would contradict the product on the user's first screen.
  *
- * The copy is in Char's voice — warm, specific, never instructional-manual.
+ * The copy is in Spark's voice — warm, specific, never instructional-manual.
  */
 export const HOME_TOUR: TourStep[] = [
   {
     target: 'streak',
-    title: 'This is Char, and your streak',
-    body: 'Char stays lit while you keep training, and dims when you stop. The bars show the last seven days at a glance.',
+    title: 'Your spark, and your streak',
+    body: 'Your spark stays lit while you keep training, and dims when you stop. The bars show the last seven days at a glance.',
   },
   {
     target: 'checkin',

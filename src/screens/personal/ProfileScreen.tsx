@@ -13,7 +13,7 @@ import {
 import {
   Avatar,
   Card,
-  Char,
+  Spark,
   Chip,
   ListRow,
   MeterBar,
@@ -22,15 +22,15 @@ import {
   SectionHeader,
   StatPill,
   Text,
-  charStateForStreak,
+  sparkStateForStreak,
 } from '../../components';
 import {
-  CHAR_STAGES,
+  SPARK_STAGES,
   EXPERIENCE_LABEL,
   GOAL_LABEL,
   PLACE_LABEL,
   PROFILE,
-  charStage,
+  sparkStage,
 } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
 import { useProfile } from '../../hooks';
@@ -38,10 +38,10 @@ import { placeholderPhoto, remote } from '../../assets/placeholders';
 import { useTheme } from '../../theme';
 
 /**
- * Personal profile: who you are, where Char is, and what you've built.
+ * Personal profile: who you are, where Spark is, and what you've built.
  *
  * Follows the reference's layered treatment — a photo cover with the avatar
- * breaking out over its lower edge. Char's own card stays dark on purpose: it
+ * breaking out over its lower edge. Spark's own card stays dark on purpose: it
  * is a glowing ember, and it needs a dark ground to read as lit rather than as
  * an orange blob on a photograph.
  */
@@ -52,7 +52,7 @@ export function ProfileScreen() {
   const { streak, atRisk, best, stats, source } = useSessions();
   const { profile } = useProfile();
   const { stage, next, progress, daysToNext } = useMemo(
-    () => charStage(streak),
+    () => sparkStage(streak),
     [streak],
   );
 
@@ -89,10 +89,10 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {/* Char's evolution stage. Dark ground so the ember reads as lit. */}
+      {/* Spark's evolution stage. Dark ground so the ember reads as lit. */}
       <Card variant="dark" padding="lg" radius="xxl" style={styles.charCard}>
         <View style={styles.charRow}>
-          <Char state={charStateForStreak(streak, { atRisk })} size={110} />
+          <Spark state={sparkStateForStreak(streak, { atRisk })} size={110} />
           <View style={styles.flex}>
             <Text variant="label" tone="inverseMuted" uppercase>
               Current stage
@@ -198,11 +198,11 @@ export function ProfileScreen() {
 
       <SectionHeader
         title="All stages"
-        subtitle="Driven by your current streak, so Char can fall back too"
+        subtitle="Driven by your current streak, so your spark can fall back too"
         style={styles.section}
       />
       <View style={styles.stages}>
-        {CHAR_STAGES.map(s => {
+        {SPARK_STAGES.map(s => {
           const reached = streak >= s.minStreak;
           const isCurrent = s.id === stage.id;
           return (
@@ -213,7 +213,7 @@ export function ProfileScreen() {
               subtitle={
                 s.minStreak === 0 ? 'From day one' : `${s.minStreak}-day streak`
               }
-              leading={<Char state={reached ? 'glowing' : 'dim'} size={40} />}
+              leading={<Spark state={reached ? 'glowing' : 'dim'} size={40} />}
               trailing={
                 isCurrent ? (
                   <Chip label="Now" variant="accent" />

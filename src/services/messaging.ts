@@ -19,7 +19,7 @@ import { getRepository } from './repositoryProvider';
  * Function can nudge them without maintaining a separate token registry.
  *
  * Notification COPY is not written here — it lives in `notificationCopy.ts`
- * (client) and `functions/src/copy.ts` (server) so Char's voice has one home.
+ * (client) and `functions/src/copy.ts` (server) so Spark's voice has one home.
  */
 
 /** Android 13+ requires a runtime permission before any notification shows. */

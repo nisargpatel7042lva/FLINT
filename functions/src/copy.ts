@@ -1,5 +1,5 @@
 /**
- * Char's notification voice — SERVER copy.
+ * Spark's notification voice — SERVER copy.
  *
  * Mirrors `src/services/notificationCopy.ts`. Kept as a separate file rather
  * than imported across the app/functions boundary (they have different build
@@ -7,10 +7,10 @@
  *
  * ── The rules ─────────────────────────────────────────────────────────────
  *  1. Never shame. No "you missed", "don't break", no countdown pressure.
- *  2. Never blame the user for a lapse. Char dims; nobody is at fault.
+ *  2. Never blame the user for a lapse. Spark dims; nobody is at fault.
  *  3. Offer the smallest next step, not a demand.
  *  4. Be specific — real streak numbers, never "time to work out!".
- *  5. Char may speak about itself, lightly.
+ *  5. Spark may speak about itself, lightly.
  *  6. Title under ~40 chars so it survives a lock screen.
  */
 
@@ -25,7 +25,7 @@ export function streakAtRiskNudge(streak: number, seed = 0): Nudge {
     `${streak} days behind you. Even five minutes counts tonight.`,
     "I'm still glowing. Whenever you have a moment, I'll be here.",
   ];
-  return { title: 'Char is still lit', body: pick(bodies, seed) };
+  return { title: 'Your spark is still lit', body: pick(bodies, seed) };
 }
 
 export function comebackNudge(daysAway: number, seed = 0): Nudge {

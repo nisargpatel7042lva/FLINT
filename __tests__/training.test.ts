@@ -1,7 +1,7 @@
 import {
   intensityLevel,
   buildPlan,
-  charStage,
+  sparkStage,
   currentStreak,
   estimateSeconds,
   longestStreak,
@@ -108,25 +108,25 @@ describe('time-adaptive plans', () => {
 
 describe('char stages', () => {
   it('starts at ember and can fall back', () => {
-    expect(charStage(0).stage.id).toBe('ember');
-    expect(charStage(2).stage.id).toBe('ember');
+    expect(sparkStage(0).stage.id).toBe('ember');
+    expect(sparkStage(2).stage.id).toBe('ember');
   });
 
   it('advances with the streak', () => {
-    expect(charStage(3).stage.id).toBe('flame');
-    expect(charStage(7).stage.id).toBe('blaze');
-    expect(charStage(21).stage.id).toBe('wildfire');
-    expect(charStage(60).stage.id).toBe('forge');
+    expect(sparkStage(3).stage.id).toBe('flame');
+    expect(sparkStage(7).stage.id).toBe('blaze');
+    expect(sparkStage(21).stage.id).toBe('wildfire');
+    expect(sparkStage(60).stage.id).toBe('forge');
   });
 
   it('reports progress toward the next stage', () => {
-    const { next, daysToNext } = charStage(5);
+    const { next, daysToNext } = sparkStage(5);
     expect(next?.id).toBe('blaze');
     expect(daysToNext).toBe(2);
   });
 
   it('has no next stage at the top', () => {
-    expect(charStage(100).next).toBeNull();
+    expect(sparkStage(100).next).toBeNull();
   });
 });
 

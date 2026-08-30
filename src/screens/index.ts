@@ -18,7 +18,7 @@ export * from './personal/AppearanceScreen';
 // First-60-seconds flow
 export * from './onboarding/SplashScreen';
 export * from './onboarding/BarrierScreen';
-export * from './onboarding/CharReactionScreen';
+export * from './onboarding/SparkReactionScreen';
 export * from './onboarding/TimeBudgetScreen';
 export * from './onboarding/FirstWorkoutScreen';
 

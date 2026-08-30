@@ -224,7 +224,7 @@ export type ExplorerRank = {
 };
 
 /**
- * Ranks, in Char's voice.
+ * Ranks, in Spark's voice.
  *
  * Deliberately not achievements-with-badges. Each one names what you have
  * actually done, and the thresholds are spaced so the first two arrive in the
@@ -249,7 +249,7 @@ export const nextRank = (cellCount: number): ExplorerRank | null =>
  * Copy for the end of a session.
  *
  * Never scolds a repeat route. Somebody running their usual loop is still
- * running, and the whole product rule is that Char invites rather than
+ * running, and the whole product rule is that Spark invites rather than
  * accuses — a nudge to go further has to sound like an opportunity.
  */
 export function explorationSummary(discovered: number, revisited: number): string {

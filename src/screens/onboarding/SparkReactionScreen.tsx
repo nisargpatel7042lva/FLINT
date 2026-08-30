@@ -4,26 +4,26 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { ArrowRight } from 'lucide-react-native';
 
-import { Button, Char, Screen, Text } from '../../components';
+import { Button, Spark, Screen, Text } from '../../components';
 import { barrierById } from '../../services';
 import type { RootStackParamList } from '../../navigation/types';
 import { duration, useTheme } from '../../theme';
 
 /**
- * Step 3: Char answers the specific barrier.
+ * Step 3: Spark answers the specific barrier.
  *
  * The copy is written per barrier in `services/onboarding.ts` and directly
  * addresses what was picked — "Then we never ask for an hour" for No time, not
- * a generic acknowledgement. Char transitions dim → glowing here, its first
+ * a generic acknowledgement. Spark transitions dim → glowing here, its first
  * sign of life, timed so the movement lands before the text arrives.
  */
-export function CharReactionScreen() {
+export function SparkReactionScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
-  const route = useRoute<RouteProp<RootStackParamList, 'CharReaction'>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'SparkReaction'>>();
   const barrier = barrierById(route.params.barrierId);
 
-  // Char starts dim and wakes a beat after the screen settles, so the change
+  // Spark starts dim and wakes a beat after the screen settles, so the change
   // is something you watch happen rather than something already done.
   const [awake, setAwake] = useState(false);
   useEffect(() => {
@@ -34,7 +34,7 @@ export function CharReactionScreen() {
   return (
     <Screen padding="lg" contentContainerStyle={styles.content}>
       <View style={styles.center}>
-        <Char state={awake ? barrier.response.charState : 'dim'} size={148} />
+        <Spark state={awake ? barrier.response.sparkState : 'dim'} size={148} />
 
         <Animated.View entering={FadeInDown.delay(duration.deliberate).duration(duration.slow)}>
           <Text variant="displaySm" align="center" style={styles.line}>

@@ -13,7 +13,7 @@ import { useSessions } from '../hooks/useSessions';
 import {
   AppearanceScreen,
   BarrierScreen,
-  CharReactionScreen,
+  SparkReactionScreen,
   CreateChallengeScreen,
   BodyBasicsScreen,
   ExerciseDetailScreen,
@@ -103,7 +103,7 @@ export function RootNavigator() {
         {/* First 60 seconds. Account creation comes AFTER the first win. */}
         <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Barrier" component={BarrierScreen} />
-        <Stack.Screen name="CharReaction" component={CharReactionScreen} />
+        <Stack.Screen name="SparkReaction" component={SparkReactionScreen} />
         <Stack.Screen name="TimeBudget" component={TimeBudgetScreen} />
         <Stack.Screen name="FirstWorkout" component={FirstWorkoutScreen} />
 

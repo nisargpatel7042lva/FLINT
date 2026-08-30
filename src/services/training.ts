@@ -1,6 +1,6 @@
 /**
  * Personal training domain: time-adaptive plans, session logs, streaks, stats
- * and Char's evolution stages.
+ * and Spark's evolution stages.
  *
  * This is the individual loop. Nothing here knows about groups, wars or other
  * people — that lives in `scoring.ts` and stays out of this phase.
@@ -345,44 +345,44 @@ export const INTENSITY_LABEL: Record<IntensityLevel, string> = {
   4: '25 min or more',
 };
 
-// ── Char evolution ─────────────────────────────────────────────────────────
+// ── Spark evolution ─────────────────────────────────────────────────────────
 
-export type CharStageId = 'ember' | 'flame' | 'blaze' | 'wildfire' | 'forge';
+export type SparkStageId = 'ember' | 'flame' | 'blaze' | 'wildfire' | 'forge';
 
-export type CharStage = {
-  id: CharStageId;
+export type SparkStage = {
+  id: SparkStageId;
   name: string;
   minStreak: number;
   blurb: string;
 };
 
 /**
- * Stages are driven by the CURRENT streak, not lifetime totals — Char measures
+ * Stages are driven by the CURRENT streak, not lifetime totals — Spark measures
  * consistency, so it must be able to fall back down.
  */
-export const CHAR_STAGES: CharStage[] = [
+export const SPARK_STAGES: SparkStage[] = [
   { id: 'ember', name: 'Ember', minStreak: 0, blurb: 'Barely lit. One session changes that.' },
   { id: 'flame', name: 'Flame', minStreak: 3, blurb: 'Caught. Three days back to back.' },
   { id: 'blaze', name: 'Blaze', minStreak: 7, blurb: 'A full week. This is a habit now.' },
   { id: 'wildfire', name: 'Wildfire', minStreak: 21, blurb: 'Three weeks. Hard to put out.' },
-  { id: 'forge', name: 'Forge', minStreak: 60, blurb: 'Two months. Char burns on its own.' },
+  { id: 'forge', name: 'Forge', minStreak: 60, blurb: 'Two months. Spark burns on its own.' },
 ];
 
-export function charStage(streak: number): {
-  stage: CharStage;
-  next: CharStage | null;
+export function sparkStage(streak: number): {
+  stage: SparkStage;
+  next: SparkStage | null;
   progress: number;
   daysToNext: number;
 } {
   let index = 0;
-  for (let i = 0; i < CHAR_STAGES.length; i += 1) {
-    if (streak >= CHAR_STAGES[i].minStreak) {
+  for (let i = 0; i < SPARK_STAGES.length; i += 1) {
+    if (streak >= SPARK_STAGES[i].minStreak) {
       index = i;
     }
   }
 
-  const stage = CHAR_STAGES[index];
-  const next = CHAR_STAGES[index + 1] ?? null;
+  const stage = SPARK_STAGES[index];
+  const next = SPARK_STAGES[index + 1] ?? null;
 
   if (!next) {
     return { stage, next: null, progress: 1, daysToNext: 0 };

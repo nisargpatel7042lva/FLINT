@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Moon, Smartphone, Sun } from 'lucide-react-native';
 
 import {
   Card,
-  Char,
+  Spark,
   IconButton,
   ListRow,
   PressableScale,
@@ -123,7 +123,7 @@ export function AppearanceScreen() {
 
       <SectionHeader
         title="Accent"
-        subtitle="Used for Char, streaks and every highlight"
+        subtitle="Used for your spark, streaks and every highlight"
         style={styles.section}
       />
       <View style={styles.accents}>
@@ -160,16 +160,16 @@ export function AppearanceScreen() {
       {/* Live preview, so the choice is visible before leaving the screen. */}
       <Card variant="dark" padding="lg" radius="xxl" style={styles.preview}>
         <View style={styles.previewRow}>
-          <Char state="glowing" size={72} />
+          <Spark state="glowing" size={72} />
           <View style={styles.flex}>
             <Text variant="label" tone="inverseMuted" uppercase>
               Preview
             </Text>
             <Text variant="h2" tone="inverse" style={styles.previewTitle}>
-              Char, lit
+              Lit
             </Text>
             <Text variant="caption" tone="inverseMuted">
-              This card is always dark — Char needs a dark ground to read as lit.
+              This card is always dark — a spark needs a dark ground to read as lit.
             </Text>
           </View>
         </View>

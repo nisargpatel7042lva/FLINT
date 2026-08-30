@@ -36,7 +36,7 @@ export * from './ReactionBar';
 export * from './EmptyState';
 
 // Phase 4 - mascot and motion primitives.
-export * from './char';
+export * from './spark';
 export * from './AnimatedCounter';
 export * from './PressableScale';
 export * from './Slider';

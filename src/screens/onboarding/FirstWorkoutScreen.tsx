@@ -12,7 +12,7 @@ import {
   AnimatedCounter,
   Button,
   Card,
-  Char,
+  Spark,
   Chip,
   ListRow,
   Screen,
@@ -35,7 +35,7 @@ const mmss = (seconds: number) => {
  *
  * These are one screen on purpose. Completing the first exercise is the
  * emotional beat the whole flow exists for, and cutting to a new screen at that
- * moment would break it — the ignition happens in place, with Char going from
+ * moment would break it — the ignition happens in place, with Spark going from
  * glowing to celebrating and the streak counting up from zero.
  *
  * Account creation is deliberately NOT here. It comes after, once there is
@@ -57,7 +57,7 @@ export function FirstWorkoutScreen() {
 
   const complete = () => {
     setPhase('ignited');
-    // Let Char's pop land first, then run the counter into it.
+    // Let Spark's pop land first, then run the counter into it.
     setTimeout(() => setStreak(1), duration.base);
   };
 
@@ -65,7 +65,7 @@ export function FirstWorkoutScreen() {
     return (
       <Screen padding="lg" contentContainerStyle={styles.content}>
         <View style={styles.center}>
-          <Char state="celebrating" size={180} />
+          <Spark state="celebrating" size={180} />
 
           <Animated.View entering={FadeInDown.delay(duration.base).duration(duration.slow)}>
             <Text variant="displaySm" align="center" style={styles.igniteTitle}>
@@ -95,7 +95,7 @@ export function FirstWorkoutScreen() {
 
           <Animated.View entering={FadeIn.delay(duration.deliberate).duration(duration.slow)}>
             <Text variant="body" tone="muted" align="center" style={styles.igniteBody}>
-              Char is lit. It stays that way as long as you keep showing up —
+              Your spark is lit. It stays that way as long as you keep showing up —
               and it dims if you don't.
             </Text>
           </Animated.View>
@@ -133,7 +133,7 @@ export function FirstWorkoutScreen() {
             {workout.title}
           </Text>
         </View>
-        <Char state="glowing" size={84} />
+        <Spark state="glowing" size={84} />
       </View>
 
       <View style={styles.metaRow}>

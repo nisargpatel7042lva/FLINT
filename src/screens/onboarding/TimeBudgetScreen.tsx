@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowRight } from 'lucide-react-native';
 
-import { AnimatedCounter, Button, Char, Screen, Slider, Text } from '../../components';
+import { AnimatedCounter, Button, Spark, Screen, Slider, Text } from '../../components';
 import { useTheme } from '../../theme';
 
 const MIN = 5;
@@ -32,7 +32,7 @@ export function TimeBudgetScreen() {
       </Text>
 
       <View style={styles.center}>
-        <Char state="glowing" size={116} style={styles.char} />
+        <Spark state="glowing" size={116} style={styles.spark} />
 
         <View style={styles.readout}>
           <AnimatedCounter
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   eyebrow: { paddingTop: 12 },
   title: { marginTop: 6 },
   center: { flex: 1, justifyContent: 'center' },
-  char: { alignSelf: 'center' },
+  spark: { alignSelf: 'center' },
   readout: {
     flexDirection: 'row',
     alignItems: 'flex-end',

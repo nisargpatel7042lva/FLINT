@@ -1,7 +1,7 @@
 import type { Nudge } from './copy';
 
 /**
- * Char's voice for person-to-person nudges — SERVER copy.
+ * Spark's voice for person-to-person nudges — SERVER copy.
  *
  * This is generated on the server from the nudge's `kind` and the sender's
  * display name, and the `message` field the client wrote is deliberately
@@ -12,7 +12,7 @@ import type { Nudge } from './copy';
  *
  * The voice rules from `copy.ts` still apply — an invitation, never an
  * accusation — with one addition: a nudge is from a PERSON, so the sender's
- * name leads and Char stays out of the way.
+ * name leads and Spark stays out of the way.
  */
 
 export type PokeKind = 'poke' | 'challenge' | 'cheer';

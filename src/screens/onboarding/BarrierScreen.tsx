@@ -21,7 +21,7 @@ export function BarrierScreen() {
   const primary = BARRIERS.find(b => b.weight === 'primary');
   const rest = BARRIERS.filter(b => b.weight !== 'primary');
 
-  const go = (b: Barrier) => navigation.navigate('CharReaction', { barrierId: b.id });
+  const go = (b: Barrier) => navigation.navigate('SparkReaction', { barrierId: b.id });
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>

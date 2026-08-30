@@ -1,4 +1,4 @@
-import type { CharState } from '../components/char/Char';
+import type { SparkState } from '../components/spark/Spark';
 
 /**
  * First-60-seconds onboarding content.
@@ -17,10 +17,10 @@ export type Barrier = {
   blurb: string;
   /** Larger card for the dominant answer. */
   weight: 'primary' | 'standard';
-  /** Char's reaction — specific to this barrier, never a generic "got it". */
+  /** Spark's reaction — specific to this barrier, never a generic "got it". */
   response: {
-    charState: CharState;
-    /** The headline Char "says". Answers the barrier directly. */
+    sparkState: SparkState;
+    /** The headline Spark "says". Answers the barrier directly. */
     line: string;
     /** One supporting sentence. Concrete, no motivational filler. */
     detail: string;
@@ -34,7 +34,7 @@ export const BARRIERS: Barrier[] = [
     blurb: 'Between work, commute and everything else.',
     weight: 'primary',
     response: {
-      charState: 'glowing',
+      sparkState: 'glowing',
       line: 'Then we never ask for an hour.',
       detail:
         'Tell me what you actually have today — even five minutes — and I will build around that number, not around a plan you have to fit into.',
@@ -46,7 +46,7 @@ export const BARRIERS: Barrier[] = [
     blurb: 'Starts strong, gone by week three.',
     weight: 'standard',
     response: {
-      charState: 'glowing',
+      sparkState: 'glowing',
       line: 'Then nothing here repeats itself.',
       detail:
         'Week three is where most apps lose you. Your sessions change, and your streak becomes the thing you do not want to break.',
@@ -58,7 +58,7 @@ export const BARRIERS: Barrier[] = [
     blurb: 'Training alone gets old quickly.',
     weight: 'standard',
     response: {
-      charState: 'glowing',
+      sparkState: 'glowing',
       line: 'Then you will not train alone.',
       detail:
         'You will be put against real people in Team Wars, where your effort adds to a group score and going missing is visible.',
@@ -70,7 +70,7 @@ export const BARRIERS: Barrier[] = [
     blurb: 'Too many exercises, no clear order.',
     weight: 'standard',
     response: {
-      charState: 'glowing',
+      sparkState: 'glowing',
       line: 'Then you never have to choose.',
       detail:
         'I pick the session, the order and the timing. You just start it — beginning right now, with one.',

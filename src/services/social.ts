@@ -69,7 +69,7 @@ const KEY = 'kasrat.social.v1';
 /**
  * Poke copy.
  *
- * Char's voice rule applies here too: a nudge is an invitation, never an
+ * Spark's voice rule applies here too: a nudge is an invitation, never an
  * accusation. Nothing in this list mentions falling behind, breaking a streak,
  * or letting anyone down — a poke that lands as a telling-off is a poke people
  * turn off, and then the feature is worth nothing.

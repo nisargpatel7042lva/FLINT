@@ -131,7 +131,7 @@ export const onSessionWritten = onDocumentWritten(
  * Evening nudge for streaks that are alive but have nothing logged today.
  *
  * Runs once at 19:00. Deliberately NOT a countdown to midnight: pressure is
- * exactly the tone Char is supposed to avoid.
+ * exactly the tone Spark is supposed to avoid.
  *
  * TODO: 19:00 UTC is the wrong hour for most of the world. Store an IANA
  * timezone on the profile and shard this job by zone before launch.

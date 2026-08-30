@@ -15,7 +15,7 @@ import {
   Avatar,
   Button,
   Card,
-  Char,
+  Spark,
   Chip,
   IconButton,
   ListRow,
@@ -28,7 +28,7 @@ import {
   TourOverlay,
   TourTarget,
   WeeklyBars,
-  charStateForStreak,
+  sparkStateForStreak,
   useTour,
 } from '../../components';
 import {
@@ -64,13 +64,13 @@ const PHOTO_FOR: Record<Focus, PhotoTopic> = {
 /**
  * Home dashboard.
  *
- * The loop is unchanged and still runs top to bottom: Char and the streak (why
+ * The loop is unchanged and still runs top to bottom: Spark and the streak (why
  * you came back), the time check-in (the one decision that unblocks
  * everything), then the session it produced. Stats sit below as reassurance,
  * never as the call to action.
  *
  * What changed is the presentation, following the reference: an avatar and
- * round icon cluster in the header, Char's card carrying a live weekly bar
+ * round icon cluster in the header, Spark's card carrying a live weekly bar
  * chart, and the session itself promoted to a full-bleed photo card with the
  * fit and CTA laid over it — rather than three flat stacked panels.
  */
@@ -148,7 +148,7 @@ export function DashboardScreen() {
   );
 
   const fitMinutes = Math.round(estimateSeconds(plan) / 60);
-  const charState = charStateForStreak(streak, { atRisk });
+  const sparkState = sparkStateForStreak(streak, { atRisk });
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -172,14 +172,14 @@ export function DashboardScreen() {
       </View>
 
       <Text variant="displayMd" style={styles.hero}>
-        {atRisk ? 'Keep it lit.' : 'Char is\nburning.'}
+        {atRisk ? 'Keep it lit.' : 'Your spark is\nburning.'}
       </Text>
 
-      {/* Char, the streak, and the week's shape in one card. */}
+      {/* Spark, the streak, and the week's shape in one card. */}
       <TourTarget id="streak" style={styles.charCard}>
       <Card variant="dark" padding="lg" radius="xxl">
         <View style={styles.charRow}>
-          <Char state={charState} size={104} />
+          <Spark state={sparkState} size={104} />
           <View style={styles.streakBlock}>
             <View style={styles.streakRow}>
               <Flame color={theme.colors.accent} size={24} />
@@ -194,7 +194,7 @@ export function DashboardScreen() {
         <Text variant="bodySm" tone="inverseMuted" style={styles.streakNote}>
           {atRisk
             ? 'Nothing logged yet today. Train to hold it.'
-            : 'Logged today. Char stays lit.'}
+            : 'Logged today. Your spark stays lit.'}
         </Text>
 
         <WeeklyBars
