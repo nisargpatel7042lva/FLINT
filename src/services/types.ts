@@ -54,6 +54,22 @@ export type Group = {
   name: string;
   /** Short join code used by the "join a group" flow. */
   code: string;
+  /**
+   * Who created it.
+   *
+   * Needed the moment groups became shared rather than device-local: somebody
+   * has to be allowed to remove a member, and "whoever opens the screen" is not
+   * an answer. It is also what the security rules key the manage permission
+   * off, so it is part of the model rather than a UI convenience.
+   */
+  ownerUid: string;
+  /**
+   * Account uids of everyone in the group.
+   *
+   * Named `memberIds` rather than `memberUids` because the fixture cast uses
+   * the same field, and the demo screens should not need to know whether the
+   * person behind an id is a real account or a seeded one.
+   */
   memberIds: string[];
   createdAt: string;
 };

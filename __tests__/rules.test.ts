@@ -17,6 +17,8 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  arrayRemove,
+  arrayUnion,
   doc,
   getDoc,
   setDoc,
@@ -310,5 +312,219 @@ describe('nudges', () => {
     });
     await assertFails(deleteDoc(doc(asAlice(), 'pokes', id)));
     await assertFails(deleteDoc(doc(asBob(), 'pokes', id)));
+  });
+});
+
+describe('groups', () => {
+  const GROUP = 'g-iron';
+  const CODE = 'WOLF42';
+  const CAROL = 'carol';
+
+  /** A group owned by Alice, with the given members. Written past the rules. */
+  const seedGroup = (members: string[] = [ALICE], owner = ALICE) =>
+    env.withSecurityRulesDisabled(async ctx => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'groups', GROUP), {
+        name: 'Iron Wolves',
+        code: CODE,
+        ownerUid: owner,
+        memberUids: members,
+        createdAt: serverTimestamp(),
+      });
+      await setDoc(doc(db, 'groupCodes', CODE), { groupId: GROUP });
+    });
+
+  describe('creating', () => {
+    it('lets you create a group you own, alone', async () => {
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(
+        setDoc(doc(db, 'groups', GROUP), {
+          name: 'Iron Wolves',
+          code: CODE,
+          ownerUid: ALICE,
+          memberUids: [ALICE],
+          createdAt: serverTimestamp(),
+        }),
+      );
+    });
+
+    it('refuses creating a group owned by somebody else', async () => {
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        setDoc(doc(db, 'groups', GROUP), {
+          name: 'Iron Wolves',
+          code: CODE,
+          ownerUid: BOB,
+          memberUids: [BOB],
+          createdAt: serverTimestamp(),
+        }),
+      );
+    });
+
+    it('refuses seeding it with people who never agreed to join', async () => {
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        setDoc(doc(db, 'groups', GROUP), {
+          name: 'Iron Wolves',
+          code: CODE,
+          ownerUid: ALICE,
+          memberUids: [ALICE, BOB],
+          createdAt: serverTimestamp(),
+        }),
+      );
+    });
+
+    it('refuses an empty or oversized name', async () => {
+      const db = env.authenticatedContext(ALICE).firestore();
+      const base = {
+        code: CODE,
+        ownerUid: ALICE,
+        memberUids: [ALICE],
+        createdAt: serverTimestamp(),
+      };
+      await assertFails(setDoc(doc(db, 'groups', 'g-empty'), { ...base, name: '' }));
+      await assertFails(
+        setDoc(doc(db, 'groups', 'g-long'), { ...base, name: 'x'.repeat(61) }),
+      );
+    });
+
+    it('refuses an anonymous stranger entirely', async () => {
+      const db = env.unauthenticatedContext().firestore();
+      await assertFails(
+        setDoc(doc(db, 'groups', GROUP), {
+          name: 'Iron Wolves',
+          code: CODE,
+          ownerUid: ALICE,
+          memberUids: [ALICE],
+          createdAt: serverTimestamp(),
+        }),
+      );
+    });
+  });
+
+  describe('reading', () => {
+    it('lets a member read it', async () => {
+      await seedGroup([ALICE, BOB]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertSucceeds(getDoc(doc(db, 'groups', GROUP)));
+    });
+
+    it('refuses somebody who is not in it', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(getDoc(doc(db, 'groups', GROUP)));
+    });
+  });
+
+  describe('joining', () => {
+    /*
+     * The load-bearing case. A joiner cannot READ the group yet, so the rule
+     * has to permit an update from a non-member - while allowing them to add
+     * nobody but themselves.
+     */
+    it('lets a non-member add themselves', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertSucceeds(
+        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayUnion(BOB) }),
+      );
+    });
+
+    it('refuses adding somebody else', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayUnion(CAROL) }),
+      );
+    });
+
+    it('refuses smuggling a third party in alongside yourself', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'groups', GROUP), { memberUids: [ALICE, BOB, CAROL] }),
+      );
+    });
+
+    it('refuses taking the group over while joining', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'groups', GROUP), {
+          memberUids: arrayUnion(BOB),
+          ownerUid: BOB,
+        }),
+      );
+    });
+
+    it('refuses renaming a group you do not own', async () => {
+      await seedGroup([ALICE, BOB]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(updateDoc(doc(db, 'groups', GROUP), { name: 'Bob Wolves' }));
+    });
+
+    it('lets anyone signed in resolve a code they already know', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertSucceeds(getDoc(doc(db, 'groupCodes', CODE)));
+    });
+
+    it('never lets a code be repointed at another group', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        setDoc(doc(db, 'groupCodes', CODE), { groupId: 'g-somewhere-else' }),
+      );
+    });
+
+    it('refuses a code reservation carrying anything but a group id', async () => {
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        setDoc(doc(db, 'groupCodes', 'NEWONE'), { groupId: GROUP, ownerUid: ALICE }),
+      );
+    });
+  });
+
+  describe('leaving and removing', () => {
+    it('lets a member remove themselves', async () => {
+      await seedGroup([ALICE, BOB]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertSucceeds(
+        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayRemove(BOB) }),
+      );
+    });
+
+    it('refuses a member removing anybody else', async () => {
+      await seedGroup([ALICE, BOB, CAROL]);
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayRemove(CAROL) }),
+      );
+    });
+
+    it('lets the owner remove somebody', async () => {
+      await seedGroup([ALICE, BOB]);
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(
+        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayRemove(BOB) }),
+      );
+    });
+
+    it('lets the owner add a friend directly', async () => {
+      await seedGroup([ALICE]);
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(
+        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayUnion(BOB) }),
+      );
+    });
+
+    it('lets only the owner delete it', async () => {
+      await seedGroup([ALICE, BOB]);
+      const bob = env.authenticatedContext(BOB).firestore();
+      await assertFails(deleteDoc(doc(bob, 'groups', GROUP)));
+
+      const alice = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(deleteDoc(doc(alice, 'groups', GROUP)));
+    });
   });
 });

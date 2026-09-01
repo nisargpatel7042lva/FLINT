@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ensureSignedIn } from '../services/auth';
 import { socialStore, todayKey, type Poke, type PokeKind } from '../services/social';
 import { getSocialRepository } from '../services/socialRepositoryProvider';
-import type { PublicProfile } from '../services/socialRepository';
+import type { JoinResult, PublicProfile } from '../services/socialRepository';
 import type { Group } from '../services/types';
 
 export type SocialApi = {
@@ -21,9 +21,16 @@ export type SocialApi = {
   sent: Poke[];
   unreadPokes: number;
 
-  /** Groups are still device-local; see the note in this file. */
+  /** Groups this user belongs to, newest first. */
   groups: Group[];
   groupById: (id: string) => Group | undefined;
+
+  createGroup: (name: string) => Promise<Group>;
+  /** Resolves what happened, so "already in that group" is not shown as an error. */
+  joinGroup: (code: string) => Promise<JoinResult>;
+  leaveGroup: (groupId: string) => Promise<void>;
+  addToGroup: (groupId: string, memberUid: string) => Promise<void>;
+  removeFromGroup: (groupId: string, memberUid: string) => Promise<void>;
 
   /**
    * Claims a handle and publishes the public profile.
@@ -49,13 +56,9 @@ export type SocialApi = {
  *
  * Everything here goes through `SocialRepository`, so the same screens drive
  * real accounts when Firebase is configured and the fixture cast when it is
- * not — no screen branches on which.
- *
- * GROUPS are the exception and still come straight from the device-local
- * store. Group membership needs the same treatment as friends (real uids,
- * a join-code lookup, rules) and that is a separate piece of work; keeping it
- * visibly local is better than half-migrating it and leaving people unsure
- * whether their squad exists on the server.
+ * not — no screen branches on which. Groups included: they were the last thing
+ * reading the device-local store directly, and a squad that existed only on the
+ * phone that made it was a squad in name only.
  */
 export function useSocial(): SocialApi {
   const repo = useMemo(() => getSocialRepository(), []);
@@ -64,7 +67,7 @@ export function useSocial(): SocialApi {
   const [friends, setFriends] = useState<PublicProfile[]>([]);
   const [received, setReceived] = useState<Poke[]>([]);
   const [sent, setSent] = useState<Poke[]>([]);
-  const [groups, setGroups] = useState<Group[]>(() => socialStore.getState().groups);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   /*
    * Names for people who are not (yet) friends.
@@ -92,19 +95,17 @@ export function useSocial(): SocialApi {
       setUid(user.uid);
 
       unsubs.push(repo.watchFriends(user.uid, next => alive && setFriends(next)));
+      unsubs.push(repo.watchGroups(user.uid, next => alive && setGroups(next)));
       unsubs.push(repo.watchInbox(user.uid, next => alive && setReceived(next)));
       unsubs.push(repo.watchSent(user.uid, next => alive && setSent(next)));
       setLoading(false);
     })();
 
-    // Groups remain local, so they are read from the store directly.
-    unsubs.push(
-      socialStore.subscribe(s => {
-        if (alive) {
-          setGroups(s.groups);
-        }
-      }),
-    );
+    /*
+     * The local repository reads groups straight out of this store, so it has
+     * to be loaded before its first snapshot means anything. Harmless against
+     * Firestore, where nothing subscribes to it.
+     */
     socialStore.hydrate();
 
     return () => {
@@ -193,6 +194,39 @@ export function useSocial(): SocialApi {
     [friends, profiles, repo],
   );
 
+  const createGroup = useCallback(
+    async (name: string) => {
+      const uidNow = uidRef.current || (await ensureSignedIn()).uid;
+      return repo.createGroup(uidNow, name);
+    },
+    [repo],
+  );
+
+  const joinGroup = useCallback(
+    async (code: string): Promise<JoinResult> => {
+      const uidNow = uidRef.current || (await ensureSignedIn()).uid;
+      return repo.joinGroup(uidNow, code);
+    },
+    [repo],
+  );
+
+  const leaveGroup = useCallback(
+    (groupId: string) => repo.leaveGroup(uidRef.current, groupId),
+    [repo],
+  );
+
+  const addToGroup = useCallback(
+    (groupId: string, memberUid: string) =>
+      repo.addToGroup(uidRef.current, groupId, memberUid),
+    [repo],
+  );
+
+  const removeFromGroup = useCallback(
+    (groupId: string, memberUid: string) =>
+      repo.removeFromGroup(uidRef.current, groupId, memberUid),
+    [repo],
+  );
+
   const groupById = useCallback(
     (id: string) => groups.find(g => g.id === id),
     [groups],
@@ -208,6 +242,11 @@ export function useSocial(): SocialApi {
     unreadPokes: received.filter(p => !p.read).length,
     groups,
     groupById,
+    createGroup,
+    joinGroup,
+    leaveGroup,
+    addToGroup,
+    removeFromGroup,
     claimProfile,
     searchProfiles,
     addFriend,

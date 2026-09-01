@@ -134,5 +134,97 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    /**
+     * Groups.
+     *
+     * The only document in this database that several people write to, which is
+     * what makes it the only one where "who is asking" has to be checked on
+     * every branch rather than once at the top.
+     *
+     * Reads are members-only, and the client's query filters on
+     * `memberUids array-contains uid` — Firestore accepts a query only when
+     * every document it could return is provably allowed, so that filter is not
+     * a client-side courtesy either. It is the reason the query runs at all.
+     *
+     * Membership changes are the interesting case. Three distinct people may
+     * change `memberUids`, for three different reasons:
+     *
+     *   somebody joining   adds exactly their own uid, and nothing else
+     *   somebody leaving   removes exactly their own uid, and nothing else
+     *   the owner          adds or removes anyone
+     *
+     * Spelling those out separately is what stops the fourth case: a member
+     * quietly removing somebody they disagree with, or adding a stranger.
+     */
+    match /groups/{groupId} {
+      function isMember() {
+        return isSignedIn() && request.auth.uid in resource.data.memberUids;
+      }
+      function isOwner() {
+        return isSignedIn() && request.auth.uid == resource.data.ownerUid;
+      }
+      function onlyMembersChanged() {
+        return request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['memberUids']);
+      }
+
+      allow read: if isMember();
+
+      // A new group starts with its creator, alone. Seeding it with other
+      // people would be adding them to something they never agreed to.
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.code is string;
+
+      allow update: if isSignedIn()
+        && onlyMembersChanged()
+        && (
+          // Join: adds you and only you. Note this is allowed for a NON-member,
+          // which is the whole point — you cannot read the group until you are
+          // in it, so joining cannot require reading it first.
+          request.resource.data.memberUids
+            == resource.data.memberUids.concat([request.auth.uid])
+          // Leave: removes you and only you.
+          || request.resource.data.memberUids
+            == resource.data.memberUids.removeAll([request.auth.uid])
+          // The owner manages the roster.
+          || isOwner()
+        );
+
+      // Only the owner, and only deliberately. A group emptying itself would
+      // take its history with it.
+      allow delete: if isOwner();
+    }
+
+    /**
+     * Join-code reservations.
+     *
+     * `groupCodes/{CODE}` exists so that a code can be resolved by somebody who
+     * is not yet a member — the group document itself is unreadable to them, so
+     * the code could not live there and still be usable.
+     *
+     * Create-only, never updated: that is what makes a code unique. Two people
+     * drawing the same code at the same instant do not race, because the second
+     * write is refused here rather than by a check that had already read.
+     *
+     * `get` is allowed and `list` is not. Resolving a code requires knowing it
+     * exactly; without that asymmetry the collection would be a directory of
+     * every group in the app.
+     */
+    match /groupCodes/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['groupId'])
+        && request.resource.data.groupId is string;
+
+      allow update, delete: if false;
+    }
   }
 }

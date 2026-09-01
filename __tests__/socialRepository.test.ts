@@ -1,11 +1,14 @@
 import {
   checkHandle,
+  makeGroupCode,
+  normaliseCode,
   normaliseHandle,
   pokeId,
 } from '../src/services/socialRepository';
 import { LocalSocialRepository } from '../src/services/socialRepository.local';
 import { socialStore } from '../src/services/social';
 import { CURRENT_USER_ID } from '../src/services/mockData';
+import type { Group } from '../src/services/types';
 
 describe('normaliseHandle', () => {
   it('strips the @ and lowercases', () => {
@@ -142,5 +145,133 @@ describe('LocalSocialRepository identity', () => {
   it('never offers the fixture user themselves in search', async () => {
     const found = await repo.searchProfiles('', 'local-user');
     expect(found.map(p => p.uid)).not.toContain(CURRENT_USER_ID);
+  });
+});
+
+describe('normaliseCode', () => {
+  it('uppercases and trims', () => {
+    expect(normaliseCode('  wolf42 ')).toBe('WOLF42');
+  });
+
+  /*
+   * Codes get read out across a room far more often than they get pasted, so
+   * the listener types spaces and dashes into what they heard.
+   */
+  it('drops separators people add when typing what they heard', () => {
+    expect(normaliseCode('WOLF-42')).toBe('WOLF42');
+    expect(normaliseCode('WOL F42')).toBe('WOLF42');
+  });
+
+  /*
+   * The regression this exists for.
+   *
+   * An earlier version filtered out every character missing from the code
+   * alphabet, which excludes O and 2 - so a perfectly real code came back as
+   * WLF4 and matched either nothing or, far worse, somebody else's group.
+   */
+  it('never rewrites the characters of a code', () => {
+    expect(normaliseCode('WOLF42')).toBe('WOLF42');
+    expect(normaliseCode('  wolf42 ')).toBe('WOLF42');
+  });
+
+  it('is empty only when there was nothing but whitespace', () => {
+    expect(normaliseCode('   ')).toBe('');
+  });
+
+  it('is idempotent', () => {
+    const once = normaliseCode('wolf-42');
+    expect(normaliseCode(once)).toBe(once);
+  });
+});
+
+describe('makeGroupCode', () => {
+  it('is six characters from the shared alphabet', () => {
+    for (let i = 0; i < 50; i += 1) {
+      const code = makeGroupCode();
+      expect(code).toHaveLength(6);
+      // Survives normalisation unchanged, so a code is always typeable back in.
+      expect(normaliseCode(code)).toBe(code);
+    }
+  });
+
+  it('does not repeat itself in any reasonable run', () => {
+    const seen = new Set(Array.from({ length: 200 }, () => makeGroupCode()));
+    // The alphabet gives ~191 million codes, so 200 draws colliding would mean
+    // the generator is not actually random.
+    expect(seen.size).toBe(200);
+  });
+});
+
+describe('local groups', () => {
+  const repo = new LocalSocialRepository();
+
+  /** The uid is ignored by the local repository; see the note in that file. */
+  const ME = 'ignored';
+
+  /*
+   * The current group list.
+   *
+   * `watchGroups` emits synchronously on subscribe, so the value is already in
+   * hand by the time the call returns. Wrapping this in a promise that resolves
+   * from inside the callback would deadlock on its own unsubscribe handle,
+   * which is not yet assigned when the first emission fires.
+   */
+  const snapshot = (): Group[] => {
+    let out: Group[] = [];
+    const unsub = repo.watchGroups(ME, groups => {
+      out = groups;
+    });
+    unsub();
+    return out;
+  };
+
+  const membersOf = (id: string) =>
+    snapshot().find(g => g.id === id)?.memberIds ?? [];
+
+  it('creates a group with you in it and a code to share', async () => {
+    const group = await repo.createGroup(ME, '  Morning Crew  ');
+
+    expect(group.name).toBe('Morning Crew');
+    expect(group.memberIds).toContain(CURRENT_USER_ID);
+    expect(group.ownerUid).toBe(CURRENT_USER_ID);
+    expect(normaliseCode(group.code)).toBe(group.code);
+  });
+
+  it('reports re-entering your own code as already joined, not as a failure', async () => {
+    const created = await repo.createGroup(ME, 'Night Crew');
+
+    const again = await repo.joinGroup(ME, created.code);
+    expect(again.state).toBe('already');
+  });
+
+  it('reports a code with nothing behind it as unknown', async () => {
+    expect((await repo.joinGroup(ME, 'ZZZZZZ')).state).toBe('unknown');
+  });
+
+  it('treats an unusable code as unknown rather than throwing', async () => {
+    expect((await repo.joinGroup(ME, '   ')).state).toBe('unknown');
+  });
+
+  it('adds and removes members', async () => {
+    const created = await repo.createGroup(ME, 'Add Remove');
+
+    await repo.addToGroup(ME, created.id, 'm7');
+    expect(membersOf(created.id)).toContain('m7');
+
+    await repo.removeFromGroup(ME, created.id, 'm7');
+    expect(membersOf(created.id)).not.toContain('m7');
+  });
+
+  it('drops the group from your list when you leave', async () => {
+    const created = await repo.createGroup(ME, 'Leaving Soon');
+    await repo.leaveGroup(ME, created.id);
+
+    expect(snapshot().some(g => g.id === created.id)).toBe(false);
+  });
+
+  it('gives every group its own code', async () => {
+    const a = await repo.createGroup(ME, 'Crew A');
+    const b = await repo.createGroup(ME, 'Crew B');
+    expect(a.code).not.toBe(b.code);
   });
 });

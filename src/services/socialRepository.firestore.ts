@@ -1,4 +1,6 @@
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -13,6 +15,7 @@ import {
   serverTimestamp,
   setDoc,
   startAt,
+  updateDoc,
   where,
   writeBatch,
 } from '@react-native-firebase/firestore';
@@ -20,12 +23,16 @@ import {
 import { requireFirebase } from './backend';
 import { pokeMessage, todayKey, type Poke, type PokeKind } from './social';
 import {
+  makeGroupCode,
+  normaliseCode,
   normaliseHandle,
   pokeId,
+  type JoinResult,
   type PublicProfile,
   type SocialRepository,
 } from './socialRepository';
 import type { Unsubscribe } from './repository';
+import type { Group } from './types';
 
 /**
  * Firestore-backed social layer.
@@ -37,6 +44,8 @@ import type { Unsubscribe } from './repository';
  *   users/{uid}                   -> private; holds the FCM token
  *   users/{uid}/friends/{friendUid} -> { name, handle, addedAt }    private to owner
  *   pokes/{fromUid_toUid_kind_day} -> { fromUid, toUid, kind, ... }
+ *   groups/{groupId}             -> { name, code, ownerUid, memberUids[] }
+ *   groupCodes/{CODE}            -> { groupId }                    uniqueness claim
  *
  * Pokes are a top-level collection rather than a subcollection of either party
  * because both need to query them: the recipient for their inbox, the sender to
@@ -52,6 +61,12 @@ const handlesCol = () => collection(db(), 'handles');
 const pokesCol = () => collection(db(), 'pokes');
 const friendsCol = (uid: string) =>
   collection(doc(collection(db(), 'users'), uid), 'friends');
+const groupsCol = () => collection(db(), 'groups');
+const groupCodesCol = () => collection(db(), 'groupCodes');
+
+const GROUPS_LIMIT = 50;
+/** Draws before giving up on finding a free code. Collisions are ~1 in 10^8. */
+const CODE_ATTEMPTS = 5;
 
 const INBOX_LIMIT = 50;
 const SEARCH_LIMIT = 10;
@@ -94,6 +109,51 @@ function toPoke(id: string, data: Record<string, unknown>): Poke {
     read: Boolean(data.read),
   };
 }
+
+/**
+ * A group document, as the app models it.
+ *
+ * `memberUids` on the wire becomes `memberIds` in the app: the field is named
+ * for what it holds on the server (account uids, which the rules reason about)
+ * and for what the screens need locally (ids of people, real or seeded).
+ */
+function toGroup(id: string, data: Record<string, unknown> | undefined): Group {
+  const members = Array.isArray(data?.memberUids)
+    ? (data?.memberUids as unknown[]).map(String)
+    : [];
+  return {
+    id,
+    name: String(data?.name ?? 'Group'),
+    code: String(data?.code ?? ''),
+    ownerUid: String(data?.ownerUid ?? ''),
+    memberIds: members,
+    // Same server-timestamp caveat as `toPoke`, and the same fallback. A group
+    // is keyed on its day only for ordering, so "now" is the honest guess.
+    createdAt: toDay(data?.createdAt),
+  };
+}
+
+/** `YYYY-MM-DD` in local time, matching every other day key in the app. */
+function toDay(value: unknown): string {
+  const d =
+    typeof value === 'object' && value !== null
+      ? ((value as { toDate?: () => Date }).toDate?.() ?? new Date())
+      : new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+/**
+ * A write the rules refused, as opposed to one that failed.
+ *
+ * Both group creation and joining lean on this: a denied write there means
+ * "somebody already holds that" or "you are not a member yet", which are
+ * expected states with their own handling. Treating a network failure as one of
+ * those would silently take the wrong branch.
+ */
+const isPermissionDenied = (e: unknown): boolean =>
+  String((e as { code?: string })?.code ?? '').includes('permission-denied');
 
 export class FirestoreSocialRepository implements SocialRepository {
   readonly kind = 'firestore' as const;
@@ -245,6 +305,135 @@ export class FirestoreSocialRepository implements SocialRepository {
     }
 
     return toPoke(id, { ...payload, createdAt: null });
+  }
+
+  // ── Groups ───────────────────────────────────────────────────────────────
+
+  watchGroups(uid: string, onChange: (groups: Group[]) => void): Unsubscribe {
+    /*
+     * `array-contains` on the member list is what makes the read rule
+     * enforceable. The rule says "readable only if you are in memberUids", and
+     * Firestore accepts a query only when every document it could return is
+     * provably allowed — which this one is, and a plain `orderBy` alone would
+     * not be.
+     */
+    const q = query(
+      groupsCol(),
+      where('memberUids', 'array-contains', uid),
+      orderBy('createdAt', 'desc'),
+      limit(GROUPS_LIMIT),
+    );
+    return onSnapshot(
+      q,
+      snap => onChange(snap.docs.map(d => toGroup(d.id, d.data()))),
+      () => onChange([]),
+    );
+  }
+
+  async createGroup(uid: string, name: string): Promise<Group> {
+    const id = doc(groupsCol()).id;
+
+    /*
+     * The code is claimed BEFORE the group exists.
+     *
+     * `groupCodes/{CODE}` may be created but never updated, so a second person
+     * drawing the same code at the same moment is rejected by the rules rather
+     * than by a check that raced. Losing the draw costs one retry.
+     *
+     * The failure mode is a reserved code with no group behind it, which is
+     * inert: joining resolves the code, finds nothing, and reports an unknown
+     * code exactly as it would for a typo.
+     */
+    let code = '';
+    for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
+      const candidate = makeGroupCode();
+      try {
+        await setDoc(doc(groupCodesCol(), candidate), { groupId: id });
+        code = candidate;
+        break;
+      } catch (e) {
+        if (!isPermissionDenied(e)) {
+          throw e;
+        }
+      }
+    }
+    if (!code) {
+      throw new Error('Could not reserve a join code. Try again.');
+    }
+
+    const payload = {
+      name: name.trim(),
+      code,
+      ownerUid: uid,
+      memberUids: [uid],
+      createdAt: serverTimestamp(),
+    };
+    await setDoc(doc(groupsCol(), id), payload);
+
+    return toGroup(id, { ...payload, createdAt: null });
+  }
+
+  async joinGroup(uid: string, rawCode: string): Promise<JoinResult> {
+    const code = normaliseCode(rawCode);
+    if (!code) {
+      return { state: 'unknown' };
+    }
+
+    const claim = await getDoc(doc(groupCodesCol(), code));
+    const groupId = claim.exists() ? (claim.data()?.groupId as string) : null;
+    if (!groupId) {
+      return { state: 'unknown' };
+    }
+
+    const ref = doc(groupsCol(), groupId);
+
+    /*
+     * Reading first is how "already a member" is detected.
+     *
+     * The read rule only passes for members, so a successful read IS the
+     * membership check — no separate query, and no window where the client's
+     * idea of the member list disagrees with the server's.
+     */
+    try {
+      const existing = await getDoc(ref);
+      if (existing.exists()) {
+        return { state: 'already', group: toGroup(existing.id, existing.data()) };
+      }
+      // A reserved code whose group was never written. Same outcome as a typo.
+      return { state: 'unknown' };
+    } catch (e) {
+      if (!isPermissionDenied(e)) {
+        throw e;
+      }
+    }
+
+    // Not a member yet. The rules allow adding exactly one uid — your own.
+    await updateDoc(ref, { memberUids: arrayUnion(uid) });
+    const joined = await getDoc(ref);
+    if (!joined.exists()) {
+      return { state: 'unknown' };
+    }
+    return { state: 'joined', group: toGroup(joined.id, joined.data()) };
+  }
+
+  async leaveGroup(uid: string, groupId: string): Promise<void> {
+    await updateDoc(doc(groupsCol(), groupId), { memberUids: arrayRemove(uid) });
+  }
+
+  async addToGroup(_uid: string, groupId: string, memberUid: string): Promise<void> {
+    await updateDoc(doc(groupsCol(), groupId), {
+      memberUids: arrayUnion(memberUid),
+    });
+  }
+
+  async removeFromGroup(
+    _uid: string,
+    groupId: string,
+    memberUid: string,
+  ): Promise<void> {
+    await updateDoc(doc(groupsCol(), groupId), {
+      memberUids: arrayRemove(memberUid),
+    });
   }
 
   async markInboxRead(uid: string, pokeIds: string[]): Promise<void> {

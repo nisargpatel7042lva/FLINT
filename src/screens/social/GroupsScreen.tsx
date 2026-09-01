@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Bell, Check, Plus, Swords, UserRound, Users } from 'lucide-react-native';
+import { Bell, Plus, Swords, UserRound, Users } from 'lucide-react-native';
 
 import {
   AvatarGroup,
@@ -18,14 +18,12 @@ import {
   Text,
 } from '../../components';
 import {
-  GROUPS,
   SUBMISSIONS,
   TODAY,
   WAR,
   groupDayScore,
-  memberById,
+  normaliseCode,
   pluralDays,
-  socialStore,
   warGroups,
   warStanding,
 } from '../../services';
@@ -44,7 +42,8 @@ export function GroupsScreen() {
   const [newName, setNewName] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
-  const { groups: mine, received } = useSocial();
+  const { groups: mine, received, createGroup, joinGroup, nameFor } = useSocial();
+  const [busy, setBusy] = useState(false);
 
   const groups = useMemo(() => warGroups(), []);
   const standing = useMemo(
@@ -52,27 +51,50 @@ export function GroupsScreen() {
     [groups],
   );
 
-  const trimmedCode = code.trim().toUpperCase();
-  const alreadyIn = mine.some(g => g.code.toUpperCase() === trimmedCode);
-  const joinTarget = GROUPS.find(g => g.code.toUpperCase() === trimmedCode);
+  const trimmedCode = normaliseCode(code);
 
-  const create = () => {
-    const group = socialStore.createGroup(newName);
-    setNewName('');
-    setMode('mine');
-    navigation.navigate('GroupDetail', { groupId: group.id });
+  const create = async () => {
+    setBusy(true);
+    try {
+      const group = await createGroup(newName);
+      setNewName('');
+      setNotice(null);
+      setMode('mine');
+      navigation.navigate('GroupDetail', { groupId: group.id });
+    } catch {
+      setNotice('Could not create that group. Check your connection.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const join = () => {
-    const joined = socialStore.joinGroup(trimmedCode);
-    if (!joined) {
-      setNotice('No group matches that code.');
-      return;
+  /*
+   * Joining is a round trip, not a lookup.
+   *
+   * The old screen previewed the match by searching the fixture list as you
+   * typed, which could only ever find seeded groups — the one thing a real
+   * invite code is not. A code now resolves on the server, so the outcome
+   * arrives when you ask for it rather than being guessed locally.
+   */
+  const join = async () => {
+    setBusy(true);
+    try {
+      const result = await joinGroup(trimmedCode);
+      if (result.state === 'unknown') {
+        setNotice('No group matches that code.');
+        return;
+      }
+      setCode('');
+      setNotice(
+        result.state === 'already' ? `You are already in ${result.group.name}.` : null,
+      );
+      setMode('mine');
+      navigation.navigate('GroupDetail', { groupId: result.group.id });
+    } catch {
+      setNotice('Could not reach that group. Check your connection.');
+    } finally {
+      setBusy(false);
     }
-    setCode('');
-    setNotice(null);
-    setMode('mine');
-    navigation.navigate('GroupDetail', { groupId: joined.id });
   };
 
   return (
@@ -172,7 +194,7 @@ export function GroupsScreen() {
                     subtitle={`${g.memberIds.length} members · ${score.toLocaleString()} pts today`}
                     leading={
                       <AvatarGroup
-                        names={g.memberIds.map(id => memberById(id).name)}
+                        names={g.memberIds.map(nameFor)}
                         max={3}
                         size="sm"
                         borderColor={theme.colors.surface}
@@ -201,7 +223,7 @@ export function GroupsScreen() {
             label="Create group"
             size="lg"
             fullWidth
-            disabled={newName.trim().length < 3}
+            disabled={newName.trim().length < 3 || busy}
             style={styles.createCta}
             onPress={create}
             iconLeft={<Plus color={theme.colors.onAccent} size={18} />}
@@ -221,39 +243,15 @@ export function GroupsScreen() {
             containerStyle={styles.input}
           />
 
-          {trimmedCode.length > 0 ? (
-            joinTarget ? (
-              <ListRow
-                filled
-                title={joinTarget.name}
-                subtitle={`${joinTarget.memberIds.length} members`}
-                leading={
-                  <AvatarGroup
-                    names={joinTarget.memberIds.map(id => memberById(id).name)}
-                    max={3}
-                    size="sm"
-                    borderColor={theme.colors.surface}
-                  />
-                }
-                trailing={
-                  alreadyIn ? (
-                    <Chip
-                      label="Joined"
-                      variant="muted"
-                      icon={<Check color={theme.colors.textMuted} size={14} />}
-                    />
-                  ) : (
-                    <Button label="Join" size="sm" onPress={join} />
-                  )
-                }
-                style={styles.joinResult}
-              />
-            ) : (
-              <Text variant="bodySm" tone="muted" style={styles.joinResult}>
-                No group matches that code.
-              </Text>
-            )
-          ) : null}
+          <Button
+            label="Join group"
+            variant="outline"
+            size="lg"
+            fullWidth
+            disabled={trimmedCode.length < 4 || busy}
+            style={styles.createCta}
+            onPress={join}
+          />
 
           {notice ? (
             <Text variant="bodySm" tone="muted" style={styles.joinResult}>

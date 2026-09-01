@@ -36,7 +36,6 @@ import {
   groupById,
   groupContributions,
   memberById,
-  socialStore,
 } from '../../services';
 import { useSocial } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
@@ -50,16 +49,25 @@ export function GroupDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'GroupDetail'>>();
 
-  const { groupById: fromStore, friends, sendPoke, spent, source } = useSocial();
+  const {
+    groupById: fromStore,
+    friends,
+    sendPoke,
+    spent,
+    uid,
+    addToGroup,
+    removeFromGroup,
+    leaveGroup,
+  } = useSocial();
   const [tab, setTab] = useState<Tab>('activity');
 
   /*
-   * Store first, fixtures second.
+   * Real groups first, fixtures second.
    *
-   * A group the user created only exists in the store, and the fixture lookup
-   * silently falls back to the first seed group rather than failing — so
-   * checking the store first is what stops a brand-new squad from rendering as
-   * somebody else's.
+   * A group the user created or joined comes from the repository, and the
+   * fixture lookup silently falls back to the first seed group rather than
+   * failing — so checking the real list first is what stops a brand-new squad
+   * from rendering as somebody else's.
    */
   const group = fromStore(route.params.groupId) ?? groupById(route.params.groupId);
 
@@ -78,6 +86,8 @@ export function GroupDetailScreen() {
    * them. Everyone else gets no button rather than a button that fails.
    */
   const addable = friends.filter(f => !group.memberIds.includes(f.uid));
+  /** Only the person who made the group may change who is in it. */
+  const isOwner = group.ownerUid === uid;
   const friendFor = (memberId: string) => friends.find(f => f.uid === memberId);
 
   const invite = () => {
@@ -89,9 +99,17 @@ export function GroupDetailScreen() {
     });
   };
 
-  const leave = () => {
-    socialStore.leaveGroup(group.id);
+  const leave = async () => {
+    /*
+     * Navigate first, then write.
+     *
+     * The moment the write lands this user is no longer a member, so the group
+     * stops being readable and this screen would be rendering a group it can no
+     * longer see. Leaving the screen before that happens is not a race being
+     * papered over — it is the correct order.
+     */
     navigation.goBack();
+    await leaveGroup(group.id).catch(() => {});
   };
 
   return (
@@ -206,6 +224,21 @@ export function GroupDetailScreen() {
                           />
                         }
                       />
+                    ) : isOwner ? (
+                      /*
+                        Shown only to the owner, and only for people who are not
+                        friends — a friend gets the nudge button, which is the
+                        more useful of the two. Removing somebody is the last
+                        resort, so it never outranks encouraging them.
+                      */
+                      <Button
+                        label="Remove"
+                        size="sm"
+                        variant="ghost"
+                        onPress={() =>
+                          removeFromGroup(group.id, c.memberId).catch(() => {})
+                        }
+                      />
                     ) : undefined
                   }
                 />
@@ -216,13 +249,17 @@ export function GroupDetailScreen() {
           <SectionHeader
             title="Add friends"
             subtitle={
-              source === 'firestore'
-                ? 'Groups are stored on this device for now'
-                : 'They join straight away — no invite to accept'
+              isOwner
+                ? 'They join straight away — no invite to accept'
+                : 'Only the group’s owner can add people'
             }
             style={styles.section}
           />
-          {addable.length === 0 ? (
+          {!isOwner ? (
+            <Text variant="bodySm" tone="muted" style={styles.note}>
+              Share the code instead — anyone with it can join themselves.
+            </Text>
+          ) : addable.length === 0 ? (
             <Text variant="bodySm" tone="muted" style={styles.note}>
               Everyone you've added is already in this group. Share the code to
               bring in someone new.
@@ -239,7 +276,7 @@ export function GroupDetailScreen() {
                     <Button
                       label="Add"
                       size="sm"
-                      onPress={() => socialStore.addToGroup(group.id, f.uid)}
+                      onPress={() => addToGroup(group.id, f.uid).catch(() => {})}
                       iconLeft={<UserPlus color={theme.colors.onAccent} size={14} />}
                     />
                   }

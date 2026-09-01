@@ -238,6 +238,7 @@ class SocialStore {
       id: id('g'),
       name: name.trim(),
       code: generateCode([...this.state.groups.map(g => g.code), ...GROUPS.map(g => g.code)]),
+      ownerUid: CURRENT_USER_ID,
       memberIds: [CURRENT_USER_ID],
       createdAt: TODAY,
     };

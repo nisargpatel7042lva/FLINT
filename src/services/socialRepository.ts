@@ -1,5 +1,6 @@
-import type { Poke, PokeKind } from './social';
+import { CODE_ALPHABET, type Poke, type PokeKind } from './social';
 import type { Unsubscribe } from './repository';
+import type { Group } from './types';
 
 /**
  * The data boundary for the social layer.
@@ -65,6 +66,78 @@ export interface SocialRepository {
   ): Promise<Poke | null>;
 
   markInboxRead(uid: string, pokeIds: string[]): Promise<void>;
+
+  // ── Groups ───────────────────────────────────────────────────────────────
+  //
+  // A group is the only shared, MUTABLE object in the app: several people write
+  // to one document. That shapes the API — every method takes the acting uid,
+  // because who is asking decides what is permitted, and none of them takes a
+  // whole group object, because sending the client's idea of the member list
+  // back to the server is how one person's stale screen silently removes
+  // somebody else.
+
+  /** Groups this user belongs to, newest first. */
+  watchGroups(uid: string, onChange: (groups: Group[]) => void): Unsubscribe;
+
+  /**
+   * Creates a group with this user as its only member and its owner.
+   *
+   * The join code is reserved before the group exists, so two people creating a
+   * group at the same moment cannot end up sharing a code — the second
+   * reservation fails and a new code is drawn.
+   */
+  createGroup(uid: string, name: string): Promise<Group>;
+
+  /** Joins by code. See `JoinResult` for why this is not `Group | null`. */
+  joinGroup(uid: string, code: string): Promise<JoinResult>;
+
+  /** Leaves. The last member out does not delete it; see the note on `Group`. */
+  leaveGroup(uid: string, groupId: string): Promise<void>;
+
+  /** Adds somebody else. Only the owner may do this. */
+  addToGroup(uid: string, groupId: string, memberUid: string): Promise<void>;
+
+  /** Removes somebody. The owner may remove anyone; anyone may remove self. */
+  removeFromGroup(uid: string, groupId: string, memberUid: string): Promise<void>;
+}
+
+/**
+ * The outcome of typing a code.
+ *
+ * Three outcomes, not two, because "you are already in that group" is not a
+ * failure and must not be reported as one — the older code returned the group
+ * either way and the screen could not tell the difference, so re-entering your
+ * own code read as a fresh join.
+ */
+export type JoinResult =
+  | { state: 'joined'; group: Group }
+  | { state: 'already'; group: Group }
+  | { state: 'unknown' };
+
+/**
+ * Join codes are the document id of their reservation, so they are normalised
+ * in exactly one place: uppercased, with the separators people add when typing
+ * something they heard removed. A code that failed because somebody wrote
+ * WOLF-42 would be failing for the wrong reason.
+ *
+ * It deliberately does NOT drop characters outside the generator's alphabet.
+ * An earlier version did, on the theory that it was being forgiving — but the
+ * alphabet excludes O and 2, so it quietly turned WOLF42 into WLF4 and then
+ * reported the result as an unknown code. Worse than the confusing error is the
+ * near miss: a mangled code can land on a DIFFERENT real group. Cleaning input
+ * is a kindness; rewriting it is not.
+ */
+export function normaliseCode(raw: string): string {
+  return raw.trim().toUpperCase().replace(/[\s\-_.]+/g, '');
+}
+
+/** Six characters: short enough to say across a room, long enough to be unique. */
+export function makeGroupCode(): string {
+  let code = '';
+  for (let i = 0; i < 6; i += 1) {
+    code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  }
+  return code;
 }
 
 /**

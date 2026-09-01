@@ -1,7 +1,14 @@
 import { CURRENT_USER_ID, MEMBERS, memberById } from './mockData';
 import { socialStore, type Poke, type PokeKind } from './social';
-import { normaliseHandle, type PublicProfile, type SocialRepository } from './socialRepository';
+import {
+  normaliseCode,
+  normaliseHandle,
+  type JoinResult,
+  type PublicProfile,
+  type SocialRepository,
+} from './socialRepository';
 import type { Unsubscribe } from './repository';
+import type { Group } from './types';
 
 /**
  * Local social layer, used whenever Firebase is not configured.
@@ -77,6 +84,55 @@ export class LocalSocialRepository implements SocialRepository {
     groupId?: string,
   ): Promise<Poke | null> {
     return socialStore.sendPoke(to.uid, kind, groupId);
+  }
+
+  // ── Groups ───────────────────────────────────────────────────────────────
+  //
+  // Groups here are as real as anything else on this device: created, joined
+  // and left against the persisted store. What they are not is SHARED — there
+  // is no second device, so a join code only resolves against the seeded
+  // groups. That is the same honesty the nudges keep: the feature works, it
+  // simply has nobody else to reach.
+
+  watchGroups(_uid: string, onChange: (groups: Group[]) => void): Unsubscribe {
+    return socialStore.subscribe(s => onChange(s.groups));
+  }
+
+  async createGroup(_uid: string, name: string): Promise<Group> {
+    return socialStore.createGroup(name);
+  }
+
+  async joinGroup(_uid: string, rawCode: string): Promise<JoinResult> {
+    const code = normaliseCode(rawCode);
+    if (!code) {
+      return { state: 'unknown' };
+    }
+    // Membership before the call is what separates "joined" from "already in".
+    const before = socialStore
+      .getState()
+      .groups.some(g => g.code.toUpperCase() === code);
+
+    const group = socialStore.joinGroup(code);
+    if (!group) {
+      return { state: 'unknown' };
+    }
+    return { state: before ? 'already' : 'joined', group };
+  }
+
+  async leaveGroup(_uid: string, groupId: string): Promise<void> {
+    socialStore.leaveGroup(groupId);
+  }
+
+  async addToGroup(_uid: string, groupId: string, memberUid: string): Promise<void> {
+    socialStore.addToGroup(groupId, memberUid);
+  }
+
+  async removeFromGroup(
+    _uid: string,
+    groupId: string,
+    memberUid: string,
+  ): Promise<void> {
+    socialStore.removeFromGroup(groupId, memberUid);
   }
 
   async markInboxRead(): Promise<void> {
