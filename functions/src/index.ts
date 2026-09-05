@@ -12,8 +12,12 @@ import { comebackNudge, milestoneNudge, streakAtRiskNudge } from './copy';
 initializeApp();
 const db = getFirestore();
 
-/** Pepper for invite code hashing. Server-only secret. */
-const JOIN_CODE_PEPPER = process.env.JOIN_CODE_PEPPER || 'flint-mvp-join-pepper-change-in-production';
+/** Pepper for invite code hashing. Server-only secret. REQUIRED in production. */
+const JOIN_CODE_PEPPER = process.env.JOIN_CODE_PEPPER;
+
+if (!JOIN_CODE_PEPPER) {
+  throw new Error('JOIN_CODE_PEPPER environment variable is required');
+}
 
 /** Local-date key. Never toISOString() — see the note in src/services/training.ts. */
 const dayKey = (d: Date): string => {
@@ -351,8 +355,9 @@ export const createOneOnOneChallenge = onCall(async request => {
   const challengeRef = await db.collection('challenges').add({
     type: 'one_on_one',
     title: challengeTitle,
-    inviteToken: token, // Plaintext for creator to share (rules restrict read)
-    inviteTokenHash: tokenHash, // For secure lookups
+    // DO NOT store plaintext token - security risk
+    // Token is returned once to creator for immediate sharing only
+    inviteTokenHash: tokenHash, // Only hash is stored for lookups
     activityKind,
     creatorId: userId,
     targetDays,
@@ -599,7 +604,7 @@ export const createRematch = onCall(async request => {
     createdAt: new Date(),
   });
 
-  // Generate token (won't be used for rematch but needed for model)
+  // Generate token (won't be stored, only hash)
   const token = Math.random().toString(36).substring(2, 10).toUpperCase();
   const tokenHash = hashInviteToken(token);
 
@@ -607,8 +612,8 @@ export const createRematch = onCall(async request => {
   const challengeRef = await db.collection('challenges').add({
     type: 'one_on_one',
     title: `${newTarget}-day ${original.activityKind} Challenge`,
-    inviteToken: token,
-    inviteTokenHash: tokenHash,
+    // DO NOT store plaintext token - security risk
+    inviteTokenHash: tokenHash, // Only hash stored
     activityKind: original.activityKind,
     creatorId: userId,
     opponentId,

@@ -15,9 +15,9 @@ import {
   Text,
 } from '../../components';
 import { ACTIVITY_LABELS } from '../../services/types';
-import type { Group, Submission } from '../../services/types';
+import type { Group, Submission, OneOnOneChallenge } from '../../services/types';
 import { getLocalDay } from '../../services/challenges';
-import { getGroup, getGroupSubmissions } from '../../services/repository.challenges';
+import { getGroup, getGroupSubmissions, getGroupChallenges } from '../../services/repository.challenges';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
 import { currentUser } from '../../services/auth';
@@ -33,6 +33,7 @@ export function GroupDetailScreen() {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [todayLogs, setTodayLogs] = useState<Submission[]>([]);
+  const [groupChallenges, setGroupChallenges] = useState<OneOnOneChallenge[]>([]);
   const [loading, setLoading] = useState(true);
 
   const today = getLocalDay();
@@ -53,6 +54,12 @@ export function GroupDetailScreen() {
           if (!cancelled) {
             setTodayLogs(todaySubs);
           }
+
+          // Load challenges for this group
+          const challenges = await getGroupChallenges(route.params.groupId);
+          if (!cancelled) {
+            setGroupChallenges(challenges);
+          }
         }
       } catch (error) {
         console.error('Error loading group:', error);
@@ -69,10 +76,36 @@ export function GroupDetailScreen() {
   }, [route.params.groupId, today]);
 
   const handleLogToday = () => {
-    // Navigate to the first challenge in this group for logging
-    // For now, navigate to CreateOneOnOne as a placeholder
-    navigation.navigate('CreateOneOnOne');
+    // Priority: active challenges (most recently accepted), then pending
+    const activeChallenges = groupChallenges
+      .filter(c => c.status === 'active')
+      .sort((a, b) => {
+        const aTime = a.acceptedAt ? new Date(a.acceptedAt).getTime() : 0;
+        const bTime = b.acceptedAt ? new Date(b.acceptedAt).getTime() : 0;
+        return bTime - aTime; // Most recent first
+      });
+
+    if (activeChallenges.length > 0) {
+      // Navigate to log for the most recently accepted active challenge
+      navigation.navigate('ChallengeLog', { challengeId: activeChallenges[0].id });
+      return;
+    }
+
+    // If no active, check for pending invites
+    const pendingChallenges = groupChallenges.filter(c => c.status === 'pending');
+    if (pendingChallenges.length > 0) {
+      // Navigate to detail for the first pending challenge
+      navigation.navigate('ChallengeDetail', { challengeId: pendingChallenges[0].id });
+      return;
+    }
+
+    // If no challenges at all, do nothing (button should be disabled)
+    // This case is handled by disabling the button below
   };
+
+  const hasActiveOrPendingChallenge = groupChallenges.some(
+    c => c.status === 'active' || c.status === 'pending'
+  );
 
   if (loading) {
     return (
@@ -157,14 +190,25 @@ export function GroupDetailScreen() {
       </Card>
 
       {/* Sticky Log Today CTA */}
-      <Button
-        label="Log today"
-        size="lg"
-        fullWidth
-        iconLeft={<Target color={theme.colors.onAccent} size={16} />}
-        onPress={handleLogToday}
-        style={styles.logTodayCta}
-      />
+      {hasActiveOrPendingChallenge ? (
+        <Button
+          label="Log today"
+          size="lg"
+          fullWidth
+          iconLeft={<Target color={theme.colors.onAccent} size={16} />}
+          onPress={handleLogToday}
+          style={styles.logTodayCta}
+        />
+      ) : (
+        <Card variant="light" padding="base" style={styles.noChallengeCard}>
+          <Text variant="bodyStrong" style={styles.noChallengeTitle}>
+            No active challenge
+          </Text>
+          <Text variant="bodySm" tone="muted" style={styles.noChallengeBody}>
+            Start one to begin logging.
+          </Text>
+        </Card>
+      )}
 
       {/* Activity list below */}
       {todayLogs.length > 0 && (
@@ -228,6 +272,9 @@ const styles = StyleSheet.create({
   },
   todayItemContent: { flex: 1 },
   logTodayCta: { marginTop: 20 },
+  noChallengeCard: { marginTop: 20 },
+  noChallengeTitle: { textAlign: 'center' },
+  noChallengeBody: { marginTop: 4, textAlign: 'center' },
   activitySection: { marginTop: 28 },
   activityTitle: { marginBottom: 12 },
   list: { rowGap: 4 },

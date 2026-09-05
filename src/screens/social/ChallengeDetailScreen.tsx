@@ -83,7 +83,14 @@ export function ChallengeDetailScreen() {
   );
 
   const shareInvite = async () => {
-    if (!challenge) return;
+    if (!challenge || !challenge.inviteToken) {
+      // Token not available for sharing (already shared or security policy)
+      Alert.alert(
+        'Cannot Share',
+        'Invite link is no longer available. Create a new challenge to get a fresh invite link.',
+      );
+      return;
+    }
     const inviteUrl = `flint://invite/${challenge.inviteToken}`;
     try {
       await Share.share({

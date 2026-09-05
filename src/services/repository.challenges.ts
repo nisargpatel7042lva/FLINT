@@ -123,7 +123,7 @@ export async function getChallenge(challengeId: string): Promise<OneOnOneChallen
     id: snap.id,
     type: 'one_on_one',
     title: String(data.title || ''),
-    inviteToken: String(data.inviteToken || ''),
+    inviteToken: String(data.inviteToken || ''), // May be empty if not stored (security policy)
     activityKind: (data.activityKind as ActivityKind) || 'run',
     creatorId: String(data.creatorId || ''),
     opponentId: data.opponentId ? String(data.opponentId) : undefined,
@@ -352,6 +352,42 @@ export async function getChallengeSubmissions(
         clap: 0,
         eyes: 0,
       },
+    };
+  });
+}
+
+/**
+ * Get challenges for a group.
+ */
+export async function getGroupChallenges(
+  groupId: string,
+): Promise<OneOnOneChallenge[]> {
+  const q = query(
+    challengesCol(),
+    where('groupId', '==', groupId),
+    orderBy('acceptedAt', 'desc'),
+  );
+
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => {
+    const data = doc.data() as Record<string, unknown>;
+    return {
+      id: doc.id,
+      type: 'one_on_one',
+      title: String(data.title || ''),
+      inviteToken: String(data.inviteToken || ''), // May be empty (security policy)
+      activityKind: (data.activityKind as ActivityKind) || 'run',
+      creatorId: String(data.creatorId || ''),
+      opponentId: data.opponentId ? String(data.opponentId) : undefined,
+      groupId: data.groupId ? String(data.groupId) : undefined,
+      targetDays: Number(data.targetDays || 30),
+      sessionsPerDay: Number(data.sessionsPerDay || 1),
+      status: (data.status as 'pending' | 'active' | 'completed') || 'pending',
+      createdAt: String(data.createdAt || new Date().toISOString()),
+      acceptedAt: data.acceptedAt ? String(data.acceptedAt) : undefined,
+      completedAt: data.completedAt ? String(data.completedAt) : undefined,
+      startDay: data.startDay ? String(data.startDay) : undefined,
+      endDay: data.endDay ? String(data.endDay) : undefined,
     };
   });
 }

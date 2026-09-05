@@ -52,7 +52,8 @@ export function CreateOneOnOneScreen() {
         `${days}-day ${ACTIVITY_LABELS[selectedActivity]} Challenge`,
       );
       
-      // Share the invite link
+      // Immediately share the invite link
+      // Token is returned once and NOT stored on challenge doc (security)
       const inviteUrl = `flint://invite/${challenge.inviteToken}`;
       try {
         await Share.share({
