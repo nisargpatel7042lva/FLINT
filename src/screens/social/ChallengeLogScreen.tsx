@@ -55,9 +55,10 @@ export function ChallengeLogScreen() {
       
       setSubmitted(true);
 
+      // Navigate back after brief success message display
       setTimeout(() => {
         navigation.goBack();
-      }, 1500);
+      }, 800);
     } catch (error) {
       Alert.alert(
         'Error',

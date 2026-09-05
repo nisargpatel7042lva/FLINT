@@ -23,6 +23,7 @@ import {
   getChallengeSubmissions,
   getChallengeStreak,
   watchUserChallenges,
+  rematchChallenge,
 } from '../services/repository.challenges';
 import { buildRematch, getLocalDay } from '../services/challenges';
 
@@ -194,7 +195,12 @@ export function useCreateChallenge() {
   const [error, setError] = useState<string | null>(null);
 
   const create = useCallback(
-    async (activityKind: ActivityKind, targetDays: number, title?: string) => {
+    async (
+      activityKind: ActivityKind,
+      targetDays: number,
+      title?: string,
+      rematchOf?: string,
+    ) => {
       try {
         setCreating(true);
         setError(null);
@@ -204,6 +210,7 @@ export function useCreateChallenge() {
           activityKind,
           targetDays,
           title,
+          rematchOf,
         );
         setCreating(false);
         return challenge;
@@ -226,12 +233,11 @@ export function useAcceptChallenge() {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const accept = useCallback(async (challengeId: string) => {
+  const accept = useCallback(async (token: string) => {
     try {
       setAccepting(true);
       setError(null);
-      const user = await ensureSignedIn();
-      const result = await acceptChallenge(challengeId, user.uid);
+      const result = await acceptChallenge(token);
       setAccepting(false);
       return result;
     } catch (e) {
@@ -294,28 +300,19 @@ export function useRematchChallenge() {
     try {
       setCreating(true);
       setError(null);
-      const user = await ensureSignedIn();
       
       if (!original.opponentId) {
         throw new Error('Cannot rematch a challenge without an opponent');
       }
 
-      // Build rematch with increased difficulty
-      const rematchData = buildRematch(original, user.uid, original.opponentId);
-      
-      // Create the new challenge (already active since both users are known)
-      const challenge = await createOneOnOneChallenge(
-        user.uid,
-        rematchData.activityKind,
-        rematchData.targetDays,
-        rematchData.title,
-      );
-
-      // Accept it immediately as the opponent
-      const result = await acceptChallenge(challenge.id, original.opponentId);
+      // Use the rematch callable which handles everything server-side
+      const result = await rematchChallenge(original.id);
       
       setCreating(false);
-      return result.challenge;
+      
+      // Load the created challenge
+      const newChallenge = await getChallenge(result.challengeId);
+      return newChallenge!;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setCreating(false);

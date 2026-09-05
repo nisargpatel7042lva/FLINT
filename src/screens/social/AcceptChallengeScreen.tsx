@@ -35,13 +35,14 @@ export function AcceptChallengeScreen() {
     if (!challenge) return;
     
     try {
-      const result = await accept(challenge.id);
+      const result = await accept(route.params.token);
       setAccepted(true);
       
-      // Navigate to challenge detail after success message
+      // Navigate to challenge detail immediately after state update
+      // Use a brief delay just for the success message to be visible
       setTimeout(() => {
-        navigation.replace('ChallengeDetail', { challengeId: result.challenge.id });
-      }, 1500);
+        navigation.replace('ChallengeDetail', { challengeId: result.challengeId });
+      }, 800);
     } catch (error) {
       Alert.alert(
         'Error',
@@ -52,9 +53,8 @@ export function AcceptChallengeScreen() {
 
   const handleDecline = () => {
     setDeclined(true);
-    setTimeout(() => {
-      navigation.goBack();
-    }, 1000);
+    // Navigate immediately - no need for setTimeout
+    navigation.goBack();
   };
 
   // Loading state

@@ -197,6 +197,8 @@ export type OneOnOneChallenge = {
   startDay?: string;
   /** End day computed from startDay + targetDays */
   endDay?: string;
+  /** Original challenge ID if this is a rematch */
+  rematchOf?: string;
 };
 
 /** Challenge-scoped streak tracking (device-local + server-verified) */

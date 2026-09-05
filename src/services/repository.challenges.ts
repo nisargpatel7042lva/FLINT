@@ -19,6 +19,7 @@ import {
   addDoc,
   updateDoc,
 } from '@react-native-firebase/firestore';
+import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 
 import { requireFirebase } from './backend';
 import type {
@@ -33,10 +34,25 @@ import { generateInviteToken, getLocalDay, addDays } from './challenges';
 import type { Unsubscribe } from './repository';
 
 const db = () => getFirestore(requireFirebase());
+const functions = () => getFunctions(requireFirebase());
 const challengesCol = () => collection(db(), 'challenges');
 const submissionsCol = () => collection(db(), 'submissions');
 const streaksCol = () => collection(db(), 'challengeStreaks');
 const groupsCol = () => collection(db(), 'groups');
+
+/**
+ * Hash an invite token for secure storage.
+ * Must match server-side hashing in Cloud Functions.
+ */
+async function hashInviteToken(token: string): Promise<string> {
+  // Use Web Crypto API for SHA-256
+  const pepper = 'flint-mvp-join-pepper-change-in-production'; // Must match server
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pepper + token);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 /**
  * Create a new 1:1 challenge.
@@ -46,8 +62,10 @@ export async function createOneOnOneChallenge(
   activityKind: ActivityKind,
   targetDays: number,
   title?: string,
+  rematchOf?: string,
 ): Promise<OneOnOneChallenge> {
   const inviteToken = generateInviteToken();
+  const inviteTokenHash = await hashInviteToken(inviteToken);
   const now = new Date().toISOString();
 
   const challengeData: Omit<OneOnOneChallenge, 'id'> = {
@@ -64,6 +82,8 @@ export async function createOneOnOneChallenge(
 
   const docRef = await addDoc(challengesCol(), {
     ...challengeData,
+    inviteTokenHash, // Store hash for secure lookup
+    rematchOf: rematchOf || null, // Track rematch lineage
     createdAt: serverTimestamp(),
   });
 
@@ -132,65 +152,42 @@ export async function getChallengeByToken(token: string): Promise<OneOnOneChalle
 }
 
 /**
- * Accept a challenge invite.
+ * Accept a challenge invite using the secure callable function.
  */
 export async function acceptChallenge(
-  challengeId: string,
-  opponentId: string,
-): Promise<{ challenge: OneOnOneChallenge; group: Group }> {
-  const challengeRef = doc(challengesCol(), challengeId);
-  const challenge = await getChallenge(challengeId);
+  token: string,
+): Promise<{ challengeId: string; groupId: string }> {
+  const redeemJoinCode = httpsCallable(functions(), 'redeemJoinCode');
   
-  if (!challenge) {
-    throw new Error('Challenge not found');
+  try {
+    const result = await redeemJoinCode({ token });
+    const data = result.data as { success: boolean; challengeId: string; groupId: string };
+    
+    if (!data.success) {
+      throw new Error('Failed to redeem challenge code');
+    }
+
+    return {
+      challengeId: data.challengeId,
+      groupId: data.groupId,
+    };
+  } catch (error: any) {
+    // Map Firebase errors to user-friendly messages
+    if (error.code === 'functions/not-found') {
+      throw new Error('Challenge not found or already accepted');
+    } else if (error.code === 'functions/already-exists') {
+      throw new Error('Challenge already has an opponent');
+    } else if (error.code === 'functions/resource-exhausted') {
+      throw new Error('Too many attempts. Please try again later.');
+    } else if (error.code === 'functions/unauthenticated') {
+      throw new Error('You must be signed in to accept challenges');
+    }
+    throw error;
   }
-
-  const today = getLocalDay();
-  const endDay = addDays(today, challenge.targetDays);
-
-  // Create a group for the challenge
-  const groupData = {
-    name: `${challenge.title} Group`,
-    code: challenge.inviteToken.substring(0, 6),
-    memberIds: [challenge.creatorId, opponentId],
-    createdAt: serverTimestamp(),
-  };
-
-  const groupRef = await addDoc(groupsCol(), groupData);
-
-  // Update the challenge
-  await updateDoc(challengeRef, {
-    opponentId,
-    groupId: groupRef.id,
-    status: 'active',
-    acceptedAt: serverTimestamp(),
-    startDay: today,
-    endDay,
-  });
-
-  const updatedChallenge: OneOnOneChallenge = {
-    ...challenge,
-    opponentId,
-    groupId: groupRef.id,
-    status: 'active',
-    acceptedAt: new Date().toISOString(),
-    startDay: today,
-    endDay,
-  };
-
-  const group: Group = {
-    id: groupRef.id,
-    name: groupData.name,
-    code: groupData.code,
-    memberIds: groupData.memberIds,
-    createdAt: new Date().toISOString(),
-  };
-
-  return { challenge: updatedChallenge, group };
 }
 
 /**
- * Log activity for a challenge.
+ * Log activity for a challenge using the secure callable function.
  */
 export async function logChallengeActivity(
   challengeId: string,
@@ -199,34 +196,84 @@ export async function logChallengeActivity(
   effort: Effort,
   note?: string,
 ): Promise<Submission> {
-  const challenge = await getChallenge(challengeId);
-  if (!challenge || !challenge.groupId) {
-    throw new Error('Challenge not found or not active');
+  const logActivity = httpsCallable(functions(), 'logChallengeActivity');
+
+  try {
+    const result = await logActivity({
+      challengeId,
+      distanceKm: effort.distanceKm,
+      kcal: effort.kcal,
+      note,
+    });
+
+    const data = result.data as { success: boolean; submissionId: string; day: string };
+
+    if (!data.success) {
+      throw new Error('Failed to log activity');
+    }
+
+    // Return the submission data
+    return {
+      id: data.submissionId,
+      memberId: userId,
+      groupId: '', // Will be filled by server
+      day: data.day,
+      kind: activityKind,
+      effort,
+      status: 'auto_verified',
+      approvals: [],
+      rejections: [],
+      autoChecks: { gpsOk: true, timestampOk: true },
+      note,
+      createdAt: new Date().toISOString(),
+      reactions: { fire: 0, strong: 0, clap: 0, eyes: 0 },
+    };
+  } catch (error: any) {
+    // Map Firebase errors to user-friendly messages
+    if (error.code === 'functions/not-found') {
+      throw new Error('Challenge not found');
+    } else if (error.code === 'functions/already-exists') {
+      throw new Error('Already logged for today');
+    } else if (error.code === 'functions/permission-denied') {
+      throw new Error('You are not a participant in this challenge');
+    } else if (error.code === 'functions/failed-precondition') {
+      throw new Error('Challenge is not active');
+    }
+    throw error;
   }
+}
 
-  const today = getLocalDay();
+/**
+ * Create a rematch challenge using the secure callable function.
+ */
+export async function rematchChallenge(
+  originalChallengeId: string,
+): Promise<{ challengeId: string; groupId: string }> {
+  const createRematch = httpsCallable(functions(), 'createRematch');
 
-  const submissionData: Omit<Submission, 'id'> = {
-    memberId: userId,
-    groupId: challenge.groupId,
-    day: today,
-    kind: activityKind,
-    effort,
-    status: 'auto_verified',
-    approvals: [],
-    rejections: [],
-    autoChecks: { gpsOk: true, timestampOk: true },
-    note,
-    createdAt: new Date().toISOString(),
-    reactions: { fire: 0, strong: 0, clap: 0, eyes: 0 },
-  };
+  try {
+    const result = await createRematch({ originalChallengeId });
+    const data = result.data as { success: boolean; challengeId: string; groupId: string };
 
-  const docRef = await addDoc(submissionsCol(), {
-    ...submissionData,
-    createdAt: serverTimestamp(),
-  });
+    if (!data.success) {
+      throw new Error('Failed to create rematch');
+    }
 
-  return { ...submissionData, id: docRef.id };
+    return {
+      challengeId: data.challengeId,
+      groupId: data.groupId,
+    };
+  } catch (error: any) {
+    // Map Firebase errors to user-friendly messages
+    if (error.code === 'functions/not-found') {
+      throw new Error('Original challenge not found');
+    } else if (error.code === 'functions/permission-denied') {
+      throw new Error('You are not a participant in the original challenge');
+    } else if (error.code === 'functions/failed-precondition') {
+      throw new Error('Cannot create rematch for this challenge');
+    }
+    throw error;
+  }
 }
 
 /**
