@@ -385,22 +385,37 @@ adb shell am start -W -a android.intent.action.VIEW \
 2. **Cloud Functions**:
    ```bash
    cd functions
-   npm install  # Only needed first time
+   npm install  # Only needed first time or after package.json changes
    cd ..
    firebase deploy --only functions
    ```
-   This deploys `onSubmissionWritten` which computes challenge streaks.
+   This deploys all callable functions for secure challenge operations.
 
 3. **Verify Deployment**:
    ```bash
    firebase functions:list
    ```
-   Should show: `onSessionWritten`, `nudgeStreaksAtRisk`, `nudgeComebacks`, `onSubmissionWritten`
+   Should show these functions:
+   - `onSessionWritten` (existing)
+   - `nudgeStreaksAtRisk` (existing)
+   - `nudgeComebacks` (existing)
+   - `onSubmissionWritten` (existing - streak computation)
+   - **`redeemJoinCode`** (NEW - secure challenge acceptance)
+   - **`logChallengeActivity`** (NEW - gated activity logging)
+   - **`createRematch`** (NEW - rematch with lineage tracking)
+
+4. **Set Environment Variables** (Production):
+   ```bash
+   # In Firebase Console: Functions → Configuration → Environment Variables
+   # Add:
+   JOIN_CODE_PEPPER=your-secret-pepper-change-this-in-production
+   ```
 
 **Without these deployments**, the core loop will fail:
-- Submissions will be rejected by security rules
+- Challenge acceptance will fail (redeemJoinCode not found)
+- Activity logging will fail (logChallengeActivity not found)
+- Rematch will fail (createRematch not found)
 - Streaks won't compute (onSubmissionWritten won't trigger)
-- Challenge acceptance may fail
 
 ## Summary
 
