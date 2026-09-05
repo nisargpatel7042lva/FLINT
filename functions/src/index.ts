@@ -187,3 +187,111 @@ export const nudgeComebacks = onSchedule(
     logger.info('comeback nudges sent', { sent });
   },
 );
+
+/**
+ * Compute challenge streaks when a submission is created or updated.
+ * 
+ * Challenge streaks are server-owned to prevent client forgery.
+ * Consecutive days in device-local timezone, miss = break.
+ */
+export const onSubmissionWritten = onDocumentWritten(
+  'submissions/{submissionId}',
+  async event => {
+    const submission = event.data?.after.data();
+    if (!submission) {
+      return;
+    }
+
+    const { groupId, memberId } = submission;
+
+    // Check if this submission belongs to a 1:1 challenge
+    const challengeSnap = await db
+      .collection('challenges')
+      .where('groupId', '==', groupId)
+      .where('type', '==', 'one_on_one')
+      .limit(1)
+      .get();
+
+    if (challengeSnap.empty) {
+      return; // Not a challenge submission
+    }
+
+    const challenge = challengeSnap.docs[0];
+    const challengeId = challenge.id;
+
+    // Get all submissions for this user in this challenge
+    const userSubs = await db
+      .collection('submissions')
+      .where('groupId', '==', groupId)
+      .where('memberId', '==', memberId)
+      .where('status', '!=', 'rejected')
+      .get();
+
+    const days = new Set<string>();
+    userSubs.docs.forEach(doc => {
+      const day = doc.get('day');
+      if (day) {
+        days.add(String(day));
+      }
+    });
+
+    const today = dayKey(new Date());
+    const totalActiveDays = days.size;
+
+    // Compute current streak (consecutive days ending today or yesterday)
+    let currentStreak = 0;
+    const todayDate = new Date(`${today}T00:00:00`);
+    const yesterday = dayKey(shift(todayDate, -1));
+    let cursor = days.has(today) ? today : yesterday;
+
+    if (days.has(cursor)) {
+      while (days.has(cursor)) {
+        currentStreak += 1;
+        cursor = dayKey(shift(new Date(`${cursor}T00:00:00`), -1));
+      }
+    }
+
+    // Compute best streak
+    const sortedDays = Array.from(days).sort();
+    let bestStreak = 0;
+    let tempStreak = 1;
+
+    for (let i = 1; i < sortedDays.length; i++) {
+      const prevDate = new Date(`${sortedDays[i - 1]}T00:00:00`);
+      const expectedNext = dayKey(shift(prevDate, 1));
+
+      if (sortedDays[i] === expectedNext) {
+        tempStreak += 1;
+      } else {
+        bestStreak = Math.max(bestStreak, tempStreak);
+        tempStreak = 1;
+      }
+    }
+    bestStreak = Math.max(bestStreak, tempStreak);
+
+    const lastActivityDay = sortedDays[sortedDays.length - 1];
+
+    // Write the computed streak
+    const streakRef = db.doc(`challengeStreaks/${challengeId}_${memberId}`);
+    await streakRef.set(
+      {
+        challengeId,
+        userId: memberId,
+        currentStreak,
+        bestStreak,
+        lastActivityDay,
+        totalActiveDays,
+        updatedAt: new Date(),
+      },
+      { merge: true },
+    );
+
+    logger.info('challenge streak computed', {
+      challengeId,
+      userId: memberId,
+      currentStreak,
+      bestStreak,
+      totalActiveDays,
+    });
+  },
+);

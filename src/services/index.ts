@@ -21,3 +21,6 @@ export * from './location';
 export * from './messaging';
 export * from './notificationCopy';
 export * from './enrollment';
+export * from './challenges';
+export * from './repository.challenges';
+export * from './deeplinks';

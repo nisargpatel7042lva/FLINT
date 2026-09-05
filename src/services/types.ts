@@ -1,6 +1,87 @@
 /** Domain model for groups, challenges, proof and the social feed. */
 
-export type ActivityKind = 'workout' | 'run' | 'ride' | 'walk';
+export type ActivityCategory = 'Cardio' | 'Strength' | 'Mobility' | 'Sports' | 'Outdoor';
+
+export type ActivityKind =
+  | 'run'
+  | 'walk'
+  | 'cycle'
+  | 'swim'
+  | 'rowing'
+  | 'elliptical'
+  | 'stairmaster'
+  | 'hiit'
+  | 'jump_rope'
+  | 'weights'
+  | 'bodyweight'
+  | 'crossfit'
+  | 'powerlifting'
+  | 'olympic_lifting'
+  | 'yoga'
+  | 'pilates'
+  | 'stretching'
+  | 'foam_rolling'
+  | 'mobility_drills'
+  | 'basketball'
+  | 'soccer'
+  | 'tennis'
+  | 'volleyball'
+  | 'boxing'
+  | 'martial_arts'
+  | 'climbing'
+  | 'surfing'
+  | 'skiing'
+  | 'snowboarding'
+  | 'hiking'
+  | 'trail_running'
+  | 'mountain_biking'
+  | 'kayaking'
+  | 'paddleboarding';
+
+export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
+  run: 'Run',
+  walk: 'Walk',
+  cycle: 'Cycle',
+  swim: 'Swim',
+  rowing: 'Rowing',
+  elliptical: 'Elliptical',
+  stairmaster: 'Stairmaster',
+  hiit: 'HIIT',
+  jump_rope: 'Jump Rope',
+  weights: 'Weights',
+  bodyweight: 'Bodyweight',
+  crossfit: 'CrossFit',
+  powerlifting: 'Powerlifting',
+  olympic_lifting: 'Olympic Lifting',
+  yoga: 'Yoga',
+  pilates: 'Pilates',
+  stretching: 'Stretching',
+  foam_rolling: 'Foam Rolling',
+  mobility_drills: 'Mobility Drills',
+  basketball: 'Basketball',
+  soccer: 'Soccer',
+  tennis: 'Tennis',
+  volleyball: 'Volleyball',
+  boxing: 'Boxing',
+  martial_arts: 'Martial Arts',
+  climbing: 'Climbing',
+  surfing: 'Surfing',
+  skiing: 'Skiing',
+  snowboarding: 'Snowboarding',
+  hiking: 'Hiking',
+  trail_running: 'Trail Running',
+  mountain_biking: 'Mountain Biking',
+  kayaking: 'Kayaking',
+  paddleboarding: 'Paddleboarding',
+};
+
+export const ACTIVITY_BY_CATEGORY: Record<ActivityCategory, ActivityKind[]> = {
+  Cardio: ['run', 'walk', 'cycle', 'swim', 'rowing', 'elliptical', 'stairmaster', 'hiit', 'jump_rope'],
+  Strength: ['weights', 'bodyweight', 'crossfit', 'powerlifting', 'olympic_lifting'],
+  Mobility: ['yoga', 'pilates', 'stretching', 'foam_rolling', 'mobility_drills'],
+  Sports: ['basketball', 'soccer', 'tennis', 'volleyball', 'boxing', 'martial_arts'],
+  Outdoor: ['climbing', 'surfing', 'skiing', 'snowboarding', 'hiking', 'trail_running', 'mountain_biking', 'kayaking', 'paddleboarding'],
+};
 
 /** Raw effort for one logged session, before conversion to points. */
 export type Effort = {
@@ -58,7 +139,7 @@ export type Group = {
   createdAt: string;
 };
 
-export type ChallengeType = 'individual' | 'team_war';
+export type ChallengeType = 'individual' | 'team_war' | 'one_on_one';
 
 /** e.g. "complete 5 workouts this week" */
 export type IndividualChallenge = {
@@ -81,7 +162,60 @@ export type TeamWar = {
   createdAt: string;
 };
 
-export type Challenge = IndividualChallenge | TeamWar;
+/** 
+ * 1:1 Challenge for the Flint MVP.
+ * Two users compete with a shared activity goal and a challenge-scoped streak.
+ */
+export type OneOnOneChallenge = {
+  id: string;
+  type: 'one_on_one';
+  /** Challenge name, e.g. "30-day Run Streak" */
+  title: string;
+  /** Unique invite token for accepting the challenge */
+  inviteToken: string;
+  /** The primary activity for this challenge (e.g. 'run') */
+  activityKind: ActivityKind;
+  /** Creator's user id */
+  creatorId: string;
+  /** Opponent's user id (set when accepted) */
+  opponentId?: string;
+  /** Group id (created when challenge is accepted) */
+  groupId?: string;
+  /** Target days of activity (e.g. 30) */
+  targetDays: number;
+  /** Target sessions per day (usually 1) */
+  sessionsPerDay: number;
+  /** Challenge status */
+  status: 'pending' | 'active' | 'completed';
+  /** When the challenge was created */
+  createdAt: string;
+  /** When the challenge was accepted (becomes active) */
+  acceptedAt?: string;
+  /** When the challenge was completed */
+  completedAt?: string;
+  /** Start day of the challenge (YYYY-MM-DD), set when accepted */
+  startDay?: string;
+  /** End day computed from startDay + targetDays */
+  endDay?: string;
+};
+
+/** Challenge-scoped streak tracking (device-local + server-verified) */
+export type ChallengeStreak = {
+  /** Challenge id */
+  challengeId: string;
+  /** User id */
+  userId: string;
+  /** Current consecutive days with activity */
+  currentStreak: number;
+  /** Best streak achieved during this challenge */
+  bestStreak: number;
+  /** Last day with activity (YYYY-MM-DD) */
+  lastActivityDay?: string;
+  /** Total days with activity logged */
+  totalActiveDays: number;
+};
+
+export type Challenge = IndividualChallenge | TeamWar | OneOnOneChallenge;
 
 export type NotificationKind =
   | 'friend_completed'

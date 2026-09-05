@@ -36,3 +36,9 @@ export * from './social/ProofSubmitScreen';
 export * from './social/ProofReviewScreen';
 export * from './social/FeedScreen';
 export * from './social/NotificationsScreen';
+
+// Flint MVP: 1:1 Challenges
+export * from './social/CreateOneOnOneScreen';
+export * from './social/AcceptChallengeScreen';
+export * from './social/ChallengeDetailScreen';
+export * from './social/ChallengeLogScreen';
