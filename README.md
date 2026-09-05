@@ -253,3 +253,57 @@ state, but `SESSION_LOGS` is a static fixture, so the streak resets on reload.
 Health Connect integration, iOS, and real persistence — all domain data comes
 from `src/services/mockData.ts`. Auth is unwired. Video capture and upload in
 `ProofSubmitScreen` are simulated; no camera module is installed yet.
+
+## Flint MVP: 1:1 Challenges
+
+The Flint MVP adds a complete 1:1 challenge system built on the existing React Native + Firebase stack. See [docs/FLINT_MVP_TESTING.md](docs/FLINT_MVP_TESTING.md) for full testing guide.
+
+### Features
+
+- **33 Activity Types** across Cardio, Strength, Mobility, Sports, and Outdoor categories
+- **1:1 Challenge Flow**: Create challenge → share invite link → accept → log → streak → rematch
+- **Device-Local Streaks**: Consecutive days in YYYY-MM-DD format, miss = break, no grace
+- **Challenge-Scoped Streaks**: One streak per challenge, no separate personal show-up streak UI
+- **Deep Link Invites**: `flint://invite/TOKEN` opens accept screen
+- **Manual Activity Logging**: Distance/duration/kcal entry, auto-verified
+- **Rematch Flow**: "Push harder (same pair)" bumps goal by 25% or +7 days
+- **Today's Logs as Hero**: Group home shows who logged today prominently
+- **Server-Side Validation**: Cloud Functions compute streaks to prevent client forgery
+
+### Quick Start
+
+```bash
+# Navigate to create challenge (from home or groups)
+# Select activity (defaults to Run) and target days (e.g., 30)
+# Share invite link with opponent
+
+# On opponent device, open deep link:
+adb shell am start -W -a android.intent.action.VIEW \
+  -d "flint://invite/ABC123XY" \
+  com.kasrat
+
+# Both users log daily → streaks increment → complete → rematch
+```
+
+### Architecture
+
+**New Collections**:
+- `challenges`: OneOnOneChallenge documents with invite tokens
+- `submissions`: Activity logs tied to challenge groups  
+- `challengeStreaks`: Server-computed streaks (read-only for clients)
+
+**New Screens**:
+- `CreateOneOnOne`: Challenge creation with activity picker
+- `AcceptChallenge`: Invite preview and accept/decline
+- `ChallengeDetail`: Streaks, today's logs, and rematch CTA
+- `ChallengeLog`: Manual activity entry
+
+**Security**: Firestore rules enforce ownership, group membership, and server-owned streak fields. Cloud Functions (`onSubmissionWritten`) recompute streaks on every log to prevent forgery.
+
+**Design Tone**: "Dare, not dunk" — broken streak is honest; rematch is the win; log is hero.
+
+### What's Out of Scope
+
+Feed-led UX, Team War, video proof, camps, payments, AI, and Expo migration are intentionally excluded from this MVP.
+
+Kasrat branding remains internally; Flint-facing copy is in the new UI only. No package rename in this phase.
