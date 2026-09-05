@@ -6,3 +6,5 @@
  */
 
 export { useTheme, useThemeContext } from '../theme';
+export * from './useSessions';
+export * from './useChallenges';

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Target, Users, CheckCircle2, XCircle } from 'lucide-react-native';
 
@@ -10,30 +10,11 @@ import {
   Screen,
   Text,
 } from '../../components';
-import { ACTIVITY_LABELS, type OneOnOneChallenge } from '../../services/types';
+import { ACTIVITY_LABELS } from '../../services/types';
 import { getLocalDay } from '../../services/challenges';
+import { useChallengeByToken, useAcceptChallenge } from '../../hooks/useChallenges';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
-
-// Mock challenge loaded by token
-const MOCK_CHALLENGE: OneOnOneChallenge = {
-  id: 'ch1',
-  type: 'one_on_one',
-  title: '30-day Run Challenge',
-  inviteToken: 'ABC123XY',
-  activityKind: 'run',
-  creatorId: 'u1',
-  targetDays: 30,
-  sessionsPerDay: 1,
-  status: 'pending',
-  createdAt: '2026-09-01T00:00:00Z',
-};
-
-const MOCK_CREATOR = {
-  id: 'u1',
-  name: 'Alex Chen',
-  handle: '@alex',
-};
 
 /**
  * Accept or decline a 1:1 challenge invite.
@@ -43,43 +24,91 @@ export function AcceptChallengeScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'AcceptChallenge'>>();
+  
+  const { challenge, loading: loadingChallenge, error: loadError } = useChallengeByToken(route.params.token);
+  const { accept, accepting } = useAcceptChallenge();
 
-  const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [declined, setDeclined] = useState(false);
 
-  // TODO: Load challenge from Firebase by token
-  const challenge = MOCK_CHALLENGE;
-  const creator = MOCK_CREATOR;
-
-  const handleAccept = () => {
-    setAccepting(true);
+  const handleAccept = async () => {
+    if (!challenge) return;
     
-    // TODO: Accept challenge in Firestore
-    // - Set opponentId to current user
-    // - Set status to 'active'
-    // - Set acceptedAt, startDay, endDay
-    // - Create group with both users
-    
-    console.log('Accepting challenge:', challenge.id);
-    
-    setTimeout(() => {
-      setAccepting(false);
+    try {
+      const result = await accept(route.params.token);
       setAccepted(true);
       
-      // Navigate to challenge detail after 1.5s
+      // Navigate to challenge detail immediately after state update
+      // Use a brief delay just for the success message to be visible
       setTimeout(() => {
-        navigation.replace('ChallengeDetail', { challengeId: challenge.id });
-      }, 1500);
-    }, 800);
+        navigation.replace('ChallengeDetail', { challengeId: result.challengeId });
+      }, 800);
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Could not accept challenge',
+      );
+    }
   };
 
   const handleDecline = () => {
     setDeclined(true);
-    setTimeout(() => {
-      navigation.goBack();
-    }, 1000);
+    // Navigate immediately - no need for setTimeout
+    navigation.goBack();
   };
+
+  // Loading state
+  if (loadingChallenge) {
+    return (
+      <Screen padding="lg" center>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+        <Text variant="body" tone="muted" style={styles.loadingText}>
+          Loading challenge...
+        </Text>
+      </Screen>
+    );
+  }
+
+  // Error state
+  if (loadError || !challenge) {
+    return (
+      <Screen padding="lg" center>
+        <XCircle color={theme.colors.danger} size={64} />
+        <Text variant="displaySm" style={styles.statusTitle}>
+          Challenge not found
+        </Text>
+        <Text variant="body" tone="muted" style={styles.statusBody}>
+          This invite link may be invalid or expired.
+        </Text>
+        <Button
+          label="Go back"
+          size="md"
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        />
+      </Screen>
+    );
+  }
+
+  // Challenge already accepted
+  if (challenge.status !== 'pending') {
+    return (
+      <Screen padding="lg" center>
+        <Text variant="displaySm" style={styles.statusTitle}>
+          Challenge already started
+        </Text>
+        <Text variant="body" tone="muted" style={styles.statusBody}>
+          This challenge has already been accepted.
+        </Text>
+        <Button
+          label="View challenge"
+          size="md"
+          onPress={() => navigation.replace('ChallengeDetail', { challengeId: challenge.id })}
+          style={styles.backButton}
+        />
+      </Screen>
+    );
+  }
 
   if (accepted) {
     return (
@@ -121,11 +150,11 @@ export function AcceptChallengeScreen() {
         </View>
         
         <Text variant="headingLg" tone="inverse" style={styles.inviteTitle}>
-          {creator.name} challenges you
+          Challenge invitation
         </Text>
         
         <Text variant="body" tone="inverseMuted" style={styles.inviteSubtitle}>
-          {creator.handle}
+          You've been challenged
         </Text>
       </Card>
 
@@ -171,6 +200,7 @@ export function AcceptChallengeScreen() {
           size="lg"
           fullWidth
           loading={accepting}
+          disabled={accepting}
           style={styles.acceptButton}
           onPress={handleAccept}
         />
@@ -203,6 +233,8 @@ function Rule({ text }: { text: string }) {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 140, paddingTop: 40 },
+  loadingText: { marginTop: 16, textAlign: 'center' },
+  backButton: { marginTop: 20 },
   inviteCard: { alignItems: 'center' },
   inviteIcon: { marginBottom: 20 },
   inviteTitle: { textAlign: 'center' },

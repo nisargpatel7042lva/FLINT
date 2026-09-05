@@ -19,6 +19,7 @@ import {
   addDoc,
   updateDoc,
 } from '@react-native-firebase/firestore';
+import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 
 import { requireFirebase } from './backend';
 import type {
@@ -33,41 +34,80 @@ import { generateInviteToken, getLocalDay, addDays } from './challenges';
 import type { Unsubscribe } from './repository';
 
 const db = () => getFirestore(requireFirebase());
+const functions = () => getFunctions(requireFirebase());
 const challengesCol = () => collection(db(), 'challenges');
 const submissionsCol = () => collection(db(), 'submissions');
 const streaksCol = () => collection(db(), 'challengeStreaks');
 const groupsCol = () => collection(db(), 'groups');
 
 /**
- * Create a new 1:1 challenge.
+ * Get a group by ID.
+ */
+export async function getGroup(groupId: string): Promise<Group | null> {
+  const snap = await getDoc(doc(groupsCol(), groupId));
+  if (!snap.exists()) {
+    return null;
+  }
+  const data = snap.data() as Record<string, unknown>;
+  return {
+    id: snap.id,
+    name: String(data.name || ''),
+    code: data.code ? String(data.code) : undefined,
+    memberIds: (data.memberIds as string[]) || [],
+  };
+}
+
+/**
+ * Create a new 1:1 challenge via callable Cloud Function.
+ * Server hashes the token and stores both plaintext (for creator sharing) and hash (for secure lookup).
  */
 export async function createOneOnOneChallenge(
   creatorId: string,
   activityKind: ActivityKind,
   targetDays: number,
   title?: string,
+  rematchOf?: string,
 ): Promise<OneOnOneChallenge> {
-  const inviteToken = generateInviteToken();
-  const now = new Date().toISOString();
-
-  const challengeData: Omit<OneOnOneChallenge, 'id'> = {
-    type: 'one_on_one',
-    title: title || `${targetDays}-day ${activityKind} Challenge`,
-    inviteToken,
-    activityKind,
-    creatorId,
-    targetDays,
-    sessionsPerDay: 1,
-    status: 'pending',
-    createdAt: now,
-  };
-
-  const docRef = await addDoc(challengesCol(), {
-    ...challengeData,
-    createdAt: serverTimestamp(),
-  });
-
-  return { ...challengeData, id: docRef.id };
+  const createChallenge = httpsCallable(functions(), 'createOneOnOneChallenge');
+  
+  try {
+    const result = await createChallenge({
+      activityKind,
+      targetDays,
+      title,
+      rematchOf,
+    });
+    
+    const data = result.data as {
+      success: boolean;
+      challengeId: string;
+      inviteToken: string;
+      title: string;
+      createdAt: string;
+    };
+    
+    if (!data.success) {
+      throw new Error('Failed to create challenge');
+    }
+    
+    return {
+      id: data.challengeId,
+      type: 'one_on_one',
+      title: data.title,
+      inviteToken: data.inviteToken, // For sharing only
+      activityKind,
+      creatorId,
+      targetDays,
+      sessionsPerDay: 1,
+      status: 'pending',
+      createdAt: data.createdAt,
+    };
+  } catch (error: any) {
+    if (error.code === 'functions/unauthenticated') {
+      throw new Error('You must be signed in to create challenges');
+    }
+    throw error;
+  }
 }
 
 /**
@@ -83,7 +123,7 @@ export async function getChallenge(challengeId: string): Promise<OneOnOneChallen
     id: snap.id,
     type: 'one_on_one',
     title: String(data.title || ''),
-    inviteToken: String(data.inviteToken || ''),
+    inviteToken: String(data.inviteToken || ''), // May be empty if not stored (security policy)
     activityKind: (data.activityKind as ActivityKind) || 'run',
     creatorId: String(data.creatorId || ''),
     opponentId: data.opponentId ? String(data.opponentId) : undefined,
@@ -100,97 +140,88 @@ export async function getChallenge(challengeId: string): Promise<OneOnOneChallen
 }
 
 /**
- * Get a challenge by invite token.
+ * Get challenge preview by invite token.
+ * Uses a callable Cloud Function for secure server-side token lookup.
  */
 export async function getChallengeByToken(token: string): Promise<OneOnOneChallenge | null> {
-  const q = query(challengesCol(), where('inviteToken', '==', token));
-  const snap = await getDocs(q);
+  const previewChallenge = httpsCallable(functions(), 'previewChallengeByToken');
   
-  if (snap.empty) {
-    return null;
+  try {
+    const result = await previewChallenge({ token });
+    const data = result.data as {
+      success: boolean;
+      challenge?: {
+        id: string;
+        title: string;
+        activityKind: ActivityKind;
+        creatorId: string;
+        targetDays: number;
+        status: string;
+        createdAt: string;
+      };
+    };
+    
+    if (!data.success || !data.challenge) {
+      return null;
+    }
+    
+    return {
+      id: data.challenge.id,
+      type: 'one_on_one',
+      title: data.challenge.title,
+      inviteToken: token, // Keep for client sharing after accept
+      activityKind: data.challenge.activityKind,
+      creatorId: data.challenge.creatorId,
+      targetDays: data.challenge.targetDays,
+      sessionsPerDay: 1,
+      status: data.challenge.status as 'pending' | 'active' | 'completed',
+      createdAt: data.challenge.createdAt,
+    };
+  } catch (error: any) {
+    if (error.code === 'functions/not-found') {
+      return null;
+    }
+    throw error;
   }
-  
-  const data = snap.docs[0].data() as Record<string, unknown>;
-  return {
-    id: snap.docs[0].id,
-    type: 'one_on_one',
-    title: String(data.title || ''),
-    inviteToken: String(data.inviteToken || ''),
-    activityKind: (data.activityKind as ActivityKind) || 'run',
-    creatorId: String(data.creatorId || ''),
-    opponentId: data.opponentId ? String(data.opponentId) : undefined,
-    groupId: data.groupId ? String(data.groupId) : undefined,
-    targetDays: Number(data.targetDays || 30),
-    sessionsPerDay: Number(data.sessionsPerDay || 1),
-    status: (data.status as 'pending' | 'active' | 'completed') || 'pending',
-    createdAt: String(data.createdAt || new Date().toISOString()),
-    acceptedAt: data.acceptedAt ? String(data.acceptedAt) : undefined,
-    completedAt: data.completedAt ? String(data.completedAt) : undefined,
-    startDay: data.startDay ? String(data.startDay) : undefined,
-    endDay: data.endDay ? String(data.endDay) : undefined,
-  };
 }
 
 /**
- * Accept a challenge invite.
+ * Accept a challenge invite using the secure callable function.
  */
 export async function acceptChallenge(
-  challengeId: string,
-  opponentId: string,
-): Promise<{ challenge: OneOnOneChallenge; group: Group }> {
-  const challengeRef = doc(challengesCol(), challengeId);
-  const challenge = await getChallenge(challengeId);
+  token: string,
+): Promise<{ challengeId: string; groupId: string }> {
+  const redeemJoinCode = httpsCallable(functions(), 'redeemJoinCode');
   
-  if (!challenge) {
-    throw new Error('Challenge not found');
+  try {
+    const result = await redeemJoinCode({ token });
+    const data = result.data as { success: boolean; challengeId: string; groupId: string };
+    
+    if (!data.success) {
+      throw new Error('Failed to redeem challenge code');
+    }
+
+    return {
+      challengeId: data.challengeId,
+      groupId: data.groupId,
+    };
+  } catch (error: any) {
+    // Map Firebase errors to user-friendly messages
+    if (error.code === 'functions/not-found') {
+      throw new Error('Challenge not found or already accepted');
+    } else if (error.code === 'functions/already-exists') {
+      throw new Error('Challenge already has an opponent');
+    } else if (error.code === 'functions/resource-exhausted') {
+      throw new Error('Too many attempts. Please try again later.');
+    } else if (error.code === 'functions/unauthenticated') {
+      throw new Error('You must be signed in to accept challenges');
+    }
+    throw error;
   }
-
-  const today = getLocalDay();
-  const endDay = addDays(today, challenge.targetDays);
-
-  // Create a group for the challenge
-  const groupData = {
-    name: `${challenge.title} Group`,
-    code: challenge.inviteToken.substring(0, 6),
-    memberIds: [challenge.creatorId, opponentId],
-    createdAt: serverTimestamp(),
-  };
-
-  const groupRef = await addDoc(groupsCol(), groupData);
-
-  // Update the challenge
-  await updateDoc(challengeRef, {
-    opponentId,
-    groupId: groupRef.id,
-    status: 'active',
-    acceptedAt: serverTimestamp(),
-    startDay: today,
-    endDay,
-  });
-
-  const updatedChallenge: OneOnOneChallenge = {
-    ...challenge,
-    opponentId,
-    groupId: groupRef.id,
-    status: 'active',
-    acceptedAt: new Date().toISOString(),
-    startDay: today,
-    endDay,
-  };
-
-  const group: Group = {
-    id: groupRef.id,
-    name: groupData.name,
-    code: groupData.code,
-    memberIds: groupData.memberIds,
-    createdAt: new Date().toISOString(),
-  };
-
-  return { challenge: updatedChallenge, group };
 }
 
 /**
- * Log activity for a challenge.
+ * Log activity for a challenge using the secure callable function.
  */
 export async function logChallengeActivity(
   challengeId: string,
@@ -199,34 +230,84 @@ export async function logChallengeActivity(
   effort: Effort,
   note?: string,
 ): Promise<Submission> {
-  const challenge = await getChallenge(challengeId);
-  if (!challenge || !challenge.groupId) {
-    throw new Error('Challenge not found or not active');
+  const logActivity = httpsCallable(functions(), 'logChallengeActivity');
+
+  try {
+    const result = await logActivity({
+      challengeId,
+      distanceKm: effort.distanceKm,
+      kcal: effort.kcal,
+      note,
+    });
+
+    const data = result.data as { success: boolean; submissionId: string; day: string };
+
+    if (!data.success) {
+      throw new Error('Failed to log activity');
+    }
+
+    // Return the submission data
+    return {
+      id: data.submissionId,
+      memberId: userId,
+      groupId: '', // Will be filled by server
+      day: data.day,
+      kind: activityKind,
+      effort,
+      status: 'auto_verified',
+      approvals: [],
+      rejections: [],
+      autoChecks: { gpsOk: true, timestampOk: true },
+      note,
+      createdAt: new Date().toISOString(),
+      reactions: { fire: 0, strong: 0, clap: 0, eyes: 0 },
+    };
+  } catch (error: any) {
+    // Map Firebase errors to user-friendly messages
+    if (error.code === 'functions/not-found') {
+      throw new Error('Challenge not found');
+    } else if (error.code === 'functions/already-exists') {
+      throw new Error('Already logged for today');
+    } else if (error.code === 'functions/permission-denied') {
+      throw new Error('You are not a participant in this challenge');
+    } else if (error.code === 'functions/failed-precondition') {
+      throw new Error('Challenge is not active');
+    }
+    throw error;
   }
+}
 
-  const today = getLocalDay();
+/**
+ * Create a rematch challenge using the secure callable function.
+ */
+export async function rematchChallenge(
+  originalChallengeId: string,
+): Promise<{ challengeId: string; groupId: string }> {
+  const createRematch = httpsCallable(functions(), 'createRematch');
 
-  const submissionData: Omit<Submission, 'id'> = {
-    memberId: userId,
-    groupId: challenge.groupId,
-    day: today,
-    kind: activityKind,
-    effort,
-    status: 'auto_verified',
-    approvals: [],
-    rejections: [],
-    autoChecks: { gpsOk: true, timestampOk: true },
-    note,
-    createdAt: new Date().toISOString(),
-    reactions: { fire: 0, strong: 0, clap: 0, eyes: 0 },
-  };
+  try {
+    const result = await createRematch({ originalChallengeId });
+    const data = result.data as { success: boolean; challengeId: string; groupId: string };
 
-  const docRef = await addDoc(submissionsCol(), {
-    ...submissionData,
-    createdAt: serverTimestamp(),
-  });
+    if (!data.success) {
+      throw new Error('Failed to create rematch');
+    }
 
-  return { ...submissionData, id: docRef.id };
+    return {
+      challengeId: data.challengeId,
+      groupId: data.groupId,
+    };
+  } catch (error: any) {
+    // Map Firebase errors to user-friendly messages
+    if (error.code === 'functions/not-found') {
+      throw new Error('Original challenge not found');
+    } else if (error.code === 'functions/permission-denied') {
+      throw new Error('You are not a participant in the original challenge');
+    } else if (error.code === 'functions/failed-precondition') {
+      throw new Error('Cannot create rematch for this challenge');
+    }
+    throw error;
+  }
 }
 
 /**
@@ -243,6 +324,83 @@ export async function getChallengeSubmissions(
   const q = query(
     submissionsCol(),
     where('groupId', '==', challenge.groupId),
+    orderBy('day', 'desc'),
+  );
+
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => {
+    const data = doc.data() as Record<string, unknown>;
+    return {
+      id: doc.id,
+      memberId: String(data.memberId || ''),
+      groupId: String(data.groupId || ''),
+      day: String(data.day || ''),
+      kind: (data.kind as ActivityKind) || 'run',
+      effort: (data.effort as Effort) || { workouts: 0, distanceKm: 0, kcal: 0 },
+      status: (data.status as 'auto_verified') || 'auto_verified',
+      approvals: (data.approvals as string[]) || [],
+      rejections: (data.rejections as string[]) || [],
+      autoChecks: (data.autoChecks as { gpsOk: boolean; timestampOk: boolean }) || {
+        gpsOk: true,
+        timestampOk: true,
+      },
+      note: data.note ? String(data.note) : undefined,
+      createdAt: String(data.createdAt || ''),
+      reactions: (data.reactions as Record<string, number>) || {
+        fire: 0,
+        strong: 0,
+        clap: 0,
+        eyes: 0,
+      },
+    };
+  });
+}
+
+/**
+ * Get challenges for a group.
+ */
+export async function getGroupChallenges(
+  groupId: string,
+): Promise<OneOnOneChallenge[]> {
+  const q = query(
+    challengesCol(),
+    where('groupId', '==', groupId),
+    orderBy('acceptedAt', 'desc'),
+  );
+
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => {
+    const data = doc.data() as Record<string, unknown>;
+    return {
+      id: doc.id,
+      type: 'one_on_one',
+      title: String(data.title || ''),
+      inviteToken: String(data.inviteToken || ''), // May be empty (security policy)
+      activityKind: (data.activityKind as ActivityKind) || 'run',
+      creatorId: String(data.creatorId || ''),
+      opponentId: data.opponentId ? String(data.opponentId) : undefined,
+      groupId: data.groupId ? String(data.groupId) : undefined,
+      targetDays: Number(data.targetDays || 30),
+      sessionsPerDay: Number(data.sessionsPerDay || 1),
+      status: (data.status as 'pending' | 'active' | 'completed') || 'pending',
+      createdAt: String(data.createdAt || new Date().toISOString()),
+      acceptedAt: data.acceptedAt ? String(data.acceptedAt) : undefined,
+      completedAt: data.completedAt ? String(data.completedAt) : undefined,
+      startDay: data.startDay ? String(data.startDay) : undefined,
+      endDay: data.endDay ? String(data.endDay) : undefined,
+    };
+  });
+}
+
+/**
+ * Get all submissions for a group (regardless of challenge).
+ */
+export async function getGroupSubmissions(
+  groupId: string,
+): Promise<Submission[]> {
+  const q = query(
+    submissionsCol(),
+    where('groupId', '==', groupId),
     orderBy('day', 'desc'),
   );
 

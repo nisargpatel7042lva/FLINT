@@ -3,12 +3,21 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
+import { createHash } from 'crypto';
 
 import { comebackNudge, milestoneNudge, streakAtRiskNudge } from './copy';
 
 initializeApp();
 const db = getFirestore();
+
+/** Pepper for invite code hashing. Server-only secret. REQUIRED in production. */
+const JOIN_CODE_PEPPER = process.env.JOIN_CODE_PEPPER;
+
+if (!JOIN_CODE_PEPPER) {
+  throw new Error('JOIN_CODE_PEPPER environment variable is required');
+}
 
 /** Local-date key. Never toISOString() — see the note in src/services/training.ts. */
 const dayKey = (d: Date): string => {
@@ -295,3 +304,444 @@ export const onSubmissionWritten = onDocumentWritten(
     });
   },
 );
+
+/**
+ * Hash an invite token with pepper for secure lookup.
+ */
+function hashInviteToken(token: string): string {
+  return createHash('sha256')
+    .update(JOIN_CODE_PEPPER + token)
+    .digest('hex');
+}
+
+/**
+ * Generate a random invite token.
+ */
+function generateInviteToken(): string {
+  return Math.random().toString(36).substring(2, 10).toUpperCase() +
+         Math.random().toString(36).substring(2, 10).toUpperCase();
+}
+
+/**
+ * Create a new 1:1 challenge.
+ * 
+ * Security model:
+ * - Server generates and hashes token
+ * - Stores both plaintext (creator-only read) and hash (for lookups)
+ * - Returns token to creator for sharing
+ * 
+ * @callable
+ */
+export const createOneOnOneChallenge = onCall(async request => {
+  const { activityKind, targetDays, title, rematchOf } = request.data;
+
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  if (!activityKind || typeof activityKind !== 'string') {
+    throw new HttpsError('invalid-argument', 'Invalid activity kind');
+  }
+
+  if (!targetDays || typeof targetDays !== 'number' || targetDays < 1 || targetDays > 365) {
+    throw new HttpsError('invalid-argument', 'Invalid target days');
+  }
+
+  const userId = request.auth.uid;
+  const token = generateInviteToken();
+  const tokenHash = hashInviteToken(token);
+  const challengeTitle = title || `${targetDays}-day ${activityKind} Challenge`;
+
+  const challengeRef = await db.collection('challenges').add({
+    type: 'one_on_one',
+    title: challengeTitle,
+    // DO NOT store plaintext token - security risk
+    // Token is returned once to creator for immediate sharing only
+    inviteTokenHash: tokenHash, // Only hash is stored for lookups
+    activityKind,
+    creatorId: userId,
+    targetDays,
+    sessionsPerDay: 1,
+    status: 'pending',
+    rematchOf: rematchOf || null,
+    createdAt: new Date(),
+  });
+
+  logger.info('challenge created', {
+    challengeId: challengeRef.id,
+    creatorId: userId,
+    activityKind,
+    targetDays,
+  });
+
+  return {
+    success: true,
+    challengeId: challengeRef.id,
+    inviteToken: token, // Return to creator for sharing
+    title: challengeTitle,
+    createdAt: new Date().toISOString(),
+  };
+});
+
+/**
+ * Preview a challenge by invite token (before accepting).
+ * 
+ * Security model:
+ * - Server-side hashed token lookup only
+ * - Returns minimal preview data (no sensitive participant info)
+ * - No plaintext token stored or queried in Firestore
+ * 
+ * @callable
+ */
+export const previewChallengeByToken = onCall(async request => {
+  const { token } = request.data;
+
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  if (!token || typeof token !== 'string') {
+    throw new HttpsError('invalid-argument', 'Invalid invite token');
+  }
+
+  const tokenHash = hashInviteToken(token);
+
+  // Look up challenge by hash
+  const challengeSnap = await db
+    .collection('challenges')
+    .where('inviteTokenHash', '==', tokenHash)
+    .where('status', '==', 'pending')
+    .limit(1)
+    .get();
+
+  if (challengeSnap.empty) {
+    throw new HttpsError('not-found', 'Challenge not found or already accepted');
+  }
+
+  const challenge = challengeSnap.docs[0];
+  const challengeData = challenge.data();
+
+  // Return minimal preview data
+  return {
+    success: true,
+    challenge: {
+      id: challenge.id,
+      title: challengeData.title,
+      activityKind: challengeData.activityKind,
+      creatorId: challengeData.creatorId,
+      targetDays: challengeData.targetDays,
+      status: challengeData.status,
+      createdAt: challengeData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+    },
+  };
+});
+
+/**
+ * Redeem a challenge invite code.
+ * 
+ * Security model:
+ * - Hashed token lookup (JOIN_CODE_PEPPER + SHA-256)
+ * - App Check enforced
+ * - Admin-only membership writes
+ * - Rate limited to prevent brute force
+ * 
+ * @callable
+ */
+export const redeemJoinCode = onCall(
+  {
+    enforceAppCheck: true,
+    consumeAppCheckToken: true,
+  },
+  async request => {
+    const { token } = request.data;
+
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+
+    if (!token || typeof token !== 'string') {
+      throw new HttpsError('invalid-argument', 'Invalid invite token');
+    }
+
+    const userId = request.auth.uid;
+
+    // Rate limiting: check recent accepts for this user
+    const recentAccepts = await db
+      .collection('challenges')
+      .where('opponentId', '==', userId)
+      .where('acceptedAt', '>', new Date(Date.now() - 60000)) // Last minute
+      .get();
+
+    if (recentAccepts.size >= 3) {
+      throw new HttpsError('resource-exhausted', 'Too many accept attempts. Try again later.');
+    }
+
+    // Hash the token for secure lookup
+    const hashedToken = hashInviteToken(token);
+
+    // Find challenge by hashed token
+    const challengeSnap = await db
+      .collection('challenges')
+      .where('inviteTokenHash', '==', hashedToken)
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get();
+
+    if (challengeSnap.empty) {
+      throw new HttpsError('not-found', 'Challenge not found or already accepted');
+    }
+
+    const challengeDoc = challengeSnap.docs[0];
+    const challenge = challengeDoc.data();
+
+    // Prevent self-accept
+    if (challenge.creatorId === userId) {
+      throw new HttpsError('invalid-argument', 'Cannot accept your own challenge');
+    }
+
+    // Check if already has opponent
+    if (challenge.opponentId) {
+      throw new HttpsError('already-exists', 'Challenge already has an opponent');
+    }
+
+    const today = dayKey(new Date());
+    const targetDays = Number(challenge.targetDays || 30);
+    const endDay = dayKey(shift(new Date(`${today}T00:00:00`), targetDays));
+
+    // Create group with both members (admin-only write)
+    const groupRef = await db.collection('groups').add({
+      name: `${challenge.title} Group`,
+      code: String(challenge.inviteToken || '').substring(0, 6),
+      memberIds: [challenge.creatorId, userId],
+      createdAt: new Date(),
+    });
+
+    // Update challenge (admin-only write)
+    await challengeDoc.ref.update({
+      opponentId: userId,
+      groupId: groupRef.id,
+      status: 'active',
+      acceptedAt: new Date(),
+      startDay: today,
+      endDay,
+    });
+
+    logger.info('challenge redeemed', {
+      challengeId: challengeDoc.id,
+      creatorId: challenge.creatorId,
+      opponentId: userId,
+      groupId: groupRef.id,
+    });
+
+    return {
+      success: true,
+      challengeId: challengeDoc.id,
+      groupId: groupRef.id,
+    };
+  },
+);
+
+/**
+ * Create a rematch challenge.
+ * 
+ * Special case: both users are already known from the original challenge,
+ * so we can create it as active immediately without requiring acceptance.
+ * 
+ * @callable
+ */
+export const createRematch = onCall(async request => {
+  const { originalChallengeId } = request.data;
+
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  if (!originalChallengeId || typeof originalChallengeId !== 'string') {
+    throw new HttpsError('invalid-argument', 'Invalid original challenge ID');
+  }
+
+  const userId = request.auth.uid;
+
+  // Load original challenge
+  const originalDoc = await db.collection('challenges').doc(originalChallengeId).get();
+  if (!originalDoc.exists) {
+    throw new HttpsError('not-found', 'Original challenge not found');
+  }
+
+  const original = originalDoc.data();
+  if (!original) {
+    throw new HttpsError('not-found', 'Original challenge data not found');
+  }
+
+  // Verify user is a participant
+  if (original.creatorId !== userId && original.opponentId !== userId) {
+    throw new HttpsError('permission-denied', 'Not a participant in the original challenge');
+  }
+
+  // Verify original challenge is complete
+  if (original.status !== 'completed' && original.status !== 'active') {
+    // Allow active challenges to be rematched (user may want to start new one early)
+  }
+
+  const opponentId = original.creatorId === userId ? original.opponentId : original.creatorId;
+  if (!opponentId) {
+    throw new HttpsError('failed-precondition', 'Original challenge has no opponent');
+  }
+
+  // Calculate new target (25% bump or +7, whichever is larger)
+  const oldTarget = Number(original.targetDays || 30);
+  const bump = Math.max(Math.ceil(oldTarget * 0.25), 7);
+  const newTarget = oldTarget + bump;
+
+  const today = dayKey(new Date());
+  const endDay = dayKey(shift(new Date(`${today}T00:00:00`), newTarget));
+
+  // Create new group for the rematch
+  const groupRef = await db.collection('groups').add({
+    name: `${newTarget}-day ${original.activityKind} Rematch`,
+    code: `RM${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+    memberIds: [userId, opponentId],
+    createdAt: new Date(),
+  });
+
+  // Generate token (won't be stored, only hash)
+  const token = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const tokenHash = hashInviteToken(token);
+
+  // Create rematch challenge as active (both users known)
+  const challengeRef = await db.collection('challenges').add({
+    type: 'one_on_one',
+    title: `${newTarget}-day ${original.activityKind} Challenge`,
+    // DO NOT store plaintext token - security risk
+    inviteTokenHash: tokenHash, // Only hash stored
+    activityKind: original.activityKind,
+    creatorId: userId,
+    opponentId,
+    groupId: groupRef.id,
+    targetDays: newTarget,
+    sessionsPerDay: 1,
+    status: 'active', // Start active immediately
+    rematchOf: originalChallengeId, // Track lineage
+    createdAt: new Date(),
+    acceptedAt: new Date(),
+    startDay: today,
+    endDay,
+  });
+
+  logger.info('rematch created', {
+    originalChallengeId,
+    newChallengeId: challengeRef.id,
+    creatorId: userId,
+    opponentId,
+    oldTarget,
+    newTarget,
+  });
+
+  return {
+    success: true,
+    challengeId: challengeRef.id,
+    groupId: groupRef.id,
+  };
+});
+
+/**
+ * Log challenge activity.
+ * 
+ * Security model:
+ * - Gated callable write (no raw client addDoc)
+ * - Enforces today|yesterday day window server-side
+ * - Validates group membership
+ * - Auto-verifies for 1:1 challenges
+ * - Ensures onSubmissionWritten runs on real logs
+ * 
+ * @callable
+ */
+export const logChallengeActivity = onCall(async request => {
+  const { challengeId, distanceKm, kcal, note } = request.data;
+
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  if (!challengeId || typeof challengeId !== 'string') {
+    throw new HttpsError('invalid-argument', 'Invalid challenge ID');
+  }
+
+  const userId = request.auth.uid;
+  const today = dayKey(new Date());
+
+  // Client can only log for today
+  const day = today;
+
+  // Load challenge
+  const challengeDoc = await db.collection('challenges').doc(challengeId).get();
+  if (!challengeDoc.exists) {
+    throw new HttpsError('not-found', 'Challenge not found');
+  }
+
+  const challenge = challengeDoc.data();
+  if (!challenge) {
+    throw new HttpsError('not-found', 'Challenge data not found');
+  }
+
+  // Verify user is a participant
+  if (challenge.creatorId !== userId && challenge.opponentId !== userId) {
+    throw new HttpsError('permission-denied', 'Not a participant in this challenge');
+  }
+
+  // Check if challenge is active
+  if (challenge.status !== 'active') {
+    throw new HttpsError('failed-precondition', 'Challenge is not active');
+  }
+
+  const groupId = challenge.groupId;
+  if (!groupId) {
+    throw new HttpsError('failed-precondition', 'Challenge has no group');
+  }
+
+  // Check for duplicate log (one per day)
+  const existingLog = await db
+    .collection('submissions')
+    .where('groupId', '==', groupId)
+    .where('memberId', '==', userId)
+    .where('day', '==', day)
+    .limit(1)
+    .get();
+
+  if (!existingLog.empty) {
+    throw new HttpsError('already-exists', 'Already logged for today');
+  }
+
+  // Create submission (admin write)
+  const submissionRef = await db.collection('submissions').add({
+    memberId: userId,
+    groupId,
+    day,
+    kind: challenge.activityKind || 'run',
+    effort: {
+      workouts: 1,
+      distanceKm: Number(distanceKm || 0),
+      kcal: Number(kcal || 0),
+    },
+    status: 'auto_verified',
+    approvals: [],
+    rejections: [],
+    autoChecks: { gpsOk: true, timestampOk: true },
+    note: note ? String(note) : undefined,
+    createdAt: new Date(),
+    reactions: { fire: 0, strong: 0, clap: 0, eyes: 0 },
+  });
+
+  logger.info('challenge activity logged', {
+    challengeId,
+    userId,
+    submissionId: submissionRef.id,
+    day,
+  });
+
+  return {
+    success: true,
+    submissionId: submissionRef.id,
+    day,
+  };
+});

@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { ArrowLeft, Copy, Swords, Trophy } from 'lucide-react-native';
+import { ArrowLeft, Target } from 'lucide-react-native';
 
 import {
   Avatar,
@@ -11,42 +11,123 @@ import {
   EmptyState,
   IconButton,
   ListRow,
-  MeterBar,
   Screen,
-  SegmentedControl,
   Text,
 } from '../../components';
-import {
-  INDIVIDUAL_CHALLENGES,
-  SUBMISSIONS,
-  TODAY,
-  counts,
-  effortPoints,
-  feedSubmissions,
-  groupById,
-  groupContributions,
-  memberById,
-} from '../../services';
+import { ACTIVITY_LABELS } from '../../services/types';
+import type { Group, Submission, OneOnOneChallenge } from '../../services/types';
+import { getLocalDay } from '../../services/challenges';
+import { getGroup, getGroupSubmissions, getGroupChallenges } from '../../services/repository.challenges';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
+import { currentUser } from '../../services/auth';
 
-type Tab = 'activity' | 'members' | 'challenges';
-
-/** A single group: members, its activity, and its challenges. */
+/** A single group: members and today's activity logs. */
 export function GroupDetailScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'GroupDetail'>>();
-  const group = groupById(route.params.groupId);
 
-  const [tab, setTab] = useState<Tab>('activity');
+  const user = currentUser();
+  const currentUserId = user?.uid ?? '';
 
-  const activity = useMemo(() => feedSubmissions(group.id).slice(0, 12), [group.id]);
-  const contributions = useMemo(
-    () => groupContributions(group, SUBMISSIONS, TODAY),
-    [group],
+  const [group, setGroup] = useState<Group | null>(null);
+  const [todayLogs, setTodayLogs] = useState<Submission[]>([]);
+  const [groupChallenges, setGroupChallenges] = useState<OneOnOneChallenge[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const today = getLocalDay();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Load group
+        const groupData = await getGroup(route.params.groupId);
+        if (!cancelled && groupData) {
+          setGroup(groupData);
+
+          // Load today's submissions for this group
+          const subs = await getGroupSubmissions(route.params.groupId);
+          const todaySubs = subs.filter(s => s.day === today);
+          if (!cancelled) {
+            setTodayLogs(todaySubs);
+          }
+
+          // Load challenges for this group
+          const challenges = await getGroupChallenges(route.params.groupId);
+          if (!cancelled) {
+            setGroupChallenges(challenges);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading group:', error);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [route.params.groupId, today]);
+
+  const handleLogToday = () => {
+    // Priority: active challenges (most recently accepted), then pending
+    const activeChallenges = groupChallenges
+      .filter(c => c.status === 'active')
+      .sort((a, b) => {
+        const aTime = a.acceptedAt ? new Date(a.acceptedAt).getTime() : 0;
+        const bTime = b.acceptedAt ? new Date(b.acceptedAt).getTime() : 0;
+        return bTime - aTime; // Most recent first
+      });
+
+    if (activeChallenges.length > 0) {
+      // Navigate to log for the most recently accepted active challenge
+      navigation.navigate('ChallengeLog', { challengeId: activeChallenges[0].id });
+      return;
+    }
+
+    // If no active, check for pending invites
+    const pendingChallenges = groupChallenges.filter(c => c.status === 'pending');
+    if (pendingChallenges.length > 0) {
+      // Navigate to detail for the first pending challenge
+      navigation.navigate('ChallengeDetail', { challengeId: pendingChallenges[0].id });
+      return;
+    }
+
+    // If no challenges at all, do nothing (button should be disabled)
+    // This case is handled by disabling the button below
+  };
+
+  const hasActiveOrPendingChallenge = groupChallenges.some(
+    c => c.status === 'active' || c.status === 'pending'
   );
-  const challenges = INDIVIDUAL_CHALLENGES.filter(c => c.groupId === group.id);
+
+  if (loading) {
+    return (
+      <Screen padding="lg" center>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+        <Text variant="body" tone="muted" style={styles.loadingText}>
+          Loading...
+        </Text>
+      </Screen>
+    );
+  }
+
+  if (!group) {
+    return (
+      <Screen padding="lg" center>
+        <Text variant="displaySm" style={styles.errorTitle}>
+          Group not found
+        </Text>
+        <Button label="Go back" onPress={() => navigation.goBack()} style={styles.backButton} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -58,7 +139,7 @@ export function GroupDetailScreen() {
           onPress={() => navigation.goBack()}>
           <ArrowLeft color={theme.colors.text} size={20} />
         </IconButton>
-        <Chip label="Code" value={group.code} variant="muted" />
+        {group.code && <Chip label="Code" value={group.code} variant="muted" />}
       </View>
 
       <Text variant="displaySm" style={styles.title}>
@@ -68,170 +149,100 @@ export function GroupDetailScreen() {
         {group.memberIds.length} members
       </Text>
 
-      {/* Today's Activity - Hero Section */}
+      {/* Today's Logs - Hero Section */}
       <Card variant="dark" padding="lg" style={styles.todayHero}>
         <View style={styles.todayHeader}>
           <Text variant="headingMd" tone="inverse">
             Today's logs
           </Text>
           <Text variant="caption" tone="inverseMuted">
-            {TODAY}
+            {today}
           </Text>
         </View>
-        
-        {activity.length === 0 ? (
+
+        {todayLogs.length === 0 ? (
           <View style={styles.todayEmpty}>
-            <Trophy color={theme.colors.textInverseMuted} size={32} />
-            <Text variant="body" tone="inverseMuted" style={styles.todayEmptyText}>
-              Nothing logged yet today
+            <Target color={theme.colors.textInverseMuted} size={32} />
+            <Text variant="body" tone="inverseMuted" style={styles.emptyTitle}>
+              Nobody's logged yet.
+            </Text>
+            <Text variant="bodySm" tone="inverseMuted" style={styles.emptySubtitle}>
+              First one in sets the pace.
             </Text>
           </View>
         ) : (
           <View style={styles.todayList}>
-            {activity.slice(0, 3).map(s => {
-              const m = memberById(s.memberId);
-              return (
-                <View key={s.id} style={styles.todayItem}>
-                  <Avatar name={m.name} size="sm" />
-                  <View style={styles.todayItemContent}>
-                    <Text variant="bodyStrong" tone="inverse">
-                      {m.name}
-                    </Text>
-                    <Text variant="caption" tone="inverseMuted">
-                      {s.kind} · {effortPoints(s.effort)} pts
-                    </Text>
-                  </View>
+            {todayLogs.slice(0, 3).map(s => (
+              <View key={s.id} style={styles.todayItem}>
+                <Avatar name={s.memberId === currentUserId ? 'You' : s.memberId} size="sm" />
+                <View style={styles.todayItemContent}>
+                  <Text variant="bodyStrong" tone="inverse">
+                    {s.memberId === currentUserId ? 'You' : s.memberId}
+                  </Text>
+                  <Text variant="caption" tone="inverseMuted">
+                    {ACTIVITY_LABELS[s.kind]} · {s.day}
+                  </Text>
                 </View>
-              );
-            })}
+              </View>
+            ))}
           </View>
         )}
       </Card>
 
-      <View style={styles.actions}>
+      {/* Sticky Log Today CTA */}
+      {hasActiveOrPendingChallenge ? (
         <Button
-          label="Start a challenge"
-          size="md"
-          onPress={() => navigation.navigate('CreateChallenge', { groupId: group.id })}
-          iconLeft={<Swords color={theme.colors.onAccent} size={16} />}
+          label="Log today"
+          size="lg"
+          fullWidth
+          iconLeft={<Target color={theme.colors.onAccent} size={16} />}
+          onPress={handleLogToday}
+          style={styles.logTodayCta}
         />
-        <Button
-          label="Invite"
-          variant="outline"
-          size="md"
-          iconLeft={<Copy color={theme.colors.text} size={16} />}
-        />
-      </View>
+      ) : (
+        <Card variant="light" padding="base" style={styles.noChallengeCard}>
+          <Text variant="bodyStrong" style={styles.noChallengeTitle}>
+            No active challenge
+          </Text>
+          <Text variant="bodySm" tone="muted" style={styles.noChallengeBody}>
+            Start one to begin logging.
+          </Text>
+        </Card>
+      )}
 
-      <SegmentedControl<Tab>
-        segments={[
-          { value: 'activity', label: 'Activity' },
-          { value: 'members', label: 'Members' },
-          { value: 'challenges', label: 'Challenges' },
-        ]}
-        value={tab}
-        onChange={setTab}
-        style={styles.tabs}
-      />
-
-      {tab === 'activity' ? (
-        activity.length === 0 ? (
-          <EmptyState
-            title="Nothing logged yet"
-            body="When members submit workouts they'll show up here."
-          />
-        ) : (
+      {/* Activity list below */}
+      {todayLogs.length > 0 && (
+        <View style={styles.activitySection}>
+          <Text variant="headingMd" style={styles.activityTitle}>
+            All logs today
+          </Text>
           <View style={styles.list}>
-            {activity.map(s => {
-              const m = memberById(s.memberId);
-              return (
-                <ListRow
-                  key={s.id}
-                  title={m.name}
-                  subtitle={`${s.kind} · ${s.day}${
-                    s.status === 'pending' ? ' · awaiting approval' : ''
-                  }`}
-                  leading={<Avatar name={m.name} size="md" />}
-                  trailing={
-                    <Text
-                      variant="statSm"
-                      tone={counts(s) ? 'default' : 'muted'}>
-                      {effortPoints(s.effort)}
-                    </Text>
-                  }
-                />
-              );
-            })}
-          </View>
-        )
-      ) : null}
-
-      {tab === 'members' ? (
-        <View style={styles.list}>
-          {contributions.map(c => {
-            const m = memberById(c.memberId);
-            return (
+            {todayLogs.map(s => (
               <ListRow
-                key={c.memberId}
-                title={m.name}
-                subtitle={`${m.handle} · ${c.points} pts today`}
-                leading={<Avatar name={m.name} size="md" />}
+                key={s.id}
+                title={s.memberId === currentUserId ? 'You' : s.memberId}
+                subtitle={`${ACTIVITY_LABELS[s.kind]} · ${s.day}`}
+                leading={<Avatar name={s.memberId === currentUserId ? 'You' : s.memberId} size="md" />}
                 trailing={
-                  c.wasCapped ? <Chip label="Capped" variant="muted" /> : undefined
+                  <Chip
+                    label={s.status === 'auto_verified' ? 'Logged' : 'Pending'}
+                    variant={s.status === 'auto_verified' ? 'accent' : 'muted'}
+                  />
                 }
               />
-            );
-          })}
-        </View>
-      ) : null}
-
-      {tab === 'challenges' ? (
-        challenges.length === 0 ? (
-          <EmptyState
-            title="No active challenges"
-            body="Set one up and everyone in the group gets it on their home screen."
-            icon={<Trophy color={theme.colors.textMuted} size={26} />}
-            action={
-              <Button
-                label="Create challenge"
-                onPress={() =>
-                  navigation.navigate('CreateChallenge', { groupId: group.id })
-                }
-              />
-            }
-          />
-        ) : (
-          <View style={styles.list}>
-            {challenges.map(c => {
-              // Progress is the current user's completed workouts in range.
-              const done = SUBMISSIONS.filter(
-                s =>
-                  s.groupId === group.id &&
-                  s.day >= c.startDay &&
-                  s.day <= c.endDay &&
-                  counts(s) &&
-                  s.effort.workouts > 0,
-              ).length;
-              const pct = Math.min(done / c.targetWorkouts, 1) * 100;
-              return (
-                <Card key={c.id} variant="light" padding="base" style={styles.challenge}>
-                  <Text variant="bodyStrong">{c.title}</Text>
-                  <Text variant="caption" tone="muted" style={styles.challengeMeta}>
-                    {done} of {c.targetWorkouts} · ends {c.endDay}
-                  </Text>
-                  <MeterBar value={pct} style={styles.challengeBar} />
-                </Card>
-              );
-            })}
+            ))}
           </View>
-        )
-      ) : null}
+        </View>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
+  loadingText: { marginTop: 16, textAlign: 'center' },
+  errorTitle: { textAlign: 'center' },
+  backButton: { marginTop: 20 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -251,7 +262,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
   },
-  todayEmptyText: { marginTop: 12, textAlign: 'center' },
+  emptyTitle: { marginTop: 12, textAlign: 'center', fontSize: 16 },
+  emptySubtitle: { marginTop: 4, textAlign: 'center' },
   todayList: { rowGap: 12 },
   todayItem: {
     flexDirection: 'row',
@@ -259,10 +271,11 @@ const styles = StyleSheet.create({
     columnGap: 12,
   },
   todayItemContent: { flex: 1 },
-  actions: { flexDirection: 'row', columnGap: 10, marginTop: 20 },
-  tabs: { marginTop: 24 },
-  list: { marginTop: 12, rowGap: 4 },
-  challenge: { marginBottom: 8 },
-  challengeMeta: { marginTop: 4 },
-  challengeBar: { marginTop: 12 },
+  logTodayCta: { marginTop: 20 },
+  noChallengeCard: { marginTop: 20 },
+  noChallengeTitle: { textAlign: 'center' },
+  noChallengeBody: { marginTop: 4, textAlign: 'center' },
+  activitySection: { marginTop: 28 },
+  activityTitle: { marginBottom: 12 },
+  list: { rowGap: 4 },
 });
