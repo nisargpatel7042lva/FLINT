@@ -511,7 +511,7 @@ export const redeemJoinCode = onCall(
     // Create group with both members (admin-only write)
     const groupRef = await db.collection('groups').add({
       name: `${challenge.title} Group`,
-      code: String(challenge.inviteToken || '').substring(0, 6),
+      code: Math.random().toString(36).substring(2, 8).toUpperCase(),
       memberIds: [challenge.creatorId, userId],
       createdAt: new Date(),
     });
