@@ -1,11 +1,13 @@
 rules_version = '2';
 
 /**
- * Kasrat Firestore rules.
+ * Kasrat/Flint Firestore rules.
  *
  * Training data is private. Sessions are a subcollection of the owning user,
  * so ownership is a single uid comparison rather than a field check that could
  * be forged on write.
+ *
+ * Challenges and submissions follow group membership rules.
  *
  * Default deny: anything not matched below is refused.
  */
@@ -16,10 +18,32 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isMemberOfGroup(groupId) {
+      return isAuthenticated() 
+        && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+    }
+
+    function isChallengeParticipant(challengeDoc) {
+      return isAuthenticated() && (
+        request.auth.uid == challengeDoc.creatorId ||
+        request.auth.uid == challengeDoc.opponentId
+      );
+    }
+
     // Fields the client may never set — these are server-owned.
     function noServerFields() {
       return !request.resource.data.diff(resource.data).affectedKeys()
         .hasAny(['currentStreak', 'lastNudgeAt']);
+    }
+
+    // Challenge streak fields are server-owned
+    function noStreakFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['currentStreak', 'bestStreak']);
     }
 
     match /users/{userId} {
@@ -41,6 +65,69 @@ service cloud.firestore {
           && request.resource.data.minutes <= 600;
         allow delete: if isOwner(userId);
       }
+    }
+
+    // Groups for 1:1 challenges
+    match /groups/{groupId} {
+      allow read: if isMemberOfGroup(groupId);
+      allow create: if isAuthenticated()
+        && request.auth.uid in request.resource.data.memberIds;
+      allow update: if isMemberOfGroup(groupId);
+      allow delete: if false;
+    }
+
+    // 1:1 Challenges
+    match /challenges/{challengeId} {
+      allow read: if isAuthenticated() && (
+        // Creator can always read
+        request.auth.uid == resource.data.creatorId ||
+        // Opponent can read if accepted
+        request.auth.uid == resource.data.opponentId ||
+        // Anyone with the invite token can read (for preview before accept)
+        true
+      );
+      
+      allow create: if isAuthenticated()
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      
+      // Only participants can update
+      allow update: if isChallengeParticipant(resource.data);
+      
+      allow delete: if false;
+    }
+
+    // Challenge submissions (activity logs)
+    match /submissions/{submissionId} {
+      // Anyone can read submissions in groups they're part of
+      allow read: if isAuthenticated() && (
+        isMemberOfGroup(resource.data.groupId) ||
+        request.auth.uid == resource.data.memberId
+      );
+      
+      // Users can only create submissions for themselves
+      allow create: if isAuthenticated()
+        && request.resource.data.memberId == request.auth.uid
+        && request.resource.data.day is string
+        && request.resource.data.kind is string
+        && request.resource.data.status == 'auto_verified';
+      
+      // Users can update their own submissions (but not change memberId or day)
+      allow update: if isAuthenticated()
+        && resource.data.memberId == request.auth.uid
+        && request.resource.data.memberId == resource.data.memberId
+        && request.resource.data.day == resource.data.day
+        && noStreakFields();
+      
+      allow delete: if isAuthenticated()
+        && resource.data.memberId == request.auth.uid;
+    }
+
+    // Challenge streaks (computed by Cloud Functions)
+    match /challengeStreaks/{streakId} {
+      allow read: if isAuthenticated();
+      // Only Cloud Functions can write streaks
+      allow write: if false;
     }
   }
 }

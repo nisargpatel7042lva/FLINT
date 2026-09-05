@@ -64,6 +64,12 @@ export type RootStackParamList = {
   Feed: undefined;
   Wars: undefined;
   Groups: undefined;
+
+  // Flint MVP: 1:1 Challenges
+  CreateOneOnOne: undefined;
+  AcceptChallenge: { token: string };
+  ChallengeDetail: { challengeId: string };
+  ChallengeLog: { challengeId: string };
 };
 
 /**

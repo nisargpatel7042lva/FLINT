@@ -68,6 +68,46 @@ export function GroupDetailScreen() {
         {group.memberIds.length} members
       </Text>
 
+      {/* Today's Activity - Hero Section */}
+      <Card variant="dark" padding="lg" style={styles.todayHero}>
+        <View style={styles.todayHeader}>
+          <Text variant="headingMd" tone="inverse">
+            Today's logs
+          </Text>
+          <Text variant="caption" tone="inverseMuted">
+            {TODAY}
+          </Text>
+        </View>
+        
+        {activity.length === 0 ? (
+          <View style={styles.todayEmpty}>
+            <Trophy color={theme.colors.textInverseMuted} size={32} />
+            <Text variant="body" tone="inverseMuted" style={styles.todayEmptyText}>
+              Nothing logged yet today
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.todayList}>
+            {activity.slice(0, 3).map(s => {
+              const m = memberById(s.memberId);
+              return (
+                <View key={s.id} style={styles.todayItem}>
+                  <Avatar name={m.name} size="sm" />
+                  <View style={styles.todayItemContent}>
+                    <Text variant="bodyStrong" tone="inverse">
+                      {m.name}
+                    </Text>
+                    <Text variant="caption" tone="inverseMuted">
+                      {s.kind} · {effortPoints(s.effort)} pts
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </Card>
+
       <View style={styles.actions}>
         <Button
           label="Start a challenge"
@@ -200,6 +240,25 @@ const styles = StyleSheet.create({
   },
   title: { marginTop: 20 },
   subtitle: { marginTop: 4 },
+  todayHero: { marginTop: 24 },
+  todayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  todayEmpty: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  todayEmptyText: { marginTop: 12, textAlign: 'center' },
+  todayList: { rowGap: 12 },
+  todayItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 12,
+  },
+  todayItemContent: { flex: 1 },
   actions: { flexDirection: 'row', columnGap: 10, marginTop: 20 },
   tabs: { marginTop: 24 },
   list: { marginTop: 12, rowGap: 4 },
