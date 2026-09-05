@@ -46,7 +46,7 @@ export function AcceptChallengeScreen() {
     } catch (error) {
       Alert.alert(
         'Error',
-        error instanceof Error ? error.message : 'Failed to accept challenge',
+        error instanceof Error ? error.message : 'Could not accept challenge',
       );
     }
   };
@@ -154,7 +154,7 @@ export function AcceptChallengeScreen() {
         </Text>
         
         <Text variant="body" tone="inverseMuted" style={styles.inviteSubtitle}>
-          Someone has challenged you
+          You've been challenged
         </Text>
       </Card>
 

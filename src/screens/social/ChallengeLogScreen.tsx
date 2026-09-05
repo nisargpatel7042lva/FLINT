@@ -14,8 +14,9 @@ import {
 } from '../../components';
 import { ACTIVITY_LABELS } from '../../services/types';
 import { getLocalDay } from '../../services/challenges';
-import { useChallenge } from '../../hooks/useChallenges';
+import { useChallenge, useChallengeStreakForUser } from '../../hooks/useChallenges';
 import { useLogChallengeActivity } from '../../hooks/useChallenges';
+import { currentUser } from '../../services/auth';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
 
@@ -28,7 +29,11 @@ export function ChallengeLogScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'ChallengeLog'>>();
 
+  const user = currentUser();
+  const currentUserId = user?.uid ?? '';
+
   const { challenge, loading: loadingChallenge } = useChallenge(route.params.challengeId);
+  const { streak } = useChallengeStreakForUser(route.params.challengeId, currentUserId);
   const { logActivity, submitting } = useLogChallengeActivity();
   const today = getLocalDay();
 
@@ -62,7 +67,7 @@ export function ChallengeLogScreen() {
     } catch (error) {
       Alert.alert(
         'Error',
-        error instanceof Error ? error.message : 'Failed to log activity',
+        error instanceof Error ? error.message : 'Could not log activity',
       );
     }
   };
@@ -96,15 +101,14 @@ export function ChallengeLogScreen() {
   }
 
   if (submitted) {
+    // Show the new streak day after logging
+    const newStreakDay = (streak?.currentStreak ?? 0) + 1;
     return (
       <Screen padding="lg" center>
         <View style={styles.successContainer}>
           <CheckCircle2 color={theme.colors.success} size={64} />
           <Text variant="displaySm" style={styles.successTitle}>
-            Logged!
-          </Text>
-          <Text variant="body" tone="muted" style={styles.successBody}>
-            Your streak continues
+            Streak's alive. Day {newStreakDay}.
           </Text>
         </View>
       </Screen>

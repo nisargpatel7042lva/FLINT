@@ -83,7 +83,7 @@ export function GroupDetailScreen() {
           <View style={styles.todayEmpty}>
             <Trophy color={theme.colors.textInverseMuted} size={32} />
             <Text variant="body" tone="inverseMuted" style={styles.todayEmptyText}>
-              Nothing logged yet today
+              Waiting on the first log
             </Text>
           </View>
         ) : (
@@ -137,8 +137,8 @@ export function GroupDetailScreen() {
       {tab === 'activity' ? (
         activity.length === 0 ? (
           <EmptyState
-            title="Nothing logged yet"
-            body="When members submit workouts they'll show up here."
+            title="No activity yet"
+            body="Logs show up here once someone moves."
           />
         ) : (
           <View style={styles.list}>

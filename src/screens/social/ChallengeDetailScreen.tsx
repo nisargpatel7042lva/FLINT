@@ -65,6 +65,17 @@ export function ChallengeDetailScreen() {
     () => challenge && myStreak ? isChallengeComplete(challenge, myStreak, opponentStreak ?? undefined) : false,
     [challenge, myStreak, opponentStreak],
   );
+
+  const completionStatus = useMemo(() => {
+    if (!isComplete || !myStreak || !opponentStreak) return null;
+    
+    const myDays = myStreak.totalActiveDays;
+    const theirDays = opponentStreak.totalActiveDays;
+    
+    if (myDays > theirDays) return 'won';
+    if (theirDays > myDays) return 'lost';
+    return 'tie';
+  }, [isComplete, myStreak, opponentStreak]);
   
   const hasLoggedTodayFlag = useMemo(
     () => challenge ? hasLoggedToday(submissions, challenge.id, currentUserId, today) : false,
@@ -104,7 +115,7 @@ export function ChallengeDetailScreen() {
     } catch (error) {
       Alert.alert(
         'Error',
-        error instanceof Error ? error.message : 'Failed to create rematch',
+        error instanceof Error ? error.message : 'Could not create rematch',
       );
     }
   };
@@ -218,6 +229,18 @@ export function ChallengeDetailScreen() {
         )}
       </View>
 
+      {/* Broken Streak - show if user had logged before but streak is now 0 */}
+      {!isComplete && myStreak && myStreak.currentStreak === 0 && myStreak.totalActiveDays > 0 && (
+        <Card variant="light" padding="base" style={styles.brokenStreakCard}>
+          <Text variant="bodyStrong" tone="danger">
+            Streak broke
+          </Text>
+          <Text variant="bodySm" tone="muted" style={styles.brokenStreakBody}>
+            Log today to start again.
+          </Text>
+        </Card>
+      )}
+
       {/* Log CTA - Hero of the screen */}
       {!isComplete && !hasLoggedTodayFlag && (
         <Card variant="accent" padding="base" style={styles.logCta}>
@@ -228,7 +251,7 @@ export function ChallengeDetailScreen() {
                 Log today's {ACTIVITY_LABELS[challenge.activityKind]}
               </Text>
               <Text variant="bodySm" tone="inverseMuted">
-                Keep your streak alive
+                Keep it going
               </Text>
             </View>
           </View>
@@ -241,14 +264,32 @@ export function ChallengeDetailScreen() {
         </Card>
       )}
 
+      {/* Done for today */}
+      {!isComplete && hasLoggedTodayFlag && (
+        <Card variant="light" padding="base" style={styles.doneCta}>
+          <Text variant="bodyStrong">
+            Done for now
+          </Text>
+          <Text variant="bodySm" tone="muted" style={styles.doneBody}>
+            You've logged today. See you tomorrow.
+          </Text>
+        </Card>
+      )}
+
       {/* Completed - Rematch CTA */}
       {isComplete && (
         <Card variant="dark" padding="lg" style={styles.completeCta}>
           <Text variant="headingLg" tone="inverse" style={styles.completeTitle}>
-            Challenge complete!
+            {completionStatus === 'won' && 'You won!'}
+            {completionStatus === 'lost' && 'They got you'}
+            {completionStatus === 'tie' && 'You both showed up'}
+            {!completionStatus && 'Challenge complete!'}
           </Text>
           <Text variant="body" tone="inverseMuted" style={styles.completeBody}>
-            You both showed up. Ready to push harder?
+            {completionStatus === 'won' && 'Ready to defend it?'}
+            {completionStatus === 'lost' && 'Want another shot?'}
+            {completionStatus === 'tie' && 'Ready to push harder?'}
+            {!completionStatus && 'Ready to push harder?'}
           </Text>
           <Button
             label="Push harder (same pair)"
@@ -276,8 +317,8 @@ export function ChallengeDetailScreen() {
       {tab === 'today' ? (
         todayLogs.length === 0 ? (
           <EmptyState
-            title="Nothing logged today"
-            body="When you or your partner logs, it'll show here."
+            title="No logs yet"
+            body="Waiting on you both."
           />
         ) : (
           <View style={styles.list}>
@@ -338,6 +379,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   streakValue: { marginTop: 12 },
+  brokenStreakCard: { marginTop: 12 },
+  brokenStreakBody: { marginTop: 4 },
   logCta: { marginTop: 20 },
   logCtaContent: {
     flexDirection: 'row',
@@ -346,6 +389,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   logCtaText: { flex: 1 },
+  doneCta: { marginTop: 20 },
+  doneBody: { marginTop: 4 },
   completeCta: { marginTop: 20 },
   completeTitle: { textAlign: 'center' },
   completeBody: { marginTop: 8, textAlign: 'center' },

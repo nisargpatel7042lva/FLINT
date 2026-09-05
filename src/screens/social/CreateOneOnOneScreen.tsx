@@ -68,7 +68,7 @@ export function CreateOneOnOneScreen() {
     } catch (error) {
       Alert.alert(
         'Error',
-        error instanceof Error ? error.message : 'Failed to create challenge',
+        error instanceof Error ? error.message : 'Could not create challenge',
       );
     }
   };
