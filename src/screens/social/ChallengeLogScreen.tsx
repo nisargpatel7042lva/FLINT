@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react-native';
 
@@ -14,15 +14,10 @@ import {
 } from '../../components';
 import { ACTIVITY_LABELS } from '../../services/types';
 import { getLocalDay } from '../../services/challenges';
+import { useChallenge } from '../../hooks/useChallenges';
+import { useLogChallengeActivity } from '../../hooks/useChallenges';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
-
-// Mock challenge data
-const MOCK_CHALLENGE = {
-  id: 'ch1',
-  activityKind: 'run' as const,
-  title: '30-day Run Challenge',
-};
 
 /**
  * Manual activity log for a challenge.
@@ -33,8 +28,8 @@ export function ChallengeLogScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'ChallengeLog'>>();
 
-  // TODO: Load challenge from Firebase
-  const challenge = MOCK_CHALLENGE;
+  const { challenge, loading: loadingChallenge } = useChallenge(route.params.challengeId);
+  const { logActivity, submitting } = useLogChallengeActivity();
   const today = getLocalDay();
 
   const [distance, setDistance] = useState('');
@@ -43,32 +38,61 @@ export function ChallengeLogScreen() {
   const [note, setNote] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
-    // TODO: Submit to Firestore
-    const submission = {
-      challengeId: challenge.id,
-      day: today,
-      kind: challenge.activityKind,
-      effort: {
-        distanceKm: parseFloat(distance) || 0,
-        workouts: 1,
-        kcal: parseInt(kcal, 10) || 0,
-      },
-      note: note || undefined,
-    };
+  const handleSubmit = async () => {
+    if (!challenge) return;
+    
+    try {
+      await logActivity(
+        challenge.id,
+        challenge.activityKind,
+        {
+          workouts: 1,
+          distanceKm: parseFloat(distance) || 0,
+          kcal: parseInt(kcal, 10) || 0,
+        },
+        note || undefined,
+      );
+      
+      setSubmitted(true);
 
-    console.log('Submitting log:', submission);
-    setSubmitted(true);
-
-    setTimeout(() => {
-      navigation.goBack();
-    }, 1500);
+      setTimeout(() => {
+        navigation.goBack();
+      }, 1500);
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to log activity',
+      );
+    }
   };
 
   const canSubmit =
-    (distance && parseFloat(distance) > 0) ||
-    (duration && parseInt(duration, 10) > 0) ||
-    (kcal && parseInt(kcal, 10) > 0);
+    !submitting &&
+    ((distance && parseFloat(distance) > 0) ||
+      (duration && parseInt(duration, 10) > 0) ||
+      (kcal && parseInt(kcal, 10) > 0));
+
+  if (loadingChallenge) {
+    return (
+      <Screen padding="lg" center>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+        <Text variant="body" tone="muted" style={styles.loadingText}>
+          Loading...
+        </Text>
+      </Screen>
+    );
+  }
+
+  if (!challenge) {
+    return (
+      <Screen padding="lg" center>
+        <Text variant="displaySm" style={styles.errorTitle}>
+          Challenge not found
+        </Text>
+        <Button label="Go back" onPress={() => navigation.goBack()} style={styles.backButton} />
+      </Screen>
+    );
+  }
 
   if (submitted) {
     return (
@@ -168,6 +192,7 @@ export function ChallengeLogScreen() {
         size="lg"
         fullWidth
         disabled={!canSubmit}
+        loading={submitting}
         style={styles.submit}
         onPress={handleSubmit}
       />
@@ -177,6 +202,9 @@ export function ChallengeLogScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
+  loadingText: { marginTop: 16, textAlign: 'center' },
+  errorTitle: { textAlign: 'center' },
+  backButton: { marginTop: 20 },
   title: { marginTop: 20 },
   subtitle: { marginTop: 4 },
   dateCard: { marginTop: 20 },

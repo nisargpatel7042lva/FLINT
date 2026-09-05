@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView } from 'react-native';
+import { StyleSheet, View, ScrollView, Share, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Target, Users } from 'lucide-react-native';
 
@@ -19,7 +19,7 @@ import {
   type ActivityCategory,
   type ActivityKind,
 } from '../../services/types';
-import { generateInviteToken } from '../../services/challenges';
+import { useCreateChallenge } from '../../hooks/useChallenges';
 import { useTheme } from '../../theme';
 
 const TARGET_OPTIONS = [7, 14, 21, 30, 60, 90] as const;
@@ -32,6 +32,7 @@ const TARGET_OPTIONS = [7, 14, 21, 30, 60, 90] as const;
 export function CreateOneOnOneScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const { create, creating } = useCreateChallenge();
 
   const [selectedCategory, setSelectedCategory] = useState<ActivityCategory>('Cardio');
   const [selectedActivity, setSelectedActivity] = useState<ActivityKind>('run');
@@ -41,22 +42,38 @@ export function CreateOneOnOneScreen() {
 
   const activities = ACTIVITY_BY_CATEGORY[selectedCategory];
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const days = showCustom ? parseInt(customDays, 10) || targetDays : targetDays;
     
-    // TODO: Call Firebase to create the challenge
-    // For now, navigate to a detail screen (will be implemented)
-    const token = generateInviteToken();
-    console.log('Creating challenge:', {
-      activityKind: selectedActivity,
-      targetDays: days,
-      inviteToken: token,
-    });
-    
-    navigation.goBack();
+    try {
+      const challenge = await create(
+        selectedActivity,
+        days,
+        `${days}-day ${ACTIVITY_LABELS[selectedActivity]} Challenge`,
+      );
+      
+      // Share the invite link
+      const inviteUrl = `flint://invite/${challenge.inviteToken}`;
+      try {
+        await Share.share({
+          message: `Join my ${days}-day ${ACTIVITY_LABELS[selectedActivity]} challenge on Flint! ${inviteUrl}`,
+          url: inviteUrl,
+        });
+      } catch (shareError) {
+        console.error('Error sharing:', shareError);
+      }
+      
+      // Navigate to the challenge detail
+      navigation.replace('ChallengeDetail', { challengeId: challenge.id });
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to create challenge',
+      );
+    }
   };
 
-  const canCreate = selectedActivity && targetDays > 0;
+  const canCreate = selectedActivity && targetDays > 0 && !creating;
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -177,6 +194,7 @@ export function CreateOneOnOneScreen() {
         size="lg"
         fullWidth
         disabled={!canCreate}
+        loading={creating}
         style={styles.submit}
         onPress={handleCreate}
       />

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View, Share } from 'react-native';
+import { StyleSheet, View, Share, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { ArrowLeft, Flame, Link2, Target } from 'lucide-react-native';
 
@@ -16,38 +16,22 @@ import {
   Text,
   EmptyState,
 } from '../../components';
-import { ACTIVITY_LABELS, type Submission } from '../../services/types';
+import { ACTIVITY_LABELS } from '../../services/types';
 import {
-  computeChallengeStreak,
   getTodaySubmissions,
   hasLoggedToday,
   isChallengeComplete,
   getLocalDay,
 } from '../../services/challenges';
+import {
+  useChallenge,
+  useChallengeSubmissions,
+  useChallengeStreaks,
+  useRematchChallenge,
+} from '../../hooks/useChallenges';
+import { currentUser } from '../../services/auth';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
-
-// Mock data - will be replaced with Firebase
-const MOCK_CHALLENGE = {
-  id: 'ch1',
-  type: 'one_on_one' as const,
-  title: '30-day Run Challenge',
-  inviteToken: 'ABC123XY',
-  activityKind: 'run' as const,
-  creatorId: 'u1',
-  opponentId: 'u2',
-  groupId: 'g1',
-  targetDays: 30,
-  sessionsPerDay: 1,
-  status: 'active' as const,
-  createdAt: '2026-09-01T00:00:00Z',
-  acceptedAt: '2026-09-01T12:00:00Z',
-  startDay: '2026-09-01',
-  endDay: '2026-09-30',
-};
-
-const MOCK_SUBMISSIONS: Submission[] = [];
-const MOCK_CURRENT_USER_ID = 'u1';
 
 type Tab = 'today' | 'streak';
 
@@ -62,35 +46,34 @@ export function ChallengeDetailScreen() {
 
   const [tab, setTab] = React.useState<Tab>('today');
 
-  // TODO: Load from Firebase
-  const challenge = MOCK_CHALLENGE;
-  const submissions = MOCK_SUBMISSIONS;
-  const currentUserId = MOCK_CURRENT_USER_ID;
+  const user = currentUser();
+  const currentUserId = user?.uid ?? '';
+
+  const { challenge, loading: loadingChallenge } = useChallenge(route.params.challengeId);
+  const { submissions, loading: loadingSubmissions, reload: reloadSubmissions } = useChallengeSubmissions(route.params.challengeId);
+  const { myStreak, opponentStreak, loading: loadingStreaks, reload: reloadStreaks } = useChallengeStreaks(challenge);
+  const { rematch, creating: creatingRematch } = useRematchChallenge();
 
   const today = getLocalDay();
+  
   const todayLogs = useMemo(
-    () => getTodaySubmissions(submissions, challenge.groupId!, today),
-    [submissions, challenge.groupId, today],
+    () => challenge?.groupId ? getTodaySubmissions(submissions, challenge.groupId, today) : [],
+    [submissions, challenge?.groupId, today],
   );
 
-  const myStreak = useMemo(
-    () => computeChallengeStreak(submissions, challenge.id, currentUserId, today),
-    [submissions, challenge.id, currentUserId, today],
+  const isComplete = useMemo(
+    () => challenge && myStreak ? isChallengeComplete(challenge, myStreak, opponentStreak ?? undefined) : false,
+    [challenge, myStreak, opponentStreak],
   );
-
-  const opponentStreak = useMemo(
-    () =>
-      challenge.opponentId
-        ? computeChallengeStreak(submissions, challenge.id, challenge.opponentId, today)
-        : undefined,
-    [submissions, challenge.id, challenge.opponentId, today],
+  
+  const hasLoggedTodayFlag = useMemo(
+    () => challenge ? hasLoggedToday(submissions, challenge.id, currentUserId, today) : false,
+    [submissions, challenge, currentUserId, today],
   );
-
-  const isComplete = isChallengeComplete(challenge, myStreak, opponentStreak);
-  const hasLoggedTodayFlag = hasLoggedToday(submissions, challenge.id, currentUserId, today);
 
   const shareInvite = async () => {
-    const inviteUrl = `https://flint.app/invite/${challenge.inviteToken}`;
+    if (!challenge) return;
+    const inviteUrl = `flint://invite/${challenge.inviteToken}`;
     try {
       await Share.share({
         message: `Join my ${challenge.targetDays}-day ${
@@ -103,10 +86,62 @@ export function ChallengeDetailScreen() {
     }
   };
 
-  const handleRematch = () => {
-    // TODO: Create rematch challenge
-    console.log('Creating rematch...');
+  const handleRematch = async () => {
+    if (!challenge) return;
+    
+    try {
+      const newChallenge = await rematch(challenge);
+      Alert.alert(
+        'Rematch Created!',
+        `New ${newChallenge.targetDays}-day challenge is ready.`,
+        [
+          {
+            text: 'View Challenge',
+            onPress: () => navigation.replace('ChallengeDetail', { challengeId: newChallenge.id }),
+          },
+        ],
+      );
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to create rematch',
+      );
+    }
   };
+
+  const handleLogPress = () => {
+    if (challenge) {
+      navigation.navigate('ChallengeLog', { challengeId: challenge.id });
+    }
+  };
+
+  // Loading state
+  if (loadingChallenge || loadingStreaks) {
+    return (
+      <Screen padding="lg" center>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+        <Text variant="body" tone="muted" style={styles.loadingText}>
+          Loading challenge...
+        </Text>
+      </Screen>
+    );
+  }
+
+  // Error state
+  if (!challenge) {
+    return (
+      <Screen padding="lg" center>
+        <Text variant="displaySm" style={styles.errorTitle}>
+          Challenge not found
+        </Text>
+        <Button
+          label="Go back"
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        />
+      </Screen>
+    );
+  }
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -158,10 +193,10 @@ export function ChallengeDetailScreen() {
             <Flame color={theme.colors.accent} size={16} />
           </View>
           <Text variant="displayLg" tone="inverse" style={styles.streakValue}>
-            {myStreak.currentStreak}
+            {myStreak?.currentStreak ?? 0}
           </Text>
           <Text variant="caption" tone="inverseMuted">
-            {myStreak.totalActiveDays} / {challenge.targetDays} days logged
+            {myStreak?.totalActiveDays ?? 0} / {challenge.targetDays} days logged
           </Text>
         </Card>
 
@@ -201,9 +236,7 @@ export function ChallengeDetailScreen() {
             label="Log activity"
             size="md"
             variant="inverse"
-            onPress={() =>
-              navigation.navigate('ChallengeLog', { challengeId: challenge.id })
-            }
+            onPress={handleLogPress}
           />
         </Card>
       )}
@@ -221,6 +254,8 @@ export function ChallengeDetailScreen() {
             label="Push harder (same pair)"
             size="lg"
             fullWidth
+            loading={creatingRematch}
+            disabled={creatingRematch}
             onPress={handleRematch}
             style={styles.rematchButton}
           />
@@ -264,14 +299,14 @@ export function ChallengeDetailScreen() {
         )
       ) : (
         <View style={styles.streakStats}>
-          <StatPill label="Best streak" value={`${myStreak.bestStreak} days`} />
+          <StatPill label="Best streak" value={`${myStreak?.bestStreak ?? 0} days`} />
           <StatPill
             label="Current streak"
-            value={`${myStreak.currentStreak} days`}
+            value={`${myStreak?.currentStreak ?? 0} days`}
           />
           <StatPill
             label="Active days"
-            value={`${myStreak.totalActiveDays} days`}
+            value={`${myStreak?.totalActiveDays ?? 0} days`}
           />
         </View>
       )}
@@ -281,6 +316,9 @@ export function ChallengeDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
+  loadingText: { marginTop: 16, textAlign: 'center' },
+  errorTitle: { textAlign: 'center' },
+  backButton: { marginTop: 20 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

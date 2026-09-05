@@ -288,12 +288,22 @@ describe('buildRematch', () => {
 
 ## Known Limitations
 
-- Mock data still used in screens (Firebase integration pending)
-- No Firebase calls wired in Create/Accept/Log screens yet
+- ~~Mock data still used in screens (Firebase integration pending)~~ **RESOLVED**
+- ~~No Firebase calls wired in Create/Accept/Log screens yet~~ **RESOLVED**
 - Deep links tested with URL scheme only (not web URLs)
 - Challenge discovery UI not built (users need direct invite links)
 - No challenge list screen (navigate via groups or direct link)
-- Rematch creates challenge but doesn't auto-navigate yet
+
+## Firebase Integration Status
+
+✅ **All core loop screens now use real Firebase**:
+- CreateOneOnOneScreen: Creates challenges in Firestore, generates invite tokens
+- AcceptChallengeScreen: Loads by token, creates group, updates challenge status
+- ChallengeLogScreen: Submits to Firestore submissions collection
+- ChallengeDetailScreen: Loads challenge, submissions, and streaks from Firestore
+- Rematch: Creates new challenge with bumped difficulty
+
+All screens include proper loading states, error handling, and disable mock fallbacks.
 
 ## Next Steps for Production
 
@@ -361,6 +371,36 @@ adb shell am start -W -a android.intent.action.VIEW \
 - Deploy Cloud Functions: `firebase deploy --only functions`
 - Check Cloud Function logs: `firebase functions:log`
 - Use Firestore emulator for local testing: `firebase emulators:start`
+
+### Required Firebase Deployment Steps
+
+**Before testing, you must deploy:**
+
+1. **Firestore Security Rules**:
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
+   This deploys the rules that enforce challenge ownership and server-owned streaks.
+
+2. **Cloud Functions**:
+   ```bash
+   cd functions
+   npm install  # Only needed first time
+   cd ..
+   firebase deploy --only functions
+   ```
+   This deploys `onSubmissionWritten` which computes challenge streaks.
+
+3. **Verify Deployment**:
+   ```bash
+   firebase functions:list
+   ```
+   Should show: `onSessionWritten`, `nudgeStreaksAtRisk`, `nudgeComebacks`, `onSubmissionWritten`
+
+**Without these deployments**, the core loop will fail:
+- Submissions will be rejected by security rules
+- Streaks won't compute (onSubmissionWritten won't trigger)
+- Challenge acceptance may fail
 
 ## Summary
 
