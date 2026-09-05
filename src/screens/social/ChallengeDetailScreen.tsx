@@ -238,6 +238,12 @@ export function ChallengeDetailScreen() {
           <Text variant="bodySm" tone="muted" style={styles.brokenStreakBody}>
             Log today to start again.
           </Text>
+          <Button
+            label="Log today"
+            size="md"
+            onPress={handleLogPress}
+            style={styles.brokenStreakCta}
+          />
         </Card>
       )}
 
@@ -256,7 +262,7 @@ export function ChallengeDetailScreen() {
             </View>
           </View>
           <Button
-            label="Log activity"
+            label="Log today"
             size="md"
             variant="inverse"
             onPress={handleLogPress}
@@ -280,16 +286,10 @@ export function ChallengeDetailScreen() {
       {isComplete && (
         <Card variant="dark" padding="lg" style={styles.completeCta}>
           <Text variant="headingLg" tone="inverse" style={styles.completeTitle}>
-            {completionStatus === 'won' && 'You won!'}
-            {completionStatus === 'lost' && 'They got you'}
-            {completionStatus === 'tie' && 'You both showed up'}
+            {completionStatus === 'won' && 'You took it.'}
+            {completionStatus === 'lost' && 'They edged you.'}
+            {completionStatus === 'tie' && 'Even. Rematch decides.'}
             {!completionStatus && 'Challenge complete!'}
-          </Text>
-          <Text variant="body" tone="inverseMuted" style={styles.completeBody}>
-            {completionStatus === 'won' && 'Ready to defend it?'}
-            {completionStatus === 'lost' && 'Want another shot?'}
-            {completionStatus === 'tie' && 'Ready to push harder?'}
-            {!completionStatus && 'Ready to push harder?'}
           </Text>
           <Button
             label="Push harder (same pair)"
@@ -299,6 +299,15 @@ export function ChallengeDetailScreen() {
             disabled={creatingRematch}
             onPress={handleRematch}
             style={styles.rematchButton}
+          />
+          <Button
+            label="Done for now"
+            size="lg"
+            variant="ghost"
+            fullWidth
+            disabled={creatingRematch}
+            onPress={() => navigation.goBack()}
+            style={styles.doneButton}
           />
         </Card>
       )}
@@ -381,6 +390,7 @@ const styles = StyleSheet.create({
   streakValue: { marginTop: 12 },
   brokenStreakCard: { marginTop: 12 },
   brokenStreakBody: { marginTop: 4 },
+  brokenStreakCta: { marginTop: 12 },
   logCta: { marginTop: 20 },
   logCtaContent: {
     flexDirection: 'row',
@@ -393,8 +403,8 @@ const styles = StyleSheet.create({
   doneBody: { marginTop: 4 },
   completeCta: { marginTop: 20 },
   completeTitle: { textAlign: 'center' },
-  completeBody: { marginTop: 8, textAlign: 'center' },
   rematchButton: { marginTop: 20 },
+  doneButton: { marginTop: 8 },
   tabs: { marginTop: 24 },
   list: { marginTop: 12, rowGap: 4 },
   streakStats: {

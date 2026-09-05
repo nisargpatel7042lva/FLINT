@@ -41,21 +41,25 @@ const streaksCol = () => collection(db(), 'challengeStreaks');
 const groupsCol = () => collection(db(), 'groups');
 
 /**
- * Hash an invite token for secure storage.
- * Must match server-side hashing in Cloud Functions.
+ * Get a group by ID.
  */
-async function hashInviteToken(token: string): Promise<string> {
-  // Use Web Crypto API for SHA-256
-  const pepper = 'flint-mvp-join-pepper-change-in-production'; // Must match server
-  const encoder = new TextEncoder();
-  const data = encoder.encode(pepper + token);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+export async function getGroup(groupId: string): Promise<Group | null> {
+  const snap = await getDoc(doc(groupsCol(), groupId));
+  if (!snap.exists()) {
+    return null;
+  }
+  const data = snap.data() as Record<string, unknown>;
+  return {
+    id: snap.id,
+    name: String(data.name || ''),
+    code: data.code ? String(data.code) : undefined,
+    memberIds: (data.memberIds as string[]) || [],
+  };
 }
 
 /**
- * Create a new 1:1 challenge.
+ * Create a new 1:1 challenge via callable Cloud Function.
+ * Server hashes the token and stores both plaintext (for creator sharing) and hash (for secure lookup).
  */
 export async function createOneOnOneChallenge(
   creatorId: string,
@@ -64,30 +68,46 @@ export async function createOneOnOneChallenge(
   title?: string,
   rematchOf?: string,
 ): Promise<OneOnOneChallenge> {
-  const inviteToken = generateInviteToken();
-  const inviteTokenHash = await hashInviteToken(inviteToken);
-  const now = new Date().toISOString();
-
-  const challengeData: Omit<OneOnOneChallenge, 'id'> = {
-    type: 'one_on_one',
-    title: title || `${targetDays}-day ${activityKind} Challenge`,
-    inviteToken,
-    activityKind,
-    creatorId,
-    targetDays,
-    sessionsPerDay: 1,
-    status: 'pending',
-    createdAt: now,
-  };
-
-  const docRef = await addDoc(challengesCol(), {
-    ...challengeData,
-    inviteTokenHash, // Store hash for secure lookup
-    rematchOf: rematchOf || null, // Track rematch lineage
-    createdAt: serverTimestamp(),
-  });
-
-  return { ...challengeData, id: docRef.id };
+  const createChallenge = httpsCallable(functions(), 'createOneOnOneChallenge');
+  
+  try {
+    const result = await createChallenge({
+      activityKind,
+      targetDays,
+      title,
+      rematchOf,
+    });
+    
+    const data = result.data as {
+      success: boolean;
+      challengeId: string;
+      inviteToken: string;
+      title: string;
+      createdAt: string;
+    };
+    
+    if (!data.success) {
+      throw new Error('Failed to create challenge');
+    }
+    
+    return {
+      id: data.challengeId,
+      type: 'one_on_one',
+      title: data.title,
+      inviteToken: data.inviteToken, // For sharing only
+      activityKind,
+      creatorId,
+      targetDays,
+      sessionsPerDay: 1,
+      status: 'pending',
+      createdAt: data.createdAt,
+    };
+  } catch (error: any) {
+    if (error.code === 'functions/unauthenticated') {
+      throw new Error('You must be signed in to create challenges');
+    }
+    throw error;
+  }
 }
 
 /**
@@ -120,35 +140,49 @@ export async function getChallenge(challengeId: string): Promise<OneOnOneChallen
 }
 
 /**
- * Get a challenge by invite token.
+ * Get challenge preview by invite token.
+ * Uses a callable Cloud Function for secure server-side token lookup.
  */
 export async function getChallengeByToken(token: string): Promise<OneOnOneChallenge | null> {
-  const q = query(challengesCol(), where('inviteToken', '==', token));
-  const snap = await getDocs(q);
+  const previewChallenge = httpsCallable(functions(), 'previewChallengeByToken');
   
-  if (snap.empty) {
-    return null;
+  try {
+    const result = await previewChallenge({ token });
+    const data = result.data as {
+      success: boolean;
+      challenge?: {
+        id: string;
+        title: string;
+        activityKind: ActivityKind;
+        creatorId: string;
+        targetDays: number;
+        status: string;
+        createdAt: string;
+      };
+    };
+    
+    if (!data.success || !data.challenge) {
+      return null;
+    }
+    
+    return {
+      id: data.challenge.id,
+      type: 'one_on_one',
+      title: data.challenge.title,
+      inviteToken: token, // Keep for client sharing after accept
+      activityKind: data.challenge.activityKind,
+      creatorId: data.challenge.creatorId,
+      targetDays: data.challenge.targetDays,
+      sessionsPerDay: 1,
+      status: data.challenge.status as 'pending' | 'active' | 'completed',
+      createdAt: data.challenge.createdAt,
+    };
+  } catch (error: any) {
+    if (error.code === 'functions/not-found') {
+      return null;
+    }
+    throw error;
   }
-  
-  const data = snap.docs[0].data() as Record<string, unknown>;
-  return {
-    id: snap.docs[0].id,
-    type: 'one_on_one',
-    title: String(data.title || ''),
-    inviteToken: String(data.inviteToken || ''),
-    activityKind: (data.activityKind as ActivityKind) || 'run',
-    creatorId: String(data.creatorId || ''),
-    opponentId: data.opponentId ? String(data.opponentId) : undefined,
-    groupId: data.groupId ? String(data.groupId) : undefined,
-    targetDays: Number(data.targetDays || 30),
-    sessionsPerDay: Number(data.sessionsPerDay || 1),
-    status: (data.status as 'pending' | 'active' | 'completed') || 'pending',
-    createdAt: String(data.createdAt || new Date().toISOString()),
-    acceptedAt: data.acceptedAt ? String(data.acceptedAt) : undefined,
-    completedAt: data.completedAt ? String(data.completedAt) : undefined,
-    startDay: data.startDay ? String(data.startDay) : undefined,
-    endDay: data.endDay ? String(data.endDay) : undefined,
-  };
 }
 
 /**
@@ -290,6 +324,47 @@ export async function getChallengeSubmissions(
   const q = query(
     submissionsCol(),
     where('groupId', '==', challenge.groupId),
+    orderBy('day', 'desc'),
+  );
+
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => {
+    const data = doc.data() as Record<string, unknown>;
+    return {
+      id: doc.id,
+      memberId: String(data.memberId || ''),
+      groupId: String(data.groupId || ''),
+      day: String(data.day || ''),
+      kind: (data.kind as ActivityKind) || 'run',
+      effort: (data.effort as Effort) || { workouts: 0, distanceKm: 0, kcal: 0 },
+      status: (data.status as 'auto_verified') || 'auto_verified',
+      approvals: (data.approvals as string[]) || [],
+      rejections: (data.rejections as string[]) || [],
+      autoChecks: (data.autoChecks as { gpsOk: boolean; timestampOk: boolean }) || {
+        gpsOk: true,
+        timestampOk: true,
+      },
+      note: data.note ? String(data.note) : undefined,
+      createdAt: String(data.createdAt || ''),
+      reactions: (data.reactions as Record<string, number>) || {
+        fire: 0,
+        strong: 0,
+        clap: 0,
+        eyes: 0,
+      },
+    };
+  });
+}
+
+/**
+ * Get all submissions for a group (regardless of challenge).
+ */
+export async function getGroupSubmissions(
+  groupId: string,
+): Promise<Submission[]> {
+  const q = query(
+    submissionsCol(),
+    where('groupId', '==', groupId),
     orderBy('day', 'desc'),
   );
 

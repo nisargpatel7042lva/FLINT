@@ -311,6 +311,127 @@ function hashInviteToken(token: string): string {
 }
 
 /**
+ * Generate a random invite token.
+ */
+function generateInviteToken(): string {
+  return Math.random().toString(36).substring(2, 10).toUpperCase() +
+         Math.random().toString(36).substring(2, 10).toUpperCase();
+}
+
+/**
+ * Create a new 1:1 challenge.
+ * 
+ * Security model:
+ * - Server generates and hashes token
+ * - Stores both plaintext (creator-only read) and hash (for lookups)
+ * - Returns token to creator for sharing
+ * 
+ * @callable
+ */
+export const createOneOnOneChallenge = onCall(async request => {
+  const { activityKind, targetDays, title, rematchOf } = request.data;
+
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  if (!activityKind || typeof activityKind !== 'string') {
+    throw new HttpsError('invalid-argument', 'Invalid activity kind');
+  }
+
+  if (!targetDays || typeof targetDays !== 'number' || targetDays < 1 || targetDays > 365) {
+    throw new HttpsError('invalid-argument', 'Invalid target days');
+  }
+
+  const userId = request.auth.uid;
+  const token = generateInviteToken();
+  const tokenHash = hashInviteToken(token);
+  const challengeTitle = title || `${targetDays}-day ${activityKind} Challenge`;
+
+  const challengeRef = await db.collection('challenges').add({
+    type: 'one_on_one',
+    title: challengeTitle,
+    inviteToken: token, // Plaintext for creator to share (rules restrict read)
+    inviteTokenHash: tokenHash, // For secure lookups
+    activityKind,
+    creatorId: userId,
+    targetDays,
+    sessionsPerDay: 1,
+    status: 'pending',
+    rematchOf: rematchOf || null,
+    createdAt: new Date(),
+  });
+
+  logger.info('challenge created', {
+    challengeId: challengeRef.id,
+    creatorId: userId,
+    activityKind,
+    targetDays,
+  });
+
+  return {
+    success: true,
+    challengeId: challengeRef.id,
+    inviteToken: token, // Return to creator for sharing
+    title: challengeTitle,
+    createdAt: new Date().toISOString(),
+  };
+});
+
+/**
+ * Preview a challenge by invite token (before accepting).
+ * 
+ * Security model:
+ * - Server-side hashed token lookup only
+ * - Returns minimal preview data (no sensitive participant info)
+ * - No plaintext token stored or queried in Firestore
+ * 
+ * @callable
+ */
+export const previewChallengeByToken = onCall(async request => {
+  const { token } = request.data;
+
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  if (!token || typeof token !== 'string') {
+    throw new HttpsError('invalid-argument', 'Invalid invite token');
+  }
+
+  const tokenHash = hashInviteToken(token);
+
+  // Look up challenge by hash
+  const challengeSnap = await db
+    .collection('challenges')
+    .where('inviteTokenHash', '==', tokenHash)
+    .where('status', '==', 'pending')
+    .limit(1)
+    .get();
+
+  if (challengeSnap.empty) {
+    throw new HttpsError('not-found', 'Challenge not found or already accepted');
+  }
+
+  const challenge = challengeSnap.docs[0];
+  const challengeData = challenge.data();
+
+  // Return minimal preview data
+  return {
+    success: true,
+    challenge: {
+      id: challenge.id,
+      title: challengeData.title,
+      activityKind: challengeData.activityKind,
+      creatorId: challengeData.creatorId,
+      targetDays: challengeData.targetDays,
+      status: challengeData.status,
+      createdAt: challengeData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+    },
+  };
+});
+
+/**
  * Redeem a challenge invite code.
  * 
  * Security model:
