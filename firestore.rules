@@ -7,6 +7,8 @@ rules_version = '2';
  * so ownership is a single uid comparison rather than a field check that could
  * be forged on write.
  *
+ * Challenges and submissions follow group membership rules.
+ *
  * Default deny: anything not matched below is refused.
  */
 service cloud.firestore {
@@ -20,10 +22,32 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isMemberOfGroup(groupId) {
+      return isAuthenticated() 
+        && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+    }
+
+    function isChallengeParticipant(challengeDoc) {
+      return isAuthenticated() && (
+        request.auth.uid == challengeDoc.creatorId ||
+        request.auth.uid == challengeDoc.opponentId
+      );
+    }
+
     // Fields the client may never set — these are server-owned.
     function noServerFields() {
       return !request.resource.data.diff(resource.data).affectedKeys()
         .hasAny(['currentStreak', 'lastNudgeAt']);
+    }
+
+    // Challenge streak fields are server-owned
+    function noStreakFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['currentStreak', 'bestStreak']);
     }
 
     match /users/{userId} {
@@ -142,13 +166,21 @@ service cloud.firestore {
      * what makes it the only one where "who is asking" has to be checked on
      * every branch rather than once at the top.
      *
+     * Two kinds of group share this collection: friend groups, which people
+     * create and join from the app, and the pair groups a 1:1 challenge spins
+     * up when it is accepted. The second kind is written by a Cloud Function,
+     * which uses the Admin SDK and is never subject to these rules — so one set
+     * of rules covers both. A challenge group has no `ownerUid`, which simply
+     * means the owner clauses below never match for it: nobody manages its
+     * roster, and either member may still leave.
+     *
      * Reads are members-only, and the client's query filters on
-     * `memberUids array-contains uid` — Firestore accepts a query only when
+     * `memberIds array-contains uid` — Firestore accepts a query only when
      * every document it could return is provably allowed, so that filter is not
      * a client-side courtesy either. It is the reason the query runs at all.
      *
      * Membership changes are the interesting case. Three distinct people may
-     * change `memberUids`, for three different reasons:
+     * change `memberIds`, for three different reasons:
      *
      *   somebody joining   adds exactly their own uid, and nothing else
      *   somebody leaving   removes exactly their own uid, and nothing else
@@ -159,14 +191,14 @@ service cloud.firestore {
      */
     match /groups/{groupId} {
       function isMember() {
-        return isSignedIn() && request.auth.uid in resource.data.memberUids;
+        return isSignedIn() && request.auth.uid in resource.data.memberIds;
       }
       function isOwner() {
         return isSignedIn() && request.auth.uid == resource.data.ownerUid;
       }
       function onlyMembersChanged() {
         return request.resource.data.diff(resource.data)
-          .affectedKeys().hasOnly(['memberUids']);
+          .affectedKeys().hasOnly(['memberIds']);
       }
 
       allow read: if isMember();
@@ -175,7 +207,7 @@ service cloud.firestore {
       // people would be adding them to something they never agreed to.
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.memberIds == [request.auth.uid]
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 60
@@ -187,11 +219,11 @@ service cloud.firestore {
           // Join: adds you and only you. Note this is allowed for a NON-member,
           // which is the whole point — you cannot read the group until you are
           // in it, so joining cannot require reading it first.
-          request.resource.data.memberUids
-            == resource.data.memberUids.concat([request.auth.uid])
+          request.resource.data.memberIds
+            == resource.data.memberIds.concat([request.auth.uid])
           // Leave: removes you and only you.
-          || request.resource.data.memberUids
-            == resource.data.memberUids.removeAll([request.auth.uid])
+          || request.resource.data.memberIds
+            == resource.data.memberIds.removeAll([request.auth.uid])
           // The owner manages the roster.
           || isOwner()
         );
@@ -225,6 +257,62 @@ service cloud.firestore {
         && request.resource.data.groupId is string;
 
       allow update, delete: if false;
+    }
+
+    // ── 1:1 challenges ───────────────────────────────────────────────────
+    //
+    // Everything below is written by Cloud Functions and is read-mostly from
+    // the client. The pair group a challenge creates lives in /groups above.
+
+    // 1:1 Challenges
+    // Creation and acceptance via callables only
+    match /challenges/{challengeId} {
+      // Only participants can read their challenge
+      // inviteToken field is creator-only (for sharing)
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.creatorId ||
+        request.auth.uid == resource.data.opponentId
+      );
+      
+      // NO client create - use createOneOnOneChallenge callable
+      allow create: if false;
+      
+      // Participants can update limited fields (e.g., marking complete)
+      // But NOT core fields - those are callable-only
+      allow update: if isChallengeParticipant(resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['creatorId', 'opponentId', 'groupId', 'inviteToken', 'inviteTokenHash', 'acceptedAt', 'targetDays']);
+      
+      allow delete: if false;
+    }
+
+    // Challenge submissions (activity logs)
+    // ONLY Cloud Functions can create submissions (via Admin SDK)
+    match /submissions/{submissionId} {
+      // Anyone can read submissions in groups they're part of
+      allow read: if isAuthenticated() && (
+        isMemberOfGroup(resource.data.groupId) ||
+        request.auth.uid == resource.data.memberId
+      );
+      
+      // Client CANNOT create submissions - only logChallengeActivity callable can
+      allow create: if false;
+      
+      // Users can update their own submissions (reactions, notes)
+      // But NOT core fields like day, effort, status
+      allow update: if isAuthenticated()
+        && resource.data.memberId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['memberId', 'groupId', 'day', 'kind', 'effort', 'status', 'createdAt']);
+      
+      allow delete: if false;
+    }
+
+    // Challenge streaks (computed by Cloud Functions)
+    match /challengeStreaks/{streakId} {
+      allow read: if isAuthenticated();
+      // Only Cloud Functions can write streaks
+      allow write: if false;
     }
   }
 }

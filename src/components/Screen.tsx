@@ -24,6 +24,12 @@ export type ScreenProps = {
   /** Force the status bar style; inferred from the theme mode otherwise. */
   statusBarStyle?: 'light-content' | 'dark-content';
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /**
+   * Centre the content both ways. For loading, error and "nothing here yet"
+   * states, which are a single block that belongs in the middle of the page
+   * rather than at the top of it.
+   */
+  center?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };

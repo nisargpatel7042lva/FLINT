@@ -64,6 +64,11 @@ jest.mock('@react-native-firebase/firestore', () => ({
   serverTimestamp: jest.fn(),
 }));
 
+jest.mock('@react-native-firebase/functions', () => ({
+  getFunctions: jest.fn(),
+  httpsCallable: jest.fn(() => jest.fn()),
+}));
+
 jest.mock('@react-native-firebase/messaging', () => ({
   AuthorizationStatus: { AUTHORIZED: 1, PROVISIONAL: 2 },
   getMessaging: jest.fn(),

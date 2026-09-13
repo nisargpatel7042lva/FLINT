@@ -115,7 +115,7 @@ export const INDIVIDUAL_CHALLENGES: IndividualChallenge[] = [
   },
 ];
 
-const KINDS: ActivityKind[] = ['workout', 'run', 'ride', 'walk'];
+const KINDS: ActivityKind[] = ['weights', 'run', 'cycle', 'walk'];
 
 const NOTES = [
   'Leg day. Barely walked out.',
@@ -149,9 +149,9 @@ function buildSubmissions(): Submission[] {
         }
 
         const kind = KINDS[Math.floor(rand() * KINDS.length)];
-        const workouts = kind === 'workout' ? 1 : 0;
+        const workouts = kind === 'weights' ? 1 : 0;
         const distanceKm =
-          kind === 'run' ? 4 + rand() * 8 : kind === 'ride' ? 10 + rand() * 20 : kind === 'walk' ? 2 + rand() * 4 : 0;
+          kind === 'run' ? 4 + rand() * 8 : kind === 'cycle' ? 10 + rand() * 20 : kind === 'walk' ? 2 + rand() * 4 : 0;
         const kcal = 180 + rand() * 520;
 
         const isToday = day === TODAY;

@@ -44,7 +44,7 @@ import type { Group } from './types';
  *   users/{uid}                   -> private; holds the FCM token
  *   users/{uid}/friends/{friendUid} -> { name, handle, addedAt }    private to owner
  *   pokes/{fromUid_toUid_kind_day} -> { fromUid, toUid, kind, ... }
- *   groups/{groupId}             -> { name, code, ownerUid, memberUids[] }
+ *   groups/{groupId}             -> { name, code, ownerUid, memberIds[] }
  *   groupCodes/{CODE}            -> { groupId }                    uniqueness claim
  *
  * Pokes are a top-level collection rather than a subcollection of either party
@@ -113,13 +113,13 @@ function toPoke(id: string, data: Record<string, unknown>): Poke {
 /**
  * A group document, as the app models it.
  *
- * `memberUids` on the wire becomes `memberIds` in the app: the field is named
- * for what it holds on the server (account uids, which the rules reason about)
- * and for what the screens need locally (ids of people, real or seeded).
+ * The wire field is `memberIds`, the same name the app uses, because the
+ * 1:1-challenge Cloud Functions write groups into this collection too and that
+ * is the name they chose. One field name, one query, one set of rules.
  */
 function toGroup(id: string, data: Record<string, unknown> | undefined): Group {
-  const members = Array.isArray(data?.memberUids)
-    ? (data?.memberUids as unknown[]).map(String)
+  const members = Array.isArray(data?.memberIds)
+    ? (data?.memberIds as unknown[]).map(String)
     : [];
   return {
     id,
@@ -312,14 +312,14 @@ export class FirestoreSocialRepository implements SocialRepository {
   watchGroups(uid: string, onChange: (groups: Group[]) => void): Unsubscribe {
     /*
      * `array-contains` on the member list is what makes the read rule
-     * enforceable. The rule says "readable only if you are in memberUids", and
+     * enforceable. The rule says "readable only if you are in memberIds", and
      * Firestore accepts a query only when every document it could return is
      * provably allowed — which this one is, and a plain `orderBy` alone would
      * not be.
      */
     const q = query(
       groupsCol(),
-      where('memberUids', 'array-contains', uid),
+      where('memberIds', 'array-contains', uid),
       orderBy('createdAt', 'desc'),
       limit(GROUPS_LIMIT),
     );
@@ -365,7 +365,7 @@ export class FirestoreSocialRepository implements SocialRepository {
       name: name.trim(),
       code,
       ownerUid: uid,
-      memberUids: [uid],
+      memberIds: [uid],
       createdAt: serverTimestamp(),
     };
     await setDoc(doc(groupsCol(), id), payload);
@@ -408,7 +408,7 @@ export class FirestoreSocialRepository implements SocialRepository {
     }
 
     // Not a member yet. The rules allow adding exactly one uid — your own.
-    await updateDoc(ref, { memberUids: arrayUnion(uid) });
+    await updateDoc(ref, { memberIds: arrayUnion(uid) });
     const joined = await getDoc(ref);
     if (!joined.exists()) {
       return { state: 'unknown' };
@@ -417,12 +417,12 @@ export class FirestoreSocialRepository implements SocialRepository {
   }
 
   async leaveGroup(uid: string, groupId: string): Promise<void> {
-    await updateDoc(doc(groupsCol(), groupId), { memberUids: arrayRemove(uid) });
+    await updateDoc(doc(groupsCol(), groupId), { memberIds: arrayRemove(uid) });
   }
 
   async addToGroup(_uid: string, groupId: string, memberUid: string): Promise<void> {
     await updateDoc(doc(groupsCol(), groupId), {
-      memberUids: arrayUnion(memberUid),
+      memberIds: arrayUnion(memberUid),
     });
   }
 
@@ -432,7 +432,7 @@ export class FirestoreSocialRepository implements SocialRepository {
     memberUid: string,
   ): Promise<void> {
     await updateDoc(doc(groupsCol(), groupId), {
-      memberUids: arrayRemove(memberUid),
+      memberIds: arrayRemove(memberUid),
     });
   }
 

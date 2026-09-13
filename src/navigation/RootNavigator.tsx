@@ -11,11 +11,16 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTheme } from '../theme';
 import { useProfile } from '../hooks';
 import { useSessions } from '../hooks/useSessions';
+import { linkingConfig } from '../services/deeplinks';
 import {
+  AcceptChallengeScreen,
   AppearanceScreen,
   BarrierScreen,
+  ChallengeDetailScreen,
+  ChallengeLogScreen,
   SparkReactionScreen,
   CreateChallengeScreen,
+  CreateOneOnOneScreen,
   BodyBasicsScreen,
   ExerciseDetailScreen,
   ExploredScreen,
@@ -104,7 +109,7 @@ export function RootNavigator() {
   const initialRouteName = logs.length > 0 || profile.completed ? 'Tabs' : 'Splash';
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} linking={linkingConfig}>
       <Stack.Navigator
         initialRouteName={initialRouteName}
         screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
@@ -141,6 +146,16 @@ export function RootNavigator() {
           component={TrainingPreferencesScreen}
         />
         <Stack.Screen name="Friends" component={FriendsScreen} />
+
+        {/* Flint MVP: 1:1 Challenges */}
+        <Stack.Screen name="CreateOneOnOne" component={CreateOneOnOneScreen} />
+        <Stack.Screen name="AcceptChallenge" component={AcceptChallengeScreen} />
+        <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
+        <Stack.Screen
+          name="ChallengeLog"
+          component={ChallengeLogScreen}
+          options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+        />
 
         {/* Personal tracking loop. */}
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />

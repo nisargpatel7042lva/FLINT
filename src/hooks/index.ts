@@ -10,3 +10,4 @@ export { useTheme, useThemeContext } from '../theme';
 export { useSessions } from './useSessions';
 export { useSocial } from './useSocial';
 export { useProfile } from './useProfile';
+export * from './useChallenges';

@@ -328,7 +328,7 @@ describe('groups', () => {
         name: 'Iron Wolves',
         code: CODE,
         ownerUid: owner,
-        memberUids: members,
+        memberIds: members,
         createdAt: serverTimestamp(),
       });
       await setDoc(doc(db, 'groupCodes', CODE), { groupId: GROUP });
@@ -342,7 +342,7 @@ describe('groups', () => {
           name: 'Iron Wolves',
           code: CODE,
           ownerUid: ALICE,
-          memberUids: [ALICE],
+          memberIds: [ALICE],
           createdAt: serverTimestamp(),
         }),
       );
@@ -355,7 +355,7 @@ describe('groups', () => {
           name: 'Iron Wolves',
           code: CODE,
           ownerUid: BOB,
-          memberUids: [BOB],
+          memberIds: [BOB],
           createdAt: serverTimestamp(),
         }),
       );
@@ -368,7 +368,7 @@ describe('groups', () => {
           name: 'Iron Wolves',
           code: CODE,
           ownerUid: ALICE,
-          memberUids: [ALICE, BOB],
+          memberIds: [ALICE, BOB],
           createdAt: serverTimestamp(),
         }),
       );
@@ -379,7 +379,7 @@ describe('groups', () => {
       const base = {
         code: CODE,
         ownerUid: ALICE,
-        memberUids: [ALICE],
+        memberIds: [ALICE],
         createdAt: serverTimestamp(),
       };
       await assertFails(setDoc(doc(db, 'groups', 'g-empty'), { ...base, name: '' }));
@@ -395,7 +395,7 @@ describe('groups', () => {
           name: 'Iron Wolves',
           code: CODE,
           ownerUid: ALICE,
-          memberUids: [ALICE],
+          memberIds: [ALICE],
           createdAt: serverTimestamp(),
         }),
       );
@@ -426,7 +426,7 @@ describe('groups', () => {
       await seedGroup([ALICE]);
       const db = env.authenticatedContext(BOB).firestore();
       await assertSucceeds(
-        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayUnion(BOB) }),
+        updateDoc(doc(db, 'groups', GROUP), { memberIds: arrayUnion(BOB) }),
       );
     });
 
@@ -434,7 +434,7 @@ describe('groups', () => {
       await seedGroup([ALICE]);
       const db = env.authenticatedContext(BOB).firestore();
       await assertFails(
-        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayUnion(CAROL) }),
+        updateDoc(doc(db, 'groups', GROUP), { memberIds: arrayUnion(CAROL) }),
       );
     });
 
@@ -442,7 +442,7 @@ describe('groups', () => {
       await seedGroup([ALICE]);
       const db = env.authenticatedContext(BOB).firestore();
       await assertFails(
-        updateDoc(doc(db, 'groups', GROUP), { memberUids: [ALICE, BOB, CAROL] }),
+        updateDoc(doc(db, 'groups', GROUP), { memberIds: [ALICE, BOB, CAROL] }),
       );
     });
 
@@ -451,7 +451,7 @@ describe('groups', () => {
       const db = env.authenticatedContext(BOB).firestore();
       await assertFails(
         updateDoc(doc(db, 'groups', GROUP), {
-          memberUids: arrayUnion(BOB),
+          memberIds: arrayUnion(BOB),
           ownerUid: BOB,
         }),
       );
@@ -490,7 +490,7 @@ describe('groups', () => {
       await seedGroup([ALICE, BOB]);
       const db = env.authenticatedContext(BOB).firestore();
       await assertSucceeds(
-        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayRemove(BOB) }),
+        updateDoc(doc(db, 'groups', GROUP), { memberIds: arrayRemove(BOB) }),
       );
     });
 
@@ -498,7 +498,7 @@ describe('groups', () => {
       await seedGroup([ALICE, BOB, CAROL]);
       const db = env.authenticatedContext(BOB).firestore();
       await assertFails(
-        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayRemove(CAROL) }),
+        updateDoc(doc(db, 'groups', GROUP), { memberIds: arrayRemove(CAROL) }),
       );
     });
 
@@ -506,7 +506,7 @@ describe('groups', () => {
       await seedGroup([ALICE, BOB]);
       const db = env.authenticatedContext(ALICE).firestore();
       await assertSucceeds(
-        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayRemove(BOB) }),
+        updateDoc(doc(db, 'groups', GROUP), { memberIds: arrayRemove(BOB) }),
       );
     });
 
@@ -514,7 +514,7 @@ describe('groups', () => {
       await seedGroup([ALICE]);
       const db = env.authenticatedContext(ALICE).firestore();
       await assertSucceeds(
-        updateDoc(doc(db, 'groups', GROUP), { memberUids: arrayUnion(BOB) }),
+        updateDoc(doc(db, 'groups', GROUP), { memberIds: arrayUnion(BOB) }),
       );
     });
 

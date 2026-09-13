@@ -144,7 +144,7 @@ export function FeedScreen() {
                   <ImageBackground
                     source={remote(
                       placeholderPhoto(
-                        s.kind === 'run' ? 'running' : s.kind === 'ride' ? 'conditioning' : 'strength',
+                        s.kind === 'run' ? 'running' : s.kind === 'cycle' ? 'conditioning' : 'strength',
                         s.id,
                         640,
                         360,
