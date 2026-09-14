@@ -3,9 +3,10 @@ import { StyleSheet, View, ScrollView, Share, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation/types';
-import { ArrowLeft, Target, Users } from 'lucide-react-native';
+import { ArrowLeft, Users } from 'lucide-react-native';
 
 import {
+  ActivityIcon,
   Button,
   Card,
   IconButton,
@@ -127,13 +128,13 @@ export function CreateOneOnOneScreen() {
             selected={selectedActivity === activity}
             onPress={() => setSelectedActivity(activity)}
             icon={
-              <Target
+              <ActivityIcon
+                kind={activity}
                 color={
                   selectedActivity === activity
                     ? theme.colors.onAccent
                     : theme.colors.text
                 }
-                size={20}
               />
             }
           />
@@ -211,8 +212,14 @@ const styles = StyleSheet.create({
   title: { marginTop: 20 },
   subtitle: { marginTop: 4 },
   section: { marginTop: 28 },
-  categoryScroll: { marginTop: 12 },
-  categoryContent: { columnGap: 10 },
+  /*
+   * The row bleeds past the page gutter so the next category peeks in from the
+   * right. Ending it flush with the margin made four chips look like the whole
+   * set, and the fifth — nine activities including climbing and skiing — read
+   * as missing rather than as one swipe away.
+   */
+  categoryScroll: { marginTop: 12, marginHorizontal: -20 },
+  categoryContent: { columnGap: 10, paddingHorizontal: 20 },
   activityList: { marginTop: 12, rowGap: 10 },
   targetGrid: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { useTheme } from '../../theme';
 import { Button } from '../Button';
@@ -9,6 +9,8 @@ import { useTour } from './TourProvider';
 const SCRIM = 'rgba(8,8,8,0.78)';
 const PAD = 8;
 const BUBBLE_GAP = 14;
+/** Above the navigator and the tab bar, which set no z-index of their own. */
+const LAYER = 1000;
 
 /**
  * The walkthrough overlay: a dimmed screen with the current target cut out, and
@@ -17,7 +19,17 @@ const BUBBLE_GAP = 14;
  * The "hole" is four rectangles drawn around the target rather than a mask.
  * React Native has no cross-platform cutout primitive, and four plain views are
  * cheaper and more predictable than an SVG mask or a blend mode — the gap
- * between them IS the hole.
+ * between them IS the hole, and it stays tappable for free.
+ *
+ * NOT a `Modal`, which is what this used to be.
+ *
+ * A Modal is a separate Android window, and on the New Architecture at API 36
+ * a transparent one painted opaque: the walkthrough came up as a blank white
+ * sheet with its own text invisible on it. Since the tour only ever covers this
+ * app, a second window buys nothing and costs an entire class of bug — window
+ * backgrounds, status-bar translucency, and the modal's own insets. It is
+ * mounted once by `TourProvider`, above the navigator, so it still covers the
+ * tab bar.
  */
 export function TourOverlay() {
   const theme = useTheme();
@@ -54,8 +66,15 @@ export function TourOverlay() {
     : { top: height / 2 - 110 };
 
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent
-      onRequestClose={finish}>
+    /*
+     * `box-none` on the root so the cutout stays interactive: the scrim pieces
+     * below take their own touches, and the gap between them passes through to
+     * the highlighted control.
+     */
+    <View
+      pointerEvents="box-none"
+      style={[StyleSheet.absoluteFill, styles.layer]}
+      accessibilityViewIsModal>
       {hole ? (
         <>
           <View style={[styles.scrim, styles.scrimTop, { height: hole.y }]} />
@@ -130,11 +149,14 @@ export function TourOverlay() {
           </View>
         </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // `elevation` is what actually orders siblings on Android; zIndex alone is
+  // not enough once another view in the tree has an elevation of its own.
+  layer: { zIndex: LAYER, elevation: LAYER },
   scrim: { position: 'absolute', backgroundColor: SCRIM },
   scrimTop: { top: 0, left: 0, right: 0 },
   scrimBottom: { left: 0, right: 0, bottom: 0 },

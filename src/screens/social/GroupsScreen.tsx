@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Bell, Plus, Swords, UserRound, Users } from 'lucide-react-native';
+import { Bell, Plus, Swords, Target, UserRound, Users } from 'lucide-react-native';
 
 import {
   AvatarGroup,
@@ -18,6 +18,7 @@ import {
   Text,
 } from '../../components';
 import {
+  ACTIVITY_LABELS,
   SUBMISSIONS,
   TODAY,
   WAR,
@@ -27,7 +28,7 @@ import {
   warGroups,
   warStanding,
 } from '../../services';
-import { useSocial } from '../../hooks';
+import { useMyChallenges, useSocial } from '../../hooks';
 import { useTheme } from '../../theme';
 
 type Mode = 'mine' | 'join';
@@ -43,6 +44,7 @@ export function GroupsScreen() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const { groups: mine, received, createGroup, joinGroup, nameFor } = useSocial();
+  const { active: activeChallenges, pending: pendingChallenges } = useMyChallenges();
   const [busy, setBusy] = useState(false);
 
   const groups = useMemo(() => warGroups(), []);
@@ -52,6 +54,9 @@ export function GroupsScreen() {
   );
 
   const trimmedCode = normaliseCode(code);
+
+  /** Whether this account is in either side of the seeded Team War. */
+  const inTheWar = mine.some(g => WAR.groupIds.includes(g.id));
 
   const create = async () => {
     setBusy(true);
@@ -143,7 +148,73 @@ export function GroupsScreen() {
 
       {mode === 'mine' ? (
         <View>
-          {/* Active war gets top billing — it's the reason to open the app. */}
+          {/*
+            Head to head, given top billing.
+
+            This section is the only way into the 1:1 challenge feature. Before
+            it, `CreateOneOnOne`, `AcceptChallenge` and `ChallengeDetail` were
+            routable but unreachable — nothing in the app navigated to any of
+            them, so a challenge you created vanished the moment you left the
+            screen that made it, and the person who accepted yours had no list
+            it could appear in.
+          */}
+          <SectionHeader title="Head to head" style={styles.firstSection} />
+
+          {activeChallenges.length === 0 && pendingChallenges.length === 0 ? (
+            <EmptyState
+              title="No challenges running"
+              body="Pick an activity and a number of days, then send the link to one person."
+              icon={<Target color={theme.colors.textMuted} size={26} />}
+              action={
+                <Button
+                  label="Challenge someone"
+                  onPress={() => navigation.navigate('CreateOneOnOne')}
+                />
+              }
+            />
+          ) : (
+            <View style={styles.list}>
+              {[...activeChallenges, ...pendingChallenges].map(c => (
+                <ListRow
+                  key={c.id}
+                  filled
+                  title={c.title}
+                  subtitle={
+                    c.status === 'pending'
+                      ? 'Waiting for someone to accept'
+                      : `${ACTIVITY_LABELS[c.activityKind]} · ${c.targetDays} days`
+                  }
+                  leading={<Target color={theme.colors.accent} size={20} />}
+                  trailing={
+                    <Chip
+                      label={c.status === 'pending' ? 'Pending' : 'Live'}
+                      variant={c.status === 'pending' ? 'muted' : 'accent'}
+                    />
+                  }
+                  onPress={() =>
+                    navigation.navigate('ChallengeDetail', { challengeId: c.id })
+                  }
+                />
+              ))}
+              <Button
+                label="New challenge"
+                variant="outline"
+                fullWidth
+                style={styles.newChallenge}
+                onPress={() => navigation.navigate('CreateOneOnOne')}
+                iconLeft={<Plus color={theme.colors.text} size={18} />}
+              />
+            </View>
+          )}
+
+          {/*
+            The Team War card is fixture data, and it only belongs on screen
+            for somebody actually IN one of the two groups. It used to render
+            unconditionally, so a brand-new account was shown a live war
+            between two squads it had never heard of, directly above the words
+            "No groups yet".
+          */}
+          {inTheWar ? (
           <Card variant="dark" padding="base" radius="xxl" style={styles.warCard}>
             <View style={styles.warHead}>
               <Chip label="Live" variant="accent" />
@@ -167,6 +238,7 @@ export function GroupsScreen() {
               iconLeft={<Swords color={theme.colors.onAccent} size={16} />}
             />
           </Card>
+          ) : null}
 
           <SectionHeader
             title="Groups"
@@ -284,6 +356,8 @@ const styles = StyleSheet.create({
   warTitle: { marginTop: 12 },
   warScore: { marginTop: 4 },
   warCta: { marginTop: 14 },
+  firstSection: { marginTop: 24 },
+  newChallenge: { marginTop: 4 },
   section: { marginTop: 28 },
   list: { marginTop: 8, rowGap: 8 },
   input: { marginTop: 12 },

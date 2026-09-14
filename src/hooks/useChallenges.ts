@@ -23,7 +23,53 @@ import {
   getChallengeSubmissions,
   getChallengeStreak,
   rematchChallenge,
+  watchUserChallenges,
 } from '../services/repository.challenges';
+
+/**
+ * Every challenge you are in, live.
+ *
+ * Exists because nothing in the app listed them. The challenge screens were
+ * all reachable by deep link only, so a challenge you created was invisible
+ * the moment you left the screen that created it — including to the person who
+ * accepted it.
+ */
+export function useMyChallenges() {
+  const [challenges, setChallenges] = useState<OneOnOneChallenge[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    let unsub: (() => void) | undefined;
+
+    (async () => {
+      const user = await ensureSignedIn();
+      if (!alive) {
+        return;
+      }
+      unsub = watchUserChallenges(
+        user.uid,
+        next => {
+          if (alive) {
+            setChallenges(next);
+            setLoading(false);
+          }
+        },
+        () => alive && setLoading(false),
+      );
+    })();
+
+    return () => {
+      alive = false;
+      unsub?.();
+    };
+  }, []);
+
+  const active = challenges.filter(c => c.status === 'active');
+  const pending = challenges.filter(c => c.status === 'pending');
+
+  return { challenges, active, pending, loading };
+}
 
 /**
  * Hook for loading a single challenge by ID.

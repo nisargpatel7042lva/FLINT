@@ -7,7 +7,15 @@ import React, {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+
+import { TourOverlay } from './TourOverlay';
 
 export type TourRect = { x: number; y: number; width: number; height: number };
 
@@ -117,8 +125,28 @@ export function TourProvider({ children }: PropsWithChildren) {
     [active, steps, index, rects, start, next, finish, register, unregister],
   );
 
-  return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
+  /*
+   * The overlay is mounted HERE rather than by whichever screen starts the
+   * tour.
+   *
+   * A screen-level overlay is clipped to that screen, so it could never cover
+   * the tab bar — the walkthrough dimmed the page and left the navigation
+   * fully lit and tappable underneath it. Mounting it above the navigator
+   * covers everything, and means no screen has to remember to render it.
+   */
+  return (
+    <TourContext.Provider value={value}>
+      <View style={styles.root}>
+        {children}
+        <TourOverlay />
+      </View>
+    </TourContext.Provider>
+  );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
 
 export function useTour(): TourContextValue {
   const ctx = useContext(TourContext);

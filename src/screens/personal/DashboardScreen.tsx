@@ -30,7 +30,6 @@ import {
   SectionHeader,
   Slider,
   Text,
-  TourOverlay,
   TourTarget,
   WeeklyBars,
   sparkStateForStreak,
@@ -391,7 +390,6 @@ export function DashboardScreen() {
         ))}
       </View>
 
-      <TourOverlay />
     </Screen>
   );
 }

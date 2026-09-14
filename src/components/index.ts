@@ -8,6 +8,7 @@
 
 // Phase 1
 export * from './Text';
+export * from './ActivityIcon';
 export * from './Avatar';
 export * from './Card';
 export * from './Chip';
