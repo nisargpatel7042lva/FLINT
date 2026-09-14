@@ -528,3 +528,130 @@ describe('groups', () => {
     });
   });
 });
+
+describe('challenges and their streaks', () => {
+  const CHALLENGE = 'c-30day';
+  const CAROL = 'carol';
+
+  /** A live challenge between Alice and Bob, written past the rules. */
+  const seedChallenge = (opponentId: string | null = BOB) =>
+    env.withSecurityRulesDisabled(async ctx => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'challenges', CHALLENGE), {
+        type: 'one_on_one',
+        title: '30-day Run Streak',
+        inviteTokenHash: 'a'.repeat(64),
+        activityKind: 'run',
+        creatorId: ALICE,
+        opponentId,
+        groupId: 'g-pair',
+        targetDays: 30,
+        sessionsPerDay: 1,
+        status: opponentId ? 'active' : 'pending',
+        createdAt: serverTimestamp(),
+      });
+      for (const uid of [ALICE, opponentId].filter(Boolean) as string[]) {
+        await setDoc(doc(db, 'challengeStreaks', `${CHALLENGE}_${uid}`), {
+          challengeId: CHALLENGE,
+          userId: uid,
+          currentStreak: 4,
+          bestStreak: 9,
+          totalActiveDays: 11,
+        });
+      }
+    });
+
+  describe('the challenge itself', () => {
+    it('lets both participants read it', async () => {
+      await seedChallenge();
+      for (const uid of [ALICE, BOB]) {
+        const db = env.authenticatedContext(uid).firestore();
+        await assertSucceeds(getDoc(doc(db, 'challenges', CHALLENGE)));
+      }
+    });
+
+    it('refuses a bystander', async () => {
+      await seedChallenge();
+      const db = env.authenticatedContext(CAROL).firestore();
+      await assertFails(getDoc(doc(db, 'challenges', CHALLENGE)));
+    });
+
+    it('never lets a client create one directly', async () => {
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        setDoc(doc(db, 'challenges', 'c-forged'), {
+          creatorId: ALICE,
+          opponentId: BOB,
+          status: 'active',
+          targetDays: 30,
+        }),
+      );
+    });
+
+    it('refuses a participant rewriting who is in it, or the token', async () => {
+      await seedChallenge();
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'challenges', CHALLENGE), { opponentId: CAROL }),
+      );
+      await assertFails(
+        updateDoc(doc(db, 'challenges', CHALLENGE), { inviteTokenHash: 'b'.repeat(64) }),
+      );
+      await assertFails(
+        updateDoc(doc(db, 'challenges', CHALLENGE), { targetDays: 1 }),
+      );
+    });
+  });
+
+  describe('challenge streaks', () => {
+    /*
+     * The regression this exists for. `allow read: if isAuthenticated()` let
+     * any signed-in account read every streak document in the database, and
+     * the ids are `{challengeId}_{uid}` - guessable by construction.
+     */
+    it('refuses a bystander reading somebody else\u2019s streak', async () => {
+      await seedChallenge();
+      const db = env.authenticatedContext(CAROL).firestore();
+      await assertFails(getDoc(doc(db, 'challengeStreaks', `${CHALLENGE}_${ALICE}`)));
+    });
+
+    it('lets you read your own', async () => {
+      await seedChallenge();
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertSucceeds(getDoc(doc(db, 'challengeStreaks', `${CHALLENGE}_${ALICE}`)));
+    });
+
+    /* Seeing the other person's number IS the feature. */
+    it('lets you read your opponent\u2019s', async () => {
+      await seedChallenge();
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertSucceeds(getDoc(doc(db, 'challengeStreaks', `${CHALLENGE}_${ALICE}`)));
+    });
+
+    it('never lets anyone write one', async () => {
+      await seedChallenge();
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'challengeStreaks', `${CHALLENGE}_${ALICE}`), {
+          currentStreak: 999,
+        }),
+      );
+    });
+  });
+
+  describe('abuse counters', () => {
+    it('are invisible to clients, so nobody can see guesses remaining', async () => {
+      await env.withSecurityRulesDisabled(async ctx => {
+        await setDoc(doc(ctx.firestore(), 'rateLimits', `tokenGuess_${ALICE}`), {
+          count: 3,
+          windowStart: Date.now(),
+        });
+      });
+      const db = env.authenticatedContext(ALICE).firestore();
+      await assertFails(getDoc(doc(db, 'rateLimits', `tokenGuess_${ALICE}`)));
+      await assertFails(
+        setDoc(doc(db, 'rateLimits', `tokenGuess_${ALICE}`), { count: 0 }),
+      );
+    });
+  });
+});

@@ -5,7 +5,18 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger, setGlobalOptions } from 'firebase-functions';
-import { createHash } from 'crypto';
+import {
+  LIMITS,
+  clampNumber,
+  generateGroupCode,
+  generateInviteToken,
+  hashInviteToken,
+  optionalText,
+  requireActivityKind,
+  requireString,
+  TOKEN_ATTEMPT_LIMIT,
+  TOKEN_ATTEMPT_WINDOW_MS,
+} from './secure';
 
 import { comebackNudge, milestoneNudge, streakAtRiskNudge } from './copy';
 import { pokeNudge, seedFrom, type PokeKind } from './pokeCopy';
@@ -37,12 +48,15 @@ setGlobalOptions({
    */
   maxInstances: 10,
 });
-/** Pepper for invite code hashing. Server-only secret. REQUIRED in production. */
-const JOIN_CODE_PEPPER = process.env.JOIN_CODE_PEPPER;
-
-if (!JOIN_CODE_PEPPER) {
-  throw new Error('JOIN_CODE_PEPPER environment variable is required');
-}
+/*
+ * The invite-code pepper is read inside `secure.ts`, at call time.
+ *
+ * It used to be read here and `throw` at module load if unset. A throw at this
+ * level fails the entire functions package, so a missing pepper also took down
+ * the nightly streak reminders and the nudge delivery — neither of which has
+ * anything to do with invite codes. Failing at the point of use keeps the blast
+ * radius to the feature that actually needs the secret.
+ */
 
 /** Local-date key. Never toISOString() — see the note in src/services/training.ts. */
 const dayKey = (d: Date): string => {
@@ -401,20 +415,41 @@ export const onSubmissionWritten = onDocumentWritten(
 );
 
 /**
- * Hash an invite token with pepper for secure lookup.
+ * Counts one attempt at guessing an invite token, and refuses past the limit.
+ *
+ * This replaces a limiter that could never fire. The old one counted challenges
+ * the caller had successfully ACCEPTED in the last minute — but somebody
+ * brute-forcing tokens never accepts anything, so their count stayed at zero
+ * however many guesses they made. A limit has to count the attempt, not the
+ * success.
+ *
+ * The counter is written before the lookup, so a crash mid-call costs the
+ * attacker an attempt rather than refunding it.
  */
-function hashInviteToken(token: string): string {
-  return createHash('sha256')
-    .update(JOIN_CODE_PEPPER + token)
-    .digest('hex');
-}
+async function countTokenAttempt(uid: string): Promise<void> {
+  const ref = db.doc(`rateLimits/tokenGuess_${uid}`);
+  const now = Date.now();
 
-/**
- * Generate a random invite token.
- */
-function generateInviteToken(): string {
-  return Math.random().toString(36).substring(2, 10).toUpperCase() +
-         Math.random().toString(36).substring(2, 10).toUpperCase();
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : undefined;
+    const windowStart = Number(data?.windowStart ?? 0);
+    const fresh = now - windowStart > TOKEN_ATTEMPT_WINDOW_MS;
+    const count = fresh ? 0 : Number(data?.count ?? 0);
+
+    if (count >= TOKEN_ATTEMPT_LIMIT) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Too many invite codes tried. Wait an hour and try again.',
+      );
+    }
+
+    tx.set(ref, {
+      count: count + 1,
+      windowStart: fresh ? now : windowStart,
+      updatedAt: new Date(),
+    });
+  });
 }
 
 /**
@@ -434,18 +469,29 @@ export const createOneOnOneChallenge = onCall(async request => {
     throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
 
-  if (!activityKind || typeof activityKind !== 'string') {
-    throw new HttpsError('invalid-argument', 'Invalid activity kind');
-  }
+  /*
+   * Every value below arrives from the wire and is bounded before it is stored.
+   * `activityKind` in particular used to be any string the caller liked, and it
+   * is copied onto every submission the challenge produces — so an unchecked
+   * one becomes a permanent, unfilterable value in somebody else's history.
+   */
+  const kind = requireActivityKind(activityKind);
 
-  if (!targetDays || typeof targetDays !== 'number' || targetDays < 1 || targetDays > 365) {
+  if (
+    typeof targetDays !== 'number' ||
+    !Number.isInteger(targetDays) ||
+    targetDays < 1 ||
+    targetDays > LIMITS.targetDaysMax
+  ) {
     throw new HttpsError('invalid-argument', 'Invalid target days');
   }
 
   const userId = request.auth.uid;
   const token = generateInviteToken();
   const tokenHash = hashInviteToken(token);
-  const challengeTitle = title || `${targetDays}-day ${activityKind} Challenge`;
+  const challengeTitle = title
+    ? requireString(title, 'Title', { max: LIMITS.titleChars })
+    : `${targetDays}-day ${kind} Challenge`;
 
   const challengeRef = await db.collection('challenges').add({
     type: 'one_on_one',
@@ -453,7 +499,7 @@ export const createOneOnOneChallenge = onCall(async request => {
     // DO NOT store plaintext token - security risk
     // Token is returned once to creator for immediate sharing only
     inviteTokenHash: tokenHash, // Only hash is stored for lookups
-    activityKind,
+    activityKind: kind,
     creatorId: userId,
     targetDays,
     sessionsPerDay: 1,
@@ -465,7 +511,7 @@ export const createOneOnOneChallenge = onCall(async request => {
   logger.info('challenge created', {
     challengeId: challengeRef.id,
     creatorId: userId,
-    activityKind,
+    activityKind: kind,
     targetDays,
   });
 
@@ -498,6 +544,9 @@ export const previewChallengeByToken = onCall(async request => {
   if (!token || typeof token !== 'string') {
     throw new HttpsError('invalid-argument', 'Invalid invite token');
   }
+
+  // Previewing is the cheaper half of the same guess, so it is limited too.
+  await countTokenAttempt(request.auth.uid);
 
   const tokenHash = hashInviteToken(token);
 
@@ -560,16 +609,7 @@ export const redeemJoinCode = onCall(
 
     const userId = request.auth.uid;
 
-    // Rate limiting: check recent accepts for this user
-    const recentAccepts = await db
-      .collection('challenges')
-      .where('opponentId', '==', userId)
-      .where('acceptedAt', '>', new Date(Date.now() - 60000)) // Last minute
-      .get();
-
-    if (recentAccepts.size >= 3) {
-      throw new HttpsError('resource-exhausted', 'Too many accept attempts. Try again later.');
-    }
+    await countTokenAttempt(userId);
 
     // Hash the token for secure lookup
     const hashedToken = hashInviteToken(token);
@@ -606,7 +646,8 @@ export const redeemJoinCode = onCall(
     // Create group with both members (admin-only write)
     const groupRef = await db.collection('groups').add({
       name: `${challenge.title} Group`,
-      code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      code: generateGroupCode(),
+      ownerUid: null, // A challenge pair group has no roster manager.
       memberIds: [challenge.creatorId, userId],
       createdAt: new Date(),
     });
@@ -694,13 +735,14 @@ export const createRematch = onCall(async request => {
   // Create new group for the rematch
   const groupRef = await db.collection('groups').add({
     name: `${newTarget}-day ${original.activityKind} Rematch`,
-    code: `RM${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+    code: generateGroupCode(),
+    ownerUid: null, // A challenge pair group has no roster manager.
     memberIds: [userId, opponentId],
     createdAt: new Date(),
   });
 
   // Generate token (won't be stored, only hash)
-  const token = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const token = generateInviteToken();
   const tokenHash = hashInviteToken(token);
 
   // Create rematch challenge as active (both users known)
@@ -815,14 +857,16 @@ export const logChallengeActivity = onCall(async request => {
     kind: challenge.activityKind || 'run',
     effort: {
       workouts: 1,
-      distanceKm: Number(distanceKm || 0),
-      kcal: Number(kcal || 0),
+      // Bounded: one unchecked write would otherwise own the leaderboard
+      // permanently, and a bad GPS fix looks exactly like an attack.
+      distanceKm: clampNumber(distanceKm, LIMITS.distanceKm, 'Distance'),
+      kcal: clampNumber(kcal, LIMITS.kcal, 'Calories'),
     },
     status: 'auto_verified',
     approvals: [],
     rejections: [],
     autoChecks: { gpsOk: true, timestampOk: true },
-    note: note ? String(note) : undefined,
+    note: optionalText(note, LIMITS.noteChars),
     createdAt: new Date(),
     reactions: { fire: 0, strong: 0, clap: 0, eyes: 0 },
   });

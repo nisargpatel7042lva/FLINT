@@ -308,11 +308,35 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Challenge streaks (computed by Cloud Functions)
+    /*
+     * Challenge streaks, computed by Cloud Functions.
+     *
+     * Readable by the two people in the challenge, and nobody else. It was
+     * readable by ANY signed-in account, which made every user's training
+     * consistency public to anyone who could guess a document id — and the ids
+     * are `{challengeId}_{uid}`, so they are not hard to guess at all.
+     *
+     * Both participants need it, not just the owner: showing your opponent's
+     * streak next to yours is the entire point of a 1:1 challenge, so this
+     * resolves the challenge rather than comparing the uid in the key.
+     */
     match /challengeStreaks/{streakId} {
-      allow read: if isAuthenticated();
-      // Only Cloud Functions can write streaks
+      allow read: if isAuthenticated()
+        && isChallengeParticipant(
+          get(/databases/$(database)/documents/challenges/$(resource.data.challengeId)).data
+        );
+      // Only Cloud Functions can write streaks.
       allow write: if false;
+    }
+
+    /*
+     * Abuse counters, written only by Cloud Functions through the Admin SDK.
+     *
+     * Explicitly unreadable: knowing how many guesses you have left is itself
+     * useful to somebody working through a token space.
+     */
+    match /rateLimits/{limitId} {
+      allow read, write: if false;
     }
   }
 }

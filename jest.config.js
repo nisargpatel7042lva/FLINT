@@ -23,6 +23,12 @@ module.exports = {
   moduleNameMapper: {
     '^lucide-react-native$':
       '<rootDir>/node_modules/lucide-react-native/dist/cjs/lucide-react-native.js',
+    /*
+     * The Cloud Functions security helpers are plain Node and worth testing
+     * here rather than standing up a second Jest inside functions/. Their only
+     * runtime dependency is HttpsError, which this stub supplies.
+     */
+    '^firebase-functions/v2/https$': '<rootDir>/__mocks__/firebase-functions-https.js',
   },
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@react-navigation|react-native-.*|lucide-react-native)/)',
