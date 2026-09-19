@@ -111,16 +111,10 @@ export function ChallengeDetailScreen() {
     
     try {
       const newChallenge = await rematch(challenge);
-      Alert.alert(
-        'Rematch Created!',
-        `New ${newChallenge.targetDays}-day challenge is ready.`,
-        [
-          {
-            text: 'View Challenge',
-            onPress: () => navigation.replace('ChallengeDetail', { challengeId: newChallenge.id }),
-          },
-        ],
-      );
+      // Navigate directly to the new challenge after brief success state
+      setTimeout(() => {
+        navigation.replace('ChallengeDetail', { challengeId: newChallenge.id });
+      }, 600);
     } catch (error) {
       Alert.alert(
         'Error',
@@ -240,16 +234,17 @@ export function ChallengeDetailScreen() {
 
       {/* Broken Streak - show if user had logged before but streak is now 0 */}
       {!isComplete && myStreak && myStreak.currentStreak === 0 && myStreak.totalActiveDays > 0 && (
-        <Card variant="light" padding="base" style={styles.brokenStreakCard}>
-          <Text variant="bodyStrong" tone="danger">
-            Streak broke
+        <Card variant="accent" padding="base" style={styles.brokenStreakCard}>
+          <Text variant="bodyStrong" tone="inverse">
+            Streak reset. You logged {myStreak.totalActiveDays} {myStreak.totalActiveDays === 1 ? 'day' : 'days'}.
           </Text>
-          <Text variant="bodySm" tone="muted" style={styles.brokenStreakBody}>
-            Log today to start again.
+          <Text variant="bodySm" tone="inverseMuted" style={styles.brokenStreakBody}>
+            Not over. Log today and dare them to keep up.
           </Text>
           <Button
             label="Log today"
             size="md"
+            variant="dark"
             onPress={handleLogPress}
             style={styles.brokenStreakCta}
           />
@@ -300,8 +295,15 @@ export function ChallengeDetailScreen() {
             {completionStatus === 'tie' && 'Even. Rematch decides.'}
             {!completionStatus && 'Challenge complete!'}
           </Text>
+          {completionStatus && (
+            <Text variant="bodySm" tone="inverseMuted" style={styles.completeSubtitle}>
+              {completionStatus === 'won' && 'Ready to prove it again?'}
+              {completionStatus === 'lost' && 'Push back. Same activity, same days.'}
+              {completionStatus === 'tie' && 'One more round settles it.'}
+            </Text>
+          )}
           <Button
-            label="Push harder (same pair)"
+            label={creatingRematch ? 'Creating rematch...' : 'Push harder (same pair)'}
             size="lg"
             fullWidth
             loading={creatingRematch}
@@ -412,6 +414,7 @@ const styles = StyleSheet.create({
   doneBody: { marginTop: 4 },
   completeCta: { marginTop: 20 },
   completeTitle: { textAlign: 'center' },
+  completeSubtitle: { marginTop: 8, textAlign: 'center' },
   rematchButton: { marginTop: 20 },
   doneButton: { marginTop: 8 },
   tabs: { marginTop: 24 },
