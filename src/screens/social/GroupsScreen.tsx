@@ -162,12 +162,12 @@ export function GroupsScreen() {
 
           {activeChallenges.length === 0 && pendingChallenges.length === 0 ? (
             <EmptyState
-              title="No challenges running"
-              body="Pick an activity and a number of days, then send the link to one person."
+              title="No active dares"
+              body="Challenge one person. Pick the activity, set the days. Miss one, you're out."
               icon={<Target color={theme.colors.textMuted} size={26} />}
               action={
                 <Button
-                  label="Challenge someone"
+                  label="Dare someone"
                   onPress={() => navigation.navigate('CreateOneOnOne')}
                 />
               }
@@ -181,7 +181,7 @@ export function GroupsScreen() {
                   title={c.title}
                   subtitle={
                     c.status === 'pending'
-                      ? 'Waiting for someone to accept'
+                      ? 'Share the link to start'
                       : `${ACTIVITY_LABELS[c.activityKind]} · ${c.targetDays} days`
                   }
                   leading={<Target color={theme.colors.accent} size={20} />}
