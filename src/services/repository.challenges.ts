@@ -63,7 +63,9 @@ export async function getGroup(groupId: string): Promise<Group | null> {
 
 /**
  * Create a new 1:1 challenge via callable Cloud Function.
- * Server hashes the token and stores both plaintext (for creator sharing) and hash (for secure lookup).
+ * 
+ * Security: Server generates token with crypto.randomBytes, hashes it with SHA-256 + pepper,
+ * stores ONLY the hash in Firestore, and returns the plaintext token once for sharing.
  */
 export async function createOneOnOneChallenge(
   creatorId: string,
@@ -127,7 +129,9 @@ export async function getChallenge(challengeId: string): Promise<OneOnOneChallen
     id: snap.id,
     type: 'one_on_one',
     title: String(data.title || ''),
-    inviteToken: String(data.inviteToken || ''), // May be empty if not stored (security policy)
+    // inviteToken is NEVER stored in Firestore (security policy - only hash stored)
+    // It's only returned once by createOneOnOneChallenge for immediate sharing
+    inviteToken: undefined,
     activityKind: (data.activityKind as ActivityKind) || 'run',
     creatorId: String(data.creatorId || ''),
     opponentId: data.opponentId ? String(data.opponentId) : undefined,
@@ -140,6 +144,7 @@ export async function getChallenge(challengeId: string): Promise<OneOnOneChallen
     completedAt: data.completedAt ? String(data.completedAt) : undefined,
     startDay: data.startDay ? String(data.startDay) : undefined,
     endDay: data.endDay ? String(data.endDay) : undefined,
+    rematchOf: data.rematchOf ? String(data.rematchOf) : undefined,
   };
 }
 
