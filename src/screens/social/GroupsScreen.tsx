@@ -181,7 +181,7 @@ export function GroupsScreen() {
                   title={c.title}
                   subtitle={
                     c.status === 'pending'
-                      ? 'Waiting for someone to accept'
+                      ? 'Share the link to start'
                       : `${ACTIVITY_LABELS[c.activityKind]} · ${c.targetDays} days`
                   }
                   leading={<Target color={theme.colors.accent} size={20} />}

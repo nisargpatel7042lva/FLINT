@@ -191,10 +191,18 @@ export function ChallengeDetailScreen() {
           label={`${challenge.targetDays} days`}
           variant="muted"
         />
-        <Chip
-          label={challenge.status}
-          variant={challenge.status === 'active' ? 'accent' : 'muted'}
-        />
+        {challenge.status === 'pending' && (
+          <Chip
+            label="Waiting for partner"
+            variant="muted"
+          />
+        )}
+        {challenge.status === 'active' && !isComplete && (
+          <Chip
+            label="Live"
+            variant="accent"
+          />
+        )}
       </View>
 
       {/* Streak Cards */}
