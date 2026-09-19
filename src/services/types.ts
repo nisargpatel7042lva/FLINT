@@ -187,8 +187,13 @@ export type OneOnOneChallenge = {
   type: 'one_on_one';
   /** Challenge name, e.g. "30-day Run Streak" */
   title: string;
-  /** Unique invite token for accepting the challenge */
-  inviteToken: string;
+  /**
+   * Invite token for accepting the challenge.
+   * ONLY present when returned from createOneOnOneChallenge for immediate sharing.
+   * NEVER stored in Firestore (only the hash is stored).
+   * Will be undefined when reading challenges from Firestore.
+   */
+  inviteToken?: string;
   /** The primary activity for this challenge (e.g. 'run') */
   activityKind: ActivityKind;
   /** Creator's user id */

@@ -6,15 +6,13 @@
 
 import type { OneOnOneChallenge, ChallengeStreak, Submission } from './types';
 
-/** Generate a unique invite token for a challenge */
-export function generateInviteToken(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let token = '';
-  for (let i = 0; i < 8; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
-}
+/**
+ * Invite tokens are ALWAYS generated server-side by Cloud Functions using
+ * crypto.randomBytes(). Never generate tokens client-side - Math.random()
+ * is not cryptographically secure and tokens would be predictable.
+ * 
+ * See: functions/src/secure.ts for the secure implementation.
+ */
 
 /** Get local date string YYYY-MM-DD from device timezone */
 export function getLocalDay(date: Date = new Date()): string {
@@ -152,32 +150,16 @@ export function isChallengeComplete(
 }
 
 /**
- * Build a rematch challenge with increased difficulty.
+ * Rematch challenges are created server-side via the createRematch callable.
+ * 
+ * This ensures:
+ * - Secure token generation (crypto.randomBytes)
+ * - Authorization checks (participant verification)
+ * - Atomic group + challenge creation
+ * - Proper target day calculation (25% bump or +7, whichever is larger)
+ * 
+ * Use repository.challenges.rematchChallenge() to create a rematch.
  */
-export function buildRematch(
-  original: OneOnOneChallenge,
-  creatorId: string,
-  opponentId: string,
-): Omit<OneOnOneChallenge, 'id' | 'createdAt'> {
-  // Bump target days by 25% or +7, whichever is larger
-  const increase = Math.max(Math.ceil(original.targetDays * 0.25), 7);
-  const newTargetDays = original.targetDays + increase;
-
-  return {
-    type: 'one_on_one',
-    title: `${newTargetDays}-day ${original.title.split('-day')[1] || 'Challenge'}`,
-    inviteToken: generateInviteToken(),
-    activityKind: original.activityKind,
-    creatorId,
-    opponentId,
-    targetDays: newTargetDays,
-    sessionsPerDay: original.sessionsPerDay,
-    status: 'active',
-    acceptedAt: new Date().toISOString(),
-    startDay: getLocalDay(),
-    endDay: addDays(getLocalDay(), newTargetDays),
-  };
-}
 
 /**
  * Get today's submissions for a challenge group.

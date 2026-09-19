@@ -456,9 +456,10 @@ async function countTokenAttempt(uid: string): Promise<void> {
  * Create a new 1:1 challenge.
  * 
  * Security model:
- * - Server generates and hashes token
- * - Stores both plaintext (creator-only read) and hash (for lookups)
- * - Returns token to creator for sharing
+ * - Server generates and hashes token (crypto.randomBytes + SHA-256)
+ * - Stores ONLY the hash in Firestore (never plaintext)
+ * - Returns plaintext token to creator once for immediate sharing
+ * - Rate limited via countTokenAttempt to prevent brute force
  * 
  * @callable
  */

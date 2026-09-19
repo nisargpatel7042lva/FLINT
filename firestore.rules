@@ -281,7 +281,7 @@ service cloud.firestore {
       // But NOT core fields - those are callable-only
       allow update: if isChallengeParticipant(resource.data)
         && !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['creatorId', 'opponentId', 'groupId', 'inviteToken', 'inviteTokenHash', 'acceptedAt', 'targetDays']);
+          .hasAny(['creatorId', 'opponentId', 'groupId', 'inviteToken', 'inviteTokenHash', 'acceptedAt', 'targetDays', 'rematchOf']);
       
       allow delete: if false;
     }

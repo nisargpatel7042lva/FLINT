@@ -601,6 +601,14 @@ describe('challenges and their streaks', () => {
         updateDoc(doc(db, 'challenges', CHALLENGE), { targetDays: 1 }),
       );
     });
+
+    it('refuses a participant forging rematchOf lineage', async () => {
+      await seedChallenge();
+      const db = env.authenticatedContext(BOB).firestore();
+      await assertFails(
+        updateDoc(doc(db, 'challenges', CHALLENGE), { rematchOf: 'c-forged' }),
+      );
+    });
   });
 
   describe('challenge streaks', () => {
