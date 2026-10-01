@@ -1,7 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Bell, Plus, Swords, Target, UserRound, Users } from 'lucide-react-native';
+import {
+  Bell,
+  Footprints,
+  Plus,
+  Swords,
+  Target,
+  UserRound,
+} from 'lucide-react-native';
 
 import {
   AvatarGroup,
@@ -22,13 +29,13 @@ import {
   SUBMISSIONS,
   TODAY,
   WAR,
-  groupDayScore,
   normaliseCode,
   pluralDays,
   warGroups,
   warStanding,
 } from '../../services';
 import { useMyChallenges, useSocial } from '../../hooks';
+import type { Group, GroupKind } from '../../services/types';
 import { useTheme } from '../../theme';
 
 type Mode = 'mine' | 'join';
@@ -46,6 +53,10 @@ export function GroupsScreen() {
   const { groups: mine, received, createGroup, joinGroup, nameFor } = useSocial();
   const { active: activeChallenges, pending: pendingChallenges } = useMyChallenges();
   const [busy, setBusy] = useState(false);
+  const [newKind, setNewKind] = useState<GroupKind>('club');
+
+  const clubs = mine.filter(g => g.kind === 'club');
+  const squads = mine.filter(g => g.kind !== 'club');
 
   const groups = useMemo(() => warGroups(), []);
   const standing = useMemo(
@@ -61,7 +72,7 @@ export function GroupsScreen() {
   const create = async () => {
     setBusy(true);
     try {
-      const group = await createGroup(newName);
+      const group = await createGroup(newName, newKind);
       setNewName('');
       setNotice(null);
       setMode('mine');
@@ -106,7 +117,7 @@ export function GroupsScreen() {
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
       <View style={styles.topBar}>
         <Text variant="label" tone="accent" uppercase>
-          Squads
+          Clubs
         </Text>
         <View style={styles.topActions}>
           <IconButton
@@ -133,13 +144,13 @@ export function GroupsScreen() {
         </View>
       </View>
       <Text variant="displaySm" style={styles.title}>
-        Your groups
+        Your clubs
       </Text>
 
       <SegmentedControl<Mode>
         segments={[
-          { value: 'mine', label: 'My groups' },
-          { value: 'join', label: 'Create / join' },
+          { value: 'mine', label: 'Mine' },
+          { value: 'join', label: 'Join / start' },
         ]}
         value={mode}
         onChange={setMode}
@@ -158,7 +169,36 @@ export function GroupsScreen() {
             screen that made it, and the person who accepted yours had no list
             it could appear in.
           */}
-          <SectionHeader title="Head to head" style={styles.firstSection} />
+          {/*
+            Clubs lead. The run club is why somebody installed this — their
+            Saturday crew is already a group, and the app's job is to put that
+            group's week on screen.
+          */}
+          <SectionHeader title="Run clubs" style={styles.firstSection} />
+          {clubs.length === 0 ? (
+            <EmptyState
+              title="Join your run club"
+              body="Ask your club for its code, or start one and share yours. Every run you log counts on the club board."
+              icon={<Footprints color={theme.colors.textMuted} size={26} />}
+              action={
+                <Button
+                  label="Enter a club code"
+                  onPress={() => {
+                    setNewKind('club');
+                    setMode('join');
+                  }}
+                />
+              }
+            />
+          ) : (
+            <View style={styles.list}>
+              {clubs.map(g => (
+                <GroupRow key={g.id} group={g} nameFor={nameFor} />
+              ))}
+            </View>
+          )}
+
+          <SectionHeader title="Head to head" style={styles.section} />
 
           {activeChallenges.length === 0 && pendingChallenges.length === 0 ? (
             <EmptyState
@@ -241,50 +281,49 @@ export function GroupsScreen() {
           ) : null}
 
           <SectionHeader
-            title="Groups"
+            title="Squads"
+            subtitle="Small groups inside a club, for challenging each other"
             actionLabel="New"
-            onActionPress={() => setMode('join')}
+            onActionPress={() => {
+              setNewKind('squad');
+              setMode('join');
+            }}
             style={styles.section}
           />
 
-          {mine.length === 0 ? (
-            <EmptyState
-              title="No groups yet"
-              body="Create a squad or join one with a code to start challenging people."
-              icon={<Users color={theme.colors.textMuted} size={26} />}
-              action={<Button label="Create a group" onPress={() => setMode('join')} />}
-            />
+          {squads.length === 0 ? (
+            <Text variant="bodySm" tone="muted" style={styles.quiet}>
+              No squads yet. Pull three or four people from your club into one and
+              challenge each other.
+            </Text>
           ) : (
             <View style={styles.list}>
-              {mine.map(g => {
-                const score = groupDayScore(g, SUBMISSIONS, TODAY);
-                return (
-                  <ListRow
-                    key={g.id}
-                    filled
-                    title={g.name}
-                    subtitle={`${g.memberIds.length} members · ${score.toLocaleString()} pts today`}
-                    leading={
-                      <AvatarGroup
-                        names={g.memberIds.map(nameFor)}
-                        max={3}
-                        size="sm"
-                        borderColor={theme.colors.surface}
-                      />
-                    }
-                    onPress={() => navigation.navigate('GroupDetail', { groupId: g.id })}
-                  />
-                );
-              })}
+              {squads.map(g => (
+                <GroupRow key={g.id} group={g} nameFor={nameFor} />
+              ))}
             </View>
           )}
         </View>
       ) : (
         <View>
-          <SectionHeader title="Create a group" style={styles.section} />
+          <SectionHeader title="Start one" style={styles.section} />
+          <SegmentedControl<GroupKind>
+            segments={[
+              { value: 'club', label: 'Run club' },
+              { value: 'squad', label: 'Squad' },
+            ]}
+            value={newKind}
+            onChange={setNewKind}
+            style={styles.kindPicker}
+          />
+          <Text variant="bodySm" tone="muted" style={styles.kindHint}>
+            {newKind === 'club'
+              ? 'The whole club — one weekly board, everyone\u2019s runs in one feed.'
+              : 'A handful of people who want to push each other harder.'}
+          </Text>
           <Input
-            label="Group name"
-            placeholder="e.g. Morning Crew"
+            label={newKind === 'club' ? 'Club name' : 'Squad name'}
+            placeholder={newKind === 'club' ? 'e.g. Sunrise Runners' : 'e.g. Sub-25 Crew'}
             value={newName}
             onChangeText={setNewName}
             autoCapitalize="words"
@@ -292,7 +331,7 @@ export function GroupsScreen() {
             containerStyle={styles.input}
           />
           <Button
-            label="Create group"
+            label={newKind === 'club' ? 'Start club' : 'Start squad'}
             size="lg"
             fullWidth
             disabled={newName.trim().length < 3 || busy}
@@ -336,6 +375,27 @@ export function GroupsScreen() {
   );
 }
 
+function GroupRow({ group, nameFor }: { group: Group; nameFor: (uid: string) => string }) {
+  const theme = useTheme();
+  const navigation = useNavigation();
+  return (
+    <ListRow
+      filled
+      title={group.name}
+      subtitle={`${group.memberIds.length} ${group.memberIds.length === 1 ? 'member' : 'members'}`}
+      leading={
+        <AvatarGroup
+          names={group.memberIds.map(nameFor)}
+          max={3}
+          size="sm"
+          borderColor={theme.colors.surface}
+        />
+      }
+      onPress={() => navigation.navigate('GroupDetail', { groupId: group.id })}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
   topBar: {
@@ -359,6 +419,9 @@ const styles = StyleSheet.create({
   firstSection: { marginTop: 24 },
   newChallenge: { marginTop: 4 },
   section: { marginTop: 28 },
+  quiet: { marginTop: 8 },
+  kindPicker: { marginTop: 12 },
+  kindHint: { marginTop: 8 },
   list: { marginTop: 8, rowGap: 8 },
   input: { marginTop: 12 },
   createCta: { marginTop: 16 },

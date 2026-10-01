@@ -26,6 +26,8 @@ export * from './socialRepository';
 export * from './exercises';
 export * from './profile';
 export * from './exploration';
+export * from './runs';
+export * from './clubBoard';
 export * from './challenges';
 export * from './repository.challenges';
 export * from './deeplinks';

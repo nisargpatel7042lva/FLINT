@@ -31,12 +31,15 @@ import {
   TRAINING_TODAY,
   formatDuration,
   formatPace,
+  checkPlausible,
   kcalFor,
+  runId,
+  saveRun,
   startTracking,
   type LocationTracker,
   type TrackSummary,
 } from '../../services';
-import { useProfile, useSessions } from '../../hooks';
+import { useProfile, useSessions, useSocial } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
 
@@ -73,6 +76,21 @@ export function TrackingScreen() {
   const [summary, setSummary] = useState<TrackSummary>(EMPTY_SUMMARY);
   const [elapsed, setElapsed] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** When the run started — half of the run's id, so it is set once, at start. */
+  const startedAt = useRef(0);
+  const { groups, postRun, uid } = useSocial();
+  /**
+   * What happened to the club post, said plainly on the finish screen.
+   *
+   * A run that silently failed to reach the club is worse than one that was
+   * never meant to: the runner assumes their crew saw it.
+   */
+  const [clubPost, setClubPost] = useState<
+    | { state: 'posted'; names: string[] }
+    | { state: 'refused'; reason: string }
+    | { state: 'failed' }
+    | null
+  >(null);
   /** What this session added to the explored map, filled in on finish. */
   const [explored, setExplored] = useState<{ discovered: number; text: string } | null>(
     null,
@@ -130,6 +148,7 @@ export function TrackingScreen() {
       return;
     }
     tracker.current = t;
+    startedAt.current = Date.now();
     setElapsed(0);
     setStatus('running');
   }, []);
@@ -178,6 +197,43 @@ export function TrackingScreen() {
         return saveExplored(next);
       })
       .catch(() => {});
+
+    /*
+     * The run record: personal history for predictions, and the club post.
+     *
+     * Checked for plausibility first. A drive logged as a run would otherwise
+     * sit on top of every club board the runner belongs to — and the rules
+     * would refuse it server-side anyway, so checking here is what lets the
+     * screen explain WHY instead of reporting a vague failure.
+     */
+    if (final.distanceKm >= 0.1 && startedAt.current > 0) {
+      const record = {
+        id: runId(uid || 'me', startedAt.current),
+        kind,
+        distanceKm: Math.round(final.distanceKm * 100) / 100,
+        durationSec: Math.max(1, elapsed),
+        day: TRAINING_TODAY,
+        startedAt: new Date(startedAt.current).toISOString(),
+      };
+      const verdict = checkPlausible(record);
+
+      if (!verdict.ok) {
+        setClubPost({ state: 'refused', reason: verdict.reason });
+      } else {
+        saveRun(record).catch(() => {});
+        if (groups.length > 0) {
+          postRun({
+            startedAtMs: startedAt.current,
+            kind: record.kind,
+            distanceKm: record.distanceKm,
+            durationSec: record.durationSec,
+            day: record.day,
+          })
+            .then(() => setClubPost({ state: 'posted', names: groups.map(g => g.name) }))
+            .catch(() => setClubPost({ state: 'failed' }));
+        }
+      }
+    }
 
     const minutes = Math.max(1, Math.round(elapsed / 60));
     addSession({
@@ -282,6 +338,27 @@ export function TrackingScreen() {
               </Text>
             </View>
           </View>
+        </Card>
+      ) : null}
+
+      {done && clubPost ? (
+        <Card variant="light" padding="base" radius="xl" style={styles.explored}>
+          <Text variant="bodyStrong">
+            {clubPost.state === 'posted'
+              ? `Posted to ${clubPost.names.slice(0, 2).join(' and ')}${
+                  clubPost.names.length > 2 ? ` +${clubPost.names.length - 2}` : ''
+                }`
+              : clubPost.state === 'refused'
+              ? 'Not posted to your clubs'
+              : 'Your clubs did not get this one'}
+          </Text>
+          <Text variant="bodySm" tone="muted" style={styles.exploredText}>
+            {clubPost.state === 'posted'
+              ? 'It counts on this week\u2019s board.'
+              : clubPost.state === 'refused'
+              ? clubPost.reason
+              : 'It is saved here. Check your connection — the board only sees what reaches it.'}
+          </Text>
         </Card>
       ) : null}
 

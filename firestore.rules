@@ -211,7 +211,9 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 60
-        && request.resource.data.code is string;
+        && request.resource.data.code is string
+        && (!('kind' in request.resource.data)
+            || request.resource.data.kind in ['club', 'squad']);
 
       allow update: if isSignedIn()
         && onlyMembersChanged()
@@ -231,6 +233,53 @@ service cloud.firestore {
       // Only the owner, and only deliberately. A group emptying itself would
       // take its history with it.
       allow delete: if isOwner();
+
+      /*
+       * The club feed: runs members have posted.
+       *
+       * Every field is checked because this is the leaderboard's input, and a
+       * leaderboard is the one place in the app people have a reason to lie.
+       *
+       *   - The id must start with your own uid, so you cannot post as
+       *     somebody else, and the same run cannot land twice in one club.
+       *   - The pace floor (2:30/km) is faster than the marathon world record.
+       *     Anything quicker over half a kilometre is a bike or a car, and one
+       *     drive logged as a run would sit at the top of the board all week.
+       *   - The timestamp must be the server's, so a run cannot be backdated
+       *     into last week's board or forward-dated to look fresh.
+       *
+       * Runs are never edited — a correction is a delete and a re-post — and
+       * only their poster may delete them.
+       */
+      match /runs/{runId} {
+        function inThisGroup() {
+          return isSignedIn()
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+        }
+
+        allow read: if inThisGroup();
+
+        allow create: if inThisGroup()
+          && request.resource.data.uid == request.auth.uid
+          && runId.matches(request.auth.uid + '_[0-9]+')
+          && request.resource.data.keys().hasOnly(
+            ['uid', 'kind', 'distanceKm', 'durationSec', 'day', 'createdAt'])
+          && request.resource.data.kind in ['run', 'walk']
+          && request.resource.data.distanceKm is number
+          && request.resource.data.distanceKm >= 0
+          && request.resource.data.distanceKm <= 100
+          && request.resource.data.durationSec is number
+          && request.resource.data.durationSec > 0
+          && request.resource.data.durationSec <= 86400
+          && request.resource.data.day is string
+          && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.createdAt == request.time
+          && (request.resource.data.distanceKm < 0.5
+              || request.resource.data.durationSec / request.resource.data.distanceKm >= 150);
+
+        allow update: if false;
+        allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      }
     }
 
     /**

@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { CURRENT_USER_ID, GROUPS, MEMBERS, TODAY } from './mockData';
-import type { Group, Member } from './types';
+import type { ClubRun } from './clubBoard';
+import type { Group, GroupKind, Member } from './types';
 
 /**
  * Groups, friends and pokes.
@@ -62,6 +63,8 @@ export type SocialState = {
   /** Member ids the user has added as friends. */
   friendIds: string[];
   pokes: Poke[];
+  /** Runs posted to each group, by group id. Device-local mode only. */
+  groupRuns: Record<string, ClubRun[]>;
 };
 
 const KEY = 'kasrat.social.v1';
@@ -133,6 +136,7 @@ function seed(): SocialState {
         read: false,
       },
     ],
+    groupRuns: {},
   };
 }
 
@@ -198,6 +202,10 @@ class SocialStore {
                 ? parsed.friendIds
                 : this.state.friendIds,
               pokes: Array.isArray(parsed.pokes) ? parsed.pokes : [],
+              groupRuns:
+                parsed.groupRuns && typeof parsed.groupRuns === 'object'
+                  ? parsed.groupRuns
+                  : {},
             };
           }
         } catch {
@@ -233,10 +241,11 @@ class SocialStore {
     AsyncStorage.setItem(KEY, JSON.stringify(next)).catch(() => {});
   }
 
-  createGroup(name: string): Group {
+  createGroup(name: string, kind: GroupKind = 'squad'): Group {
     const group: Group = {
       id: id('g'),
       name: name.trim(),
+      kind,
       code: generateCode([...this.state.groups.map(g => g.code), ...GROUPS.map(g => g.code)]),
       ownerUid: CURRENT_USER_ID,
       memberIds: [CURRENT_USER_ID],
@@ -300,6 +309,18 @@ class SocialStore {
           : g,
       ),
     });
+  }
+
+  /** Adds a run to each group, skipping any group that already has it. */
+  postRun(run: ClubRun, groupIds: string[]) {
+    const groupRuns = { ...this.state.groupRuns };
+    groupIds.forEach(gid => {
+      const existing = groupRuns[gid] ?? [];
+      if (!existing.some(r => r.id === run.id)) {
+        groupRuns[gid] = [run, ...existing].slice(0, 500);
+      }
+    });
+    this.commit({ ...this.state, groupRuns });
   }
 
   addFriend(memberId: string) {

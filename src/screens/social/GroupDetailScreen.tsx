@@ -31,17 +31,16 @@ import {
   SUBMISSIONS,
   TODAY,
   counts,
-  effortPoints,
-  feedSubmissions,
   groupById,
   groupContributions,
   memberById,
 } from '../../services';
 import { useSocial } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
+import { ClubWeek } from './ClubWeek';
 import { useTheme } from '../../theme';
 
-type Tab = 'activity' | 'members' | 'challenges';
+type Tab = 'members' | 'challenges';
 
 /** A single group: members, its activity, and its challenges. */
 export function GroupDetailScreen() {
@@ -58,8 +57,9 @@ export function GroupDetailScreen() {
     addToGroup,
     removeFromGroup,
     leaveGroup,
+    nameFor,
   } = useSocial();
-  const [tab, setTab] = useState<Tab>('activity');
+  const [tab, setTab] = useState<Tab>('members');
 
   /*
    * Real groups first, fixtures second.
@@ -71,7 +71,6 @@ export function GroupDetailScreen() {
    */
   const group = fromStore(route.params.groupId) ?? groupById(route.params.groupId);
 
-  const activity = useMemo(() => feedSubmissions(group.id).slice(0, 12), [group.id]);
   const contributions = useMemo(
     () => groupContributions(group, SUBMISSIONS, TODAY),
     [group],
@@ -92,7 +91,10 @@ export function GroupDetailScreen() {
 
   const invite = () => {
     Share.share({
-      message: `Join my group "${group.name}" on Flint. Code: ${group.code}`,
+      message:
+        group.kind === 'club'
+          ? `Run with ${group.name} on Flint. Every run counts on the club board. Code: ${group.code}`
+          : `Join my squad "${group.name}" on Flint. Code: ${group.code}`,
     }).catch(() => {
       // A dismissed share sheet rejects on some Android builds. Nothing to
       // recover from — the user simply chose not to send it.
@@ -148,9 +150,15 @@ export function GroupDetailScreen() {
         />
       </View>
 
+      {/*
+        The club's week leads: who passed you, the board, this morning's runs.
+        It replaced an Activity tab that showed seeded submissions — for any
+        real group it was permanently empty, sitting under a feed that was not.
+      */}
+      <ClubWeek groupId={group.id} uid={uid} nameFor={nameFor} />
+
       <SegmentedControl<Tab>
         segments={[
-          { value: 'activity', label: 'Activity' },
           { value: 'members', label: 'Members' },
           { value: 'challenges', label: 'Challenges' },
         ]}
@@ -158,38 +166,6 @@ export function GroupDetailScreen() {
         onChange={setTab}
         style={styles.tabs}
       />
-
-      {tab === 'activity' ? (
-        activity.length === 0 ? (
-          <EmptyState
-            title="Nothing logged yet"
-            body="When members submit workouts they'll show up here."
-          />
-        ) : (
-          <View style={styles.list}>
-            {activity.map(s => {
-              const m = memberById(s.memberId);
-              return (
-                <ListRow
-                  key={s.id}
-                  title={m.name}
-                  subtitle={`${s.kind} · ${s.day}${
-                    s.status === 'pending' ? ' · awaiting approval' : ''
-                  }`}
-                  leading={<Avatar name={m.name} size="md" />}
-                  trailing={
-                    <Text
-                      variant="statSm"
-                      tone={counts(s) ? 'default' : 'muted'}>
-                      {effortPoints(s.effort)}
-                    </Text>
-                  }
-                />
-              );
-            })}
-          </View>
-        )
-      ) : null}
 
       {tab === 'members' ? (
         <View>

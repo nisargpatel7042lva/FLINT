@@ -8,7 +8,8 @@ import {
   type SocialRepository,
 } from './socialRepository';
 import type { Unsubscribe } from './repository';
-import type { Group } from './types';
+import type { ClubRun } from './clubBoard';
+import type { Group, GroupKind } from './types';
 
 /**
  * Local social layer, used whenever Firebase is not configured.
@@ -98,8 +99,8 @@ export class LocalSocialRepository implements SocialRepository {
     return socialStore.subscribe(s => onChange(s.groups));
   }
 
-  async createGroup(_uid: string, name: string): Promise<Group> {
-    return socialStore.createGroup(name);
+  async createGroup(_uid: string, name: string, kind?: GroupKind): Promise<Group> {
+    return socialStore.createGroup(name, kind);
   }
 
   async joinGroup(_uid: string, rawCode: string): Promise<JoinResult> {
@@ -133,6 +134,29 @@ export class LocalSocialRepository implements SocialRepository {
     memberUid: string,
   ): Promise<void> {
     socialStore.removeFromGroup(groupId, memberUid);
+  }
+
+  /*
+   * The poster's id is rewritten to the fixture user, for the same reason
+   * every other method here ignores the uid it is handed: on this device the
+   * fixture user IS the signed-in user.
+   */
+  async postRun(_uid: string, run: ClubRun, groupIds: string[]): Promise<void> {
+    socialStore.postRun({ ...run, uid: CURRENT_USER_ID }, groupIds);
+  }
+
+  watchGroupRuns(
+    groupId: string,
+    sinceDay: string,
+    onChange: (runs: ClubRun[]) => void,
+  ): Unsubscribe {
+    return socialStore.subscribe(s =>
+      onChange(
+        (s.groupRuns[groupId] ?? [])
+          .filter(r => r.day >= sinceDay)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      ),
+    );
   }
 
   async markInboxRead(): Promise<void> {

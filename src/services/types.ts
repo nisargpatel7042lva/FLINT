@@ -130,9 +130,18 @@ export type Member = {
   handle: string;
 };
 
+/**
+ * A club is the run club itself — dozens of people, one morning feed, one
+ * weekly board. A squad is the handful inside it who challenge each other.
+ * Same document, same rules; the kind only changes what the screen leads with.
+ */
+export type GroupKind = 'club' | 'squad';
+
 export type Group = {
   id: string;
   name: string;
+  /** Absent on groups created before clubs existed; those read as squads. */
+  kind?: GroupKind;
   /** Short join code used by the "join a group" flow. */
   code: string;
   /**

@@ -655,3 +655,154 @@ describe('challenges and their streaks', () => {
     });
   });
 });
+
+describe('club runs', () => {
+  const CLUB = 'club-sunrise';
+  const CAROL = 'carol';
+  const STARTED = 1_790_000_000_000;
+
+  const seedClub = () =>
+    env.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'groups', CLUB), {
+        name: 'Sunrise Runners',
+        kind: 'club',
+        code: 'RISE44',
+        ownerUid: ALICE,
+        memberIds: [ALICE, BOB],
+        createdAt: serverTimestamp(),
+      });
+    });
+
+  /** A legitimate 5km in 30 minutes. */
+  const run = (uid: string, overrides: Record<string, unknown> = {}) => ({
+    uid,
+    kind: 'run',
+    distanceKm: 5,
+    durationSec: 1800,
+    day: '2026-10-01',
+    createdAt: serverTimestamp(),
+    ...overrides,
+  });
+
+  type Db = ReturnType<ReturnType<RulesTestEnvironment['authenticatedContext']>['firestore']>;
+  const runDoc = (db: Db, id: string) => doc(db, 'groups', CLUB, 'runs', id);
+
+  it('lets a member post their own run', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(setDoc(runDoc(db, `${ALICE}_${STARTED}`), run(ALICE)));
+  });
+
+  it('lets members read the feed and keeps everyone else out', async () => {
+    await seedClub();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await setDoc(runDoc(alice, `${ALICE}_${STARTED}`), run(ALICE));
+
+    const bob = env.authenticatedContext(BOB).firestore();
+    await assertSucceeds(getDoc(runDoc(bob, `${ALICE}_${STARTED}`)));
+
+    const carol = env.authenticatedContext(CAROL).firestore();
+    await assertFails(getDoc(runDoc(carol, `${ALICE}_${STARTED}`)));
+  });
+
+  it('refuses a non-member posting into the club', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(CAROL).firestore();
+    await assertFails(setDoc(runDoc(db, `${CAROL}_${STARTED}`), run(CAROL)));
+  });
+
+  it('refuses posting a run as somebody else', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(BOB).firestore();
+    // Body claims Alice.
+    await assertFails(setDoc(runDoc(db, `${ALICE}_${STARTED}`), run(ALICE)));
+    // Body claims Bob, id claims Alice.
+    await assertFails(setDoc(runDoc(db, `${ALICE}_${STARTED}`), run(BOB)));
+  });
+
+  it('refuses posting the same run twice', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(setDoc(runDoc(db, `${ALICE}_${STARTED}`), run(ALICE)));
+    // A second write to the same id is an update, and runs are never updated.
+    await assertFails(
+      setDoc(runDoc(db, `${ALICE}_${STARTED}`), run(ALICE, { distanceKm: 42 })),
+    );
+  });
+
+  /*
+   * The anti-cheat floor. 10km in 15 minutes is 1:30/km — a car. Without this
+   * one drive logged as a run would top the club board for the whole week.
+   */
+  it('refuses a pace no human can run', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(
+        runDoc(db, `${ALICE}_${STARTED}`),
+        run(ALICE, { distanceKm: 10, durationSec: 900 }),
+      ),
+    );
+  });
+
+  it('accepts an elite but human pace', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(ALICE).firestore();
+    // 10km in 30:00 is 3:00/km — very fast, entirely real.
+    await assertSucceeds(
+      setDoc(
+        runDoc(db, `${ALICE}_${STARTED}`),
+        run(ALICE, { distanceKm: 10, durationSec: 1800 }),
+      ),
+    );
+  });
+
+  it('refuses impossible distances and smuggled fields', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(runDoc(db, `${ALICE}_1`), run(ALICE, { distanceKm: 250, durationSec: 86000 })),
+    );
+    await assertFails(
+      setDoc(runDoc(db, `${ALICE}_2`), run(ALICE, { kind: 'drive' })),
+    );
+    await assertFails(
+      setDoc(runDoc(db, `${ALICE}_3`), run(ALICE, { verified: true })),
+    );
+  });
+
+  it('refuses a backdated timestamp', async () => {
+    await seedClub();
+    const db = env.authenticatedContext(ALICE).firestore();
+    await assertFails(
+      setDoc(
+        runDoc(db, `${ALICE}_${STARTED}`),
+        run(ALICE, { createdAt: new Date('2026-01-01T06:00:00Z') }),
+      ),
+    );
+  });
+
+  it('lets you delete your own run, and nobody else\u2019s', async () => {
+    await seedClub();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await setDoc(runDoc(alice, `${ALICE}_${STARTED}`), run(ALICE));
+
+    const bob = env.authenticatedContext(BOB).firestore();
+    await assertFails(deleteDoc(runDoc(bob, `${ALICE}_${STARTED}`)));
+    await assertSucceeds(deleteDoc(runDoc(alice, `${ALICE}_${STARTED}`)));
+  });
+
+  it('only accepts club or squad as a group kind', async () => {
+    const db = env.authenticatedContext(ALICE).firestore();
+    const base = {
+      name: 'Night Owls',
+      code: 'OWLS33',
+      ownerUid: ALICE,
+      memberIds: [ALICE],
+      createdAt: serverTimestamp(),
+    };
+    await assertSucceeds(setDoc(doc(db, 'groups', 'g-a'), { ...base, kind: 'club' }));
+    await assertSucceeds(setDoc(doc(db, 'groups', 'g-b'), { ...base, kind: 'squad' }));
+    await assertFails(setDoc(doc(db, 'groups', 'g-c'), { ...base, kind: 'admin' }));
+  });
+});

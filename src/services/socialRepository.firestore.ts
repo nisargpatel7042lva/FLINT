@@ -32,7 +32,8 @@ import {
   type SocialRepository,
 } from './socialRepository';
 import type { Unsubscribe } from './repository';
-import type { Group } from './types';
+import type { ClubRun } from './clubBoard';
+import type { Group, GroupKind } from './types';
 
 /**
  * Firestore-backed social layer.
@@ -46,6 +47,7 @@ import type { Group } from './types';
  *   pokes/{fromUid_toUid_kind_day} -> { fromUid, toUid, kind, ... }
  *   groups/{groupId}             -> { name, code, ownerUid, memberIds[] }
  *   groupCodes/{CODE}            -> { groupId }                    uniqueness claim
+ *   groups/{groupId}/runs/{uid_ms} -> { uid, kind, distanceKm, ... } club feed
  *
  * Pokes are a top-level collection rather than a subcollection of either party
  * because both need to query them: the recipient for their inbox, the sender to
@@ -62,6 +64,11 @@ const pokesCol = () => collection(db(), 'pokes');
 const friendsCol = (uid: string) =>
   collection(doc(collection(db(), 'users'), uid), 'friends');
 const groupsCol = () => collection(db(), 'groups');
+const groupRunsCol = (groupId: string) =>
+  collection(doc(groupsCol(), groupId), 'runs');
+
+/** A busy club's week fits comfortably; the feed shows far fewer. */
+const CLUB_RUNS_LIMIT = 500;
 const groupCodesCol = () => collection(db(), 'groupCodes');
 
 const GROUPS_LIMIT = 50;
@@ -124,6 +131,7 @@ function toGroup(id: string, data: Record<string, unknown> | undefined): Group {
   return {
     id,
     name: String(data?.name ?? 'Group'),
+    kind: data?.kind === 'club' ? 'club' : 'squad',
     code: String(data?.code ?? ''),
     ownerUid: String(data?.ownerUid ?? ''),
     memberIds: members,
@@ -142,6 +150,20 @@ function toDay(value: unknown): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
   ).padStart(2, '0')}`;
+}
+
+function toClubRun(id: string, data: Record<string, unknown>): ClubRun {
+  const created = data.createdAt as { toDate?: () => Date } | null | undefined;
+  return {
+    id,
+    uid: String(data.uid ?? ''),
+    kind: data.kind === 'walk' ? 'walk' : 'run',
+    distanceKm: Number(data.distanceKm ?? 0),
+    durationSec: Number(data.durationSec ?? 0),
+    day: String(data.day ?? ''),
+    // Null on the local echo of our own write; "now" is the honest stand-in.
+    createdAt: (created?.toDate?.() ?? new Date()).toISOString(),
+  };
 }
 
 /**
@@ -330,7 +352,7 @@ export class FirestoreSocialRepository implements SocialRepository {
     );
   }
 
-  async createGroup(uid: string, name: string): Promise<Group> {
+  async createGroup(uid: string, name: string, kind: GroupKind = 'squad'): Promise<Group> {
     const id = doc(groupsCol()).id;
 
     /*
@@ -363,6 +385,7 @@ export class FirestoreSocialRepository implements SocialRepository {
 
     const payload = {
       name: name.trim(),
+      kind,
       code,
       ownerUid: uid,
       memberIds: [uid],
@@ -434,6 +457,54 @@ export class FirestoreSocialRepository implements SocialRepository {
     await updateDoc(doc(groupsCol(), groupId), {
       memberIds: arrayRemove(memberUid),
     });
+  }
+
+  async postRun(uid: string, run: ClubRun, groupIds: string[]): Promise<void> {
+    if (groupIds.length === 0) {
+      return;
+    }
+    /*
+     * One batch, so a run lands in every club or in none — a run that shows
+     * on one club's board and not another's is the kind of inconsistency
+     * people notice and argue about.
+     */
+    const batch = writeBatch(db());
+    groupIds.slice(0, 20).forEach(gid => {
+      batch.set(doc(groupRunsCol(gid), run.id), {
+        uid,
+        kind: run.kind,
+        distanceKm: run.distanceKm,
+        durationSec: run.durationSec,
+        day: run.day,
+        createdAt: serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  }
+
+  watchGroupRuns(
+    groupId: string,
+    sinceDay: string,
+    onChange: (runs: ClubRun[]) => void,
+  ): Unsubscribe {
+    // `day` is both the filter and the order, so the automatic single-field
+    // index serves it and no composite index has to be deployed.
+    const q = query(
+      groupRunsCol(groupId),
+      where('day', '>=', sinceDay),
+      orderBy('day', 'desc'),
+      limit(CLUB_RUNS_LIMIT),
+    );
+    return onSnapshot(
+      q,
+      snap =>
+        onChange(
+          snap.docs
+            .map(d => toClubRun(d.id, d.data()))
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        ),
+      () => onChange([]),
+    );
   }
 
   async markInboxRead(uid: string, pokeIds: string[]): Promise<void> {

@@ -4,7 +4,14 @@ import { ensureSignedIn } from '../services/auth';
 import { socialStore, todayKey, type Poke, type PokeKind } from '../services/social';
 import { getSocialRepository } from '../services/socialRepositoryProvider';
 import type { JoinResult, PublicProfile } from '../services/socialRepository';
-import type { Group } from '../services/types';
+import type { ClubRun } from '../services/clubBoard';
+import type { Group, GroupKind } from '../services/types';
+import { runId } from '../services/runs';
+
+/** A finished run before it has a poster: the id is derived from their uid. */
+export type ClubRunDraft = Omit<ClubRun, 'id' | 'uid' | 'createdAt'> & {
+  startedAtMs: number;
+};
 
 export type SocialApi = {
   /** False until identity and the first snapshots have resolved. */
@@ -25,7 +32,9 @@ export type SocialApi = {
   groups: Group[];
   groupById: (id: string) => Group | undefined;
 
-  createGroup: (name: string) => Promise<Group>;
+  createGroup: (name: string, kind?: GroupKind) => Promise<Group>;
+  /** Posts a finished run to every group this person is in. */
+  postRun: (run: ClubRunDraft) => Promise<number>;
   /** Resolves what happened, so "already in that group" is not shown as an error. */
   joinGroup: (code: string) => Promise<JoinResult>;
   leaveGroup: (groupId: string) => Promise<void>;
@@ -195,11 +204,38 @@ export function useSocial(): SocialApi {
   );
 
   const createGroup = useCallback(
-    async (name: string) => {
+    async (name: string, kind?: GroupKind) => {
       const uidNow = uidRef.current || (await ensureSignedIn()).uid;
-      return repo.createGroup(uidNow, name);
+      return repo.createGroup(uidNow, name, kind);
     },
     [repo],
+  );
+
+  /*
+   * Resolves to how many groups the run went to, so the finish screen can say
+   * "Posted to Sunrise Runners" instead of implying an audience that is not
+   * there.
+   */
+  const postRun = useCallback(
+    async ({ startedAtMs, ...run }: ClubRunDraft) => {
+      const uidNow = uidRef.current || (await ensureSignedIn()).uid;
+      const ids = groups.map(g => g.id);
+      if (ids.length === 0) {
+        return 0;
+      }
+      await repo.postRun(
+        uidNow,
+        {
+          ...run,
+          id: runId(uidNow, startedAtMs),
+          uid: uidNow,
+          createdAt: new Date().toISOString(),
+        },
+        ids,
+      );
+      return ids.length;
+    },
+    [repo, groups],
   );
 
   const joinGroup = useCallback(
@@ -243,6 +279,7 @@ export function useSocial(): SocialApi {
     groups,
     groupById,
     createGroup,
+    postRun,
     joinGroup,
     leaveGroup,
     addToGroup,

@@ -57,7 +57,7 @@ export function TabNavigator() {
       <Tab.Screen
         name="Squad"
         component={GroupsScreen}
-        options={{ tabBarAccessibilityLabel: 'Squad', tabBarIcon: SquadIcon }}
+        options={{ tabBarAccessibilityLabel: 'Clubs', tabBarIcon: SquadIcon }}
       />
       <Tab.Screen
         name="History"

@@ -1,6 +1,7 @@
 import { CODE_ALPHABET, type Poke, type PokeKind } from './social';
 import type { Unsubscribe } from './repository';
-import type { Group } from './types';
+import type { ClubRun } from './clubBoard';
+import type { Group, GroupKind } from './types';
 
 /**
  * The data boundary for the social layer.
@@ -86,7 +87,7 @@ export interface SocialRepository {
    * group at the same moment cannot end up sharing a code — the second
    * reservation fails and a new code is drawn.
    */
-  createGroup(uid: string, name: string): Promise<Group>;
+  createGroup(uid: string, name: string, kind?: GroupKind): Promise<Group>;
 
   /** Joins by code. See `JoinResult` for why this is not `Group | null`. */
   joinGroup(uid: string, code: string): Promise<JoinResult>;
@@ -99,6 +100,25 @@ export interface SocialRepository {
 
   /** Removes somebody. The owner may remove anyone; anyone may remove self. */
   removeFromGroup(uid: string, groupId: string, memberUid: string): Promise<void>;
+
+  // ── Club runs ────────────────────────────────────────────────────────────
+
+  /**
+   * Posts a finished run to every group the runner is in.
+   *
+   * Fan-out on write: one copy per group. A person is in a handful of groups
+   * at most, and the alternative — one shared run with a query across members
+   * — tops out at 30 members per Firestore `in` clause, which is smaller than
+   * a single Saturday run club.
+   */
+  postRun(uid: string, run: ClubRun, groupIds: string[]): Promise<void>;
+
+  /** A group's runs from `sinceDay` on, newest first. */
+  watchGroupRuns(
+    groupId: string,
+    sinceDay: string,
+    onChange: (runs: ClubRun[]) => void,
+  ): Unsubscribe;
 }
 
 /**
