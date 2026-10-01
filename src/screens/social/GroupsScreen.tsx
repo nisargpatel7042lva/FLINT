@@ -78,7 +78,9 @@ export function GroupsScreen() {
       setMode('mine');
       navigation.navigate('GroupDetail', { groupId: group.id });
     } catch {
-      setNotice('Could not create that group. Check your connection.');
+      setNotice(
+        `Could not start that ${newKind}. Nothing was created — try again in a moment.`,
+      );
     } finally {
       setBusy(false);
     }
@@ -97,7 +99,7 @@ export function GroupsScreen() {
     try {
       const result = await joinGroup(trimmedCode);
       if (result.state === 'unknown') {
-        setNotice('No group matches that code.');
+        setNotice('No club or squad matches that code.');
         return;
       }
       setCode('');
@@ -107,7 +109,7 @@ export function GroupsScreen() {
       setMode('mine');
       navigation.navigate('GroupDetail', { groupId: result.group.id });
     } catch {
-      setNotice('Could not reach that group. Check your connection.');
+      setNotice('Could not join right now. Nothing changed — try again in a moment.');
     } finally {
       setBusy(false);
     }
@@ -350,12 +352,12 @@ export function GroupsScreen() {
               setNotice(null);
             }}
             autoCapitalize="characters"
-            hint="Ask a member for the group's code."
+            hint="Ask your club or squad for its code."
             containerStyle={styles.input}
           />
 
           <Button
-            label="Join group"
+            label="Join"
             variant="outline"
             size="lg"
             fullWidth

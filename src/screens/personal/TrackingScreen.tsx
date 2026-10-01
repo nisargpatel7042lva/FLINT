@@ -525,7 +525,7 @@ export function TrackingScreen() {
 }
 
 const styles = StyleSheet.create({
-  call: { marginTop: 12 },
+  call: { marginTop: 12, marginBottom: 16 },
   callText: { marginTop: 4 },
   content: { paddingBottom: 140 },
   header: {
