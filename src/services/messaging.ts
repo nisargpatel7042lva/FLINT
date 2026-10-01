@@ -51,6 +51,20 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
+ * Tells the server which voice to push in. Best effort: without Firebase, or
+ * offline, the pushes simply stay warm, which is the safe direction to fail.
+ */
+export async function syncTone(
+  userId: string,
+  tone: 'warm' | 'savage',
+): Promise<void> {
+  if (!isFirebaseConfigured() || !userId) {
+    return;
+  }
+  await getRepository().upsertProfile(userId, { tone });
+}
+
+/**
  * Registers this device for nudges. Safe to call on every launch — writes are
  * merged, so a repeat call is a no-op.
  */

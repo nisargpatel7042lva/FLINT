@@ -16,6 +16,25 @@
 
 export type Nudge = { title: string; body: string };
 
+export type Tone = 'warm' | 'savage';
+
+/**
+ * "X passed you on the board."
+ *
+ * The body is word-for-word `passedLine` in `src/services/ego.ts` — the push and
+ * the in-app banner are the same moment seen twice, and must say the same
+ * thing. `__tests__/boardParity.test.ts` holds them together.
+ */
+export function passedNudge(passer: string, club: string, tone: Tone): Nudge {
+  return {
+    title: tone === 'savage' ? `${passer} took your spot` : 'Overtaken',
+    body:
+      tone === 'savage'
+        ? `${passer} just took your spot on ${club}. Going to let that stand?`
+        : `${passer} passed you on the ${club} board. One run gets it back.`,
+  };
+}
+
 const pick = <T>(options: T[], seed: number): T =>
   options[Math.abs(seed) % options.length];
 

@@ -32,16 +32,22 @@ import {
   formatDuration,
   formatPace,
   checkPlausible,
+  judge,
   kcalFor,
+  loadRuns,
+  predict,
+  predictionLine,
   runId,
   saveRun,
+  verdictLine,
+  type Prediction,
   startTracking,
   type LocationTracker,
   type TrackSummary,
 } from '../../services';
 import { useProfile, useSessions, useSocial } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
-import { useTheme } from '../../theme';
+import { useTheme, useThemeContext } from '../../theme';
 
 type Status = 'idle' | 'starting' | 'running' | 'paused' | 'denied' | 'saved';
 
@@ -79,6 +85,26 @@ export function TrackingScreen() {
   /** When the run started — half of the run's id, so it is set once, at start. */
   const startedAt = useRef(0);
   const { groups, postRun, uid } = useSocial();
+  const { tone } = useThemeContext();
+
+  /*
+   * The call against the runner, made before they start.
+   *
+   * Fixed at the moment they press start rather than recomputed: the finish
+   * screen has to judge them against the claim they actually read, not one
+   * that quietly moved while they were out.
+   */
+  const [prediction, setPrediction] = useState<Prediction | null>(null);
+  const lockedPrediction = useRef<Prediction | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadRuns()
+      .then(runs => alive && setPrediction(predict(runs, kind)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [kind]);
   /**
    * What happened to the club post, said plainly on the finish screen.
    *
@@ -149,9 +175,10 @@ export function TrackingScreen() {
     }
     tracker.current = t;
     startedAt.current = Date.now();
+    lockedPrediction.current = prediction;
     setElapsed(0);
     setStatus('running');
-  }, []);
+  }, [prediction]);
 
   const togglePause = () => {
     if (!tracker.current) {
@@ -254,6 +281,13 @@ export function TrackingScreen() {
 
   const done = status === 'saved';
 
+  /* Judged only when the run is real and was not refused as implausible. */
+  const call = done ? lockedPrediction.current : prediction;
+  const verdict =
+    done && call && clubPost?.state !== 'refused' && summary.distanceKm >= 0.1
+      ? judge(call, summary.distanceKm)
+      : null;
+
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -283,6 +317,32 @@ export function TrackingScreen() {
       <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
         {done ? 'Session saved' : running ? 'Recording' : status === 'paused' ? 'Paused' : 'Ready'}
       </Text>
+
+      {/*
+        The call. Before the run it is the dare; after it, the verdict. It sits
+        right under the eyebrow because it is the thing to beat, and the
+        distance below it is the score.
+      */}
+      {call && (status === 'idle' || done) ? (
+        <Card
+          variant={verdict?.beaten ? 'accent' : 'light'}
+          padding="base"
+          radius="xl"
+          style={styles.call}>
+          <Text
+            variant="label"
+            tone={verdict?.beaten ? 'onAccent' : 'accent'}
+            uppercase>
+            {verdict ? (verdict.beaten ? 'Proved us wrong' : 'Our call stood') : 'Our call'}
+          </Text>
+          <Text
+            variant="bodyStrong"
+            tone={verdict?.beaten ? 'onAccent' : 'default'}
+            style={styles.callText}>
+            {verdict ? verdictLine(verdict, tone) : predictionLine(call, tone)}
+          </Text>
+        </Card>
+      ) : null}
 
       {/* Distance leads. It is the number people repeat to themselves. */}
       <View style={styles.headline}>
@@ -465,6 +525,8 @@ export function TrackingScreen() {
 }
 
 const styles = StyleSheet.create({
+  call: { marginTop: 12 },
+  callText: { marginTop: 4 },
   content: { paddingBottom: 140 },
   header: {
     flexDirection: 'row',

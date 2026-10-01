@@ -28,6 +28,8 @@ export * from './profile';
 export * from './exploration';
 export * from './runs';
 export * from './clubBoard';
+export * from './predictions';
+export * from './ego';
 export * from './challenges';
 export * from './repository.challenges';
 export * from './deeplinks';

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { AccentName } from '../theme/colors';
+import type { Tone } from './ego';
 
 /**
  * Device-local preferences.
@@ -22,12 +23,18 @@ export type Preferences = {
   accent: AccentName;
   /** Whether the first-run walkthrough has been completed or skipped. */
   tourDone: boolean;
+  /**
+   * How hard the app pushes back. `warm` for everyone by default; `savage` is
+   * something a person chooses, never something they are put into.
+   */
+  tone: Tone;
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
   themeMode: 'system',
   accent: 'orange',
   tourDone: false,
+  tone: 'warm',
 };
 
 const KEY = 'kasrat.preferences.v1';
@@ -56,6 +63,7 @@ export async function loadPreferences(): Promise<Preferences> {
           ? parsed.accent
           : DEFAULT_PREFERENCES.accent,
       tourDone: parsed.tourDone === true,
+      tone: parsed.tone === 'savage' ? 'savage' : 'warm',
     };
   } catch {
     return DEFAULT_PREFERENCES;

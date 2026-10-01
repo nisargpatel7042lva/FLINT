@@ -155,7 +155,7 @@ export function GroupDetailScreen() {
         It replaced an Activity tab that showed seeded submissions — for any
         real group it was permanently empty, sitting under a feed that was not.
       */}
-      <ClubWeek groupId={group.id} uid={uid} nameFor={nameFor} />
+      <ClubWeek groupId={group.id} clubName={group.name} uid={uid} nameFor={nameFor} />
 
       <SegmentedControl<Tab>
         segments={[

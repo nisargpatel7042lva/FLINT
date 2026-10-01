@@ -12,9 +12,15 @@ import {
   SectionHeader,
   Text,
 } from '../../components';
-import { formatPaceSec, paceOf, type BoardEntry, type ClubRun } from '../../services';
+import {
+  formatPaceSec,
+  paceOf,
+  passedLine,
+  type BoardEntry,
+  type ClubRun,
+} from '../../services';
 import { useClubRuns } from '../../hooks';
-import { useTheme } from '../../theme';
+import { useTheme, useThemeContext } from '../../theme';
 import { relativeTime } from './relativeTime';
 
 /** Rows on the board before the rest collapse. Your own row always shows. */
@@ -33,6 +39,7 @@ const km = (n: number) => `${n.toFixed(n >= 10 ? 0 : 1)} km`;
 
 export type ClubWeekProps = {
   groupId: string;
+  clubName: string;
   uid: string;
   nameFor: (uid: string) => string;
 };
@@ -44,8 +51,9 @@ export type ClubWeekProps = {
  * overtaken is the news, so it leads; the board is the context for that news;
  * the feed is the club being a club — proof that other people turned up today.
  */
-export function ClubWeek({ groupId, uid, nameFor }: ClubWeekProps) {
+export function ClubWeek({ groupId, clubName, uid, nameFor }: ClubWeekProps) {
   const theme = useTheme();
+  const { tone } = useThemeContext();
   const navigation = useNavigation();
   const { runs, board, myRank, passers, acknowledge, loading } = useClubRuns(groupId, uid);
 
@@ -75,7 +83,7 @@ export function ClubWeek({ groupId, uid, nameFor }: ClubWeekProps) {
           </View>
           <Text variant="h2" tone="inverse" style={styles.passedTitle}>
             {passers.length === 1
-              ? `${nameOf(passers[0].uid)} passed you.`
+              ? passedLine(nameOf(passers[0].uid), clubName, tone)
               : `${nameOf(passers[0].uid)} and ${passers.length - 1} more passed you.`}
           </Text>
           <Text variant="bodySm" tone="inverseMuted" style={styles.passedBody}>

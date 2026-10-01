@@ -10,6 +10,7 @@ import React, {
 import { useColorScheme } from 'react-native';
 
 import type { AccentName } from './colors';
+import type { Tone } from '../services/ego';
 import { createTheme, type Theme, type ThemeMode } from './theme';
 import {
   DEFAULT_PREFERENCES,
@@ -36,6 +37,9 @@ type ThemeContextValue = {
   /** Persisted flags that live alongside the theme. */
   tourDone: boolean;
   setTourDone: (done: boolean) => void;
+  /** The voice the provocation layer speaks in. */
+  tone: Tone;
+  setTone: (tone: Tone) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -115,8 +119,10 @@ export function ThemeProvider({
       toggleMode: () => update({ themeMode: mode === 'light' ? 'dark' : 'light' }),
       tourDone: prefs.tourDone,
       setTourDone: done => update({ tourDone: done }),
+      tone: prefs.tone,
+      setTone: tone => update({ tone }),
     }),
-    [mode, accentName, preference, loading, prefs.tourDone, update],
+    [mode, accentName, preference, loading, prefs.tourDone, prefs.tone, update],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

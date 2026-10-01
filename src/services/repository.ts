@@ -15,6 +15,15 @@ export type UserProfile = {
   joinedDay: string;
   /** Set once Cloud Messaging hands us a token. */
   fcmToken?: string;
+  /**
+   * The voice this person chose for the provocation layer.
+   *
+   * Mirrored here from the device preference because the pushes are written by
+   * the server, which has to know whether to dare somebody or to jab them.
+   * Lives on the PRIVATE document: how hard somebody asked to be pushed is
+   * nobody else's business.
+   */
+  tone?: 'warm' | 'savage';
   /** Cached so Cloud Functions can decide who needs a nudge without a scan. */
   currentStreak?: number;
   lastSessionDay?: string;

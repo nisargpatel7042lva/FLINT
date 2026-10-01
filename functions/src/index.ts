@@ -18,7 +18,13 @@ import {
   TOKEN_ATTEMPT_WINDOW_MS,
 } from './secure';
 
-import { comebackNudge, milestoneNudge, streakAtRiskNudge } from './copy';
+import {
+  comebackNudge,
+  milestoneNudge,
+  passedNudge,
+  streakAtRiskNudge,
+} from './copy';
+import { overtakenBy, weekStartKey, type ClubRun } from './board';
 import { pokeNudge, seedFrom, type PokeKind } from './pokeCopy';
 
 initializeApp();
@@ -305,6 +311,97 @@ export const onPokeCreated = onDocumentCreated('pokes/{pokeId}', async event => 
     logger.warn('poke delivery failed', { pokeId, error: String(e) });
   }
 });
+
+/**
+ * "X passed you" — pushed to whoever a new club run just overtook.
+ *
+ * Runs when a run lands in a club, rebuilds the week's board with and without
+ * it, and pushes to the members who were ahead before and are behind now.
+ *
+ * Guardrails, because a notification about losing is the one most likely to
+ * get the whole app's notifications turned off:
+ *   - at most one "passed" push per person, per club, per day. Getting passed
+ *     by three people on a Saturday morning is one piece of news, not three;
+ *   - only to current members, so somebody who left the club stops hearing
+ *     about it;
+ *   - nobody who has not run this week is ever "passed" — they are not on the
+ *     board, so the board maths never names them;
+ *   - the voice is whatever the recipient chose, warm unless they asked.
+ */
+export const onClubRunCreated = onDocumentCreated(
+  'groups/{groupId}/runs/{runId}',
+  async event => {
+    const snap = event.data;
+    if (!snap) {
+      return;
+    }
+    const groupId = event.params.groupId as string;
+    const runId = event.params.runId as string;
+
+    const toRun = (id: string, d: FirebaseFirestore.DocumentData): ClubRun => ({
+      id,
+      uid: String(d.uid ?? ''),
+      distanceKm: Number(d.distanceKm ?? 0),
+      day: String(d.day ?? ''),
+      createdAt:
+        (d.createdAt?.toDate?.() as Date | undefined)?.toISOString() ??
+        new Date().toISOString(),
+    });
+
+    const newRun = toRun(runId, snap.data());
+    if (!newRun.uid || !(newRun.distanceKm > 0) || !newRun.day) {
+      return;
+    }
+
+    const weekStart = weekStartKey(newRun.day);
+    const [group, weekRuns] = await Promise.all([
+      db.doc(`groups/${groupId}`).get(),
+      db.collection(`groups/${groupId}/runs`).where('day', '>=', weekStart).get(),
+    ]);
+
+    const members = new Set<string>((group.get('memberIds') as string[]) ?? []);
+    const before = weekRuns.docs.filter(d => d.id !== runId).map(d => toRun(d.id, d.data()));
+    const overtaken = overtakenBy(before, newRun, weekStart).filter(u => members.has(u));
+    if (overtaken.length === 0) {
+      return;
+    }
+
+    const passer = String(
+      (await db.doc(`profiles/${newRun.uid}`).get()).get('name') ?? 'Someone',
+    );
+    const club = String(group.get('name') ?? 'your club');
+
+    await Promise.all(
+      overtaken.slice(0, 25).map(async uid => {
+        const limit = db.doc(`rateLimits/passed_${uid}_${groupId}`);
+        const fresh = await db.runTransaction(async tx => {
+          const prev = await tx.get(limit);
+          if (prev.exists && prev.get('day') === newRun.day) {
+            return false;
+          }
+          tx.set(limit, { day: newRun.day, updatedAt: new Date() });
+          return true;
+        });
+        if (!fresh) {
+          return;
+        }
+
+        const user = await db.doc(`users/${uid}`).get();
+        const token = user.get('fcmToken');
+        if (!token) {
+          return;
+        }
+        const tone = user.get('tone') === 'savage' ? 'savage' : 'warm';
+        try {
+          await send(String(token), passedNudge(passer, club, tone));
+        } catch (e) {
+          logger.warn('passed push failed', { uid, groupId, error: String(e) });
+        }
+      }),
+    );
+    logger.info('club run processed', { groupId, runId, overtaken: overtaken.length });
+  },
+);
 
 /**
  * Compute challenge streaks when a submission is created or updated.
