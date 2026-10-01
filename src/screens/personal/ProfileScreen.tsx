@@ -20,6 +20,7 @@ import {
   PhotoCard,
   Screen,
   SectionHeader,
+  SegmentedControl,
   StatPill,
   Text,
   sparkStateForStreak,
@@ -32,12 +33,15 @@ import {
   PROFILE,
   barrierById,
   barrierReminder,
+  ensureSignedIn,
   sparkStage,
+  syncTone,
+  type Tone,
 } from '../../services';
 import { useSessions } from '../../hooks/useSessions';
 import { useProfile } from '../../hooks';
 import { placeholderPhoto, remote } from '../../assets/placeholders';
-import { useTheme } from '../../theme';
+import { useTheme, useThemeContext } from '../../theme';
 
 /**
  * Personal profile: who you are, where Spark is, and what you've built.
@@ -53,6 +57,19 @@ export function ProfileScreen() {
 
   const { streak, atRisk, best, stats, source } = useSessions();
   const { profile } = useProfile();
+  const { tone, setTone } = useThemeContext();
+
+  /*
+   * Savage mode. Stored on the device, mirrored to the account so the server's
+   * pushes match. Best effort on the mirror: if it fails the pushes stay warm,
+   * which is the safe way to be wrong.
+   */
+  const chooseTone = (next: Tone) => {
+    setTone(next);
+    ensureSignedIn()
+      .then(u => syncTone(u.uid, next))
+      .catch(() => {});
+  };
   const { stage, next, progress, daysToNext } = useMemo(
     () => sparkStage(streak),
     [streak],
@@ -218,6 +235,32 @@ export function ProfileScreen() {
         style={styles.settingsRow}
       />
 
+      {/*
+        How hard the app pushes back. Opt-in by design: savage is something a
+        person asks for, never something they are dropped into. The examples
+        are real lines from each voice, so the choice is made knowing exactly
+        what it means.
+      */}
+      <SectionHeader
+        title="How hard should we push?"
+        subtitle="Predictions, overtakes and your rival's excuses"
+        style={styles.section}
+      />
+      <SegmentedControl<Tone>
+        segments={[
+          { value: 'warm', label: 'Push me' },
+          { value: 'savage', label: 'Savage' },
+        ]}
+        value={tone}
+        onChange={chooseTone}
+        style={styles.toneControl}
+      />
+      <Text variant="bodySm" tone="muted" style={styles.toneExample}>
+        {tone === 'savage'
+          ? '“Your last 6 runs say you stop before 5 km. Prove us wrong.” Never about your body, always about the work.'
+          : '“Your last 6 runs put your limit around 5 km today. Go past it.”'}
+      </Text>
+
       <SectionHeader
         title="All stages"
         subtitle="Driven by your current streak, so your spark can fall back too"
@@ -285,6 +328,8 @@ const styles = StyleSheet.create({
   streakCard: { flex: 1 },
   streakInner: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
   why: { marginTop: 20 },
+  toneControl: { marginTop: 8 },
+  toneExample: { marginTop: 8 },
   whyTitle: { marginTop: 8 },
   whyBlurb: { marginTop: 4 },
   section: { marginTop: 30 },

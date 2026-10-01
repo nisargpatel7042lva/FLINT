@@ -23,8 +23,11 @@ import {
   getChallengeSubmissions,
   getChallengeStreak,
   rematchChallenge,
+  submitExcuse,
+  watchExcuses,
   watchUserChallenges,
 } from '../services/repository.challenges';
+import type { Excuse, ExcuseReason } from '../services/excuses';
 
 /**
  * Every challenge you are in, live.
@@ -69,6 +72,29 @@ export function useMyChallenges() {
   const pending = challenges.filter(c => c.status === 'pending');
 
   return { challenges, active, pending, loading };
+}
+
+/**
+ * A challenge's excuses, live, and the way to file today's.
+ *
+ * `submit` rejects if one already exists for that day — the rules make excuses
+ * create-only, and the caller should treat that as "already filed", not as an
+ * error worth showing.
+ */
+export function useChallengeExcuses(challengeId: string) {
+  const [excuses, setExcuses] = useState<Excuse[]>([]);
+
+  useEffect(() => watchExcuses(challengeId, setExcuses), [challengeId]);
+
+  const submit = useCallback(
+    async (day: string, reason: ExcuseReason) => {
+      const user = await ensureSignedIn();
+      await submitExcuse(challengeId, user.uid, day, reason);
+    },
+    [challengeId],
+  );
+
+  return { excuses, submit };
 }
 
 /**

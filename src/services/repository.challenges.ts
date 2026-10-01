@@ -13,6 +13,8 @@ import {
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
+  setDoc,
   where,
 } from '@react-native-firebase/firestore';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
@@ -27,6 +29,7 @@ import type {
   Effort,
 } from './types';
 import type { Unsubscribe } from './repository';
+import { excuseId, type Excuse, type ExcuseReason } from './excuses';
 
 const db = () => getFirestore(requireFirebase());
 const functions = () => getFunctions(requireFirebase());
@@ -534,4 +537,52 @@ export function watchUserChallenges(
     stopCreator();
     stopOpponent();
   };
+}
+
+// ── Excuses ────────────────────────────────────────────────────────────────
+
+const excusesCol = (challengeId: string) =>
+  collection(doc(challengesCol(), challengeId), 'excuses');
+
+/**
+ * Files today's excuse. Create-only by rule, so a second call for the same day
+ * is refused — the reason picked is the reason that stands.
+ */
+export async function submitExcuse(
+  challengeId: string,
+  uid: string,
+  day: string,
+  reason: ExcuseReason,
+): Promise<void> {
+  await setDoc(doc(excusesCol(challengeId), excuseId(uid, day)), {
+    uid,
+    day,
+    reason,
+    createdAt: serverTimestamp(),
+  });
+}
+
+/** Both participants' excuses, newest day first. */
+export function watchExcuses(
+  challengeId: string,
+  onChange: (excuses: Excuse[]) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(excusesCol(challengeId), orderBy('day', 'desc')),
+    snap =>
+      onChange(
+        snap.docs.map(d => {
+          const data = d.data() as Record<string, unknown>;
+          const created = data.createdAt as { toDate?: () => Date } | null;
+          return {
+            id: d.id,
+            uid: String(data.uid ?? ''),
+            day: String(data.day ?? ''),
+            reason: data.reason as ExcuseReason,
+            createdAt: (created?.toDate?.() ?? new Date()).toISOString(),
+          };
+        }),
+      ),
+    () => onChange([]),
+  );
 }

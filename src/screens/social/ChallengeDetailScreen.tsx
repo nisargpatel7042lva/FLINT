@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, View, Share, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,8 +16,16 @@ import {
   StatPill,
   Text,
   EmptyState,
+  OptionCard,
 } from '../../components';
 import { ACTIVITY_LABELS } from '../../services/types';
+import {
+  EXCUSE_LABEL,
+  EXCUSE_REASONS,
+  excuseLine,
+  excuseWarning,
+  type ExcuseReason,
+} from '../../services/excuses';
 import {
   getTodaySubmissions,
   hasLoggedToday,
@@ -27,12 +35,14 @@ import {
 import {
   useChallenge,
   useChallengeSubmissions,
+  useChallengeExcuses,
   useChallengeStreaks,
   useRematchChallenge,
 } from '../../hooks/useChallenges';
+import { useSocial } from '../../hooks';
 import { currentUser } from '../../services/auth';
 import type { RootStackParamList } from '../../navigation/types';
-import { useTheme } from '../../theme';
+import { useTheme, useThemeContext } from '../../theme';
 
 type Tab = 'today' | 'streak';
 
@@ -83,6 +93,39 @@ export function ChallengeDetailScreen() {
     () => challenge ? hasLoggedToday(submissions, challenge.id, currentUserId, today) : false,
     [submissions, challenge, currentUserId, today],
   );
+
+  /*
+   * The excuse tax. Skipping is allowed; it just isn't private. Both people's
+   * excuses for today are read here: yours, so the screen shows what you
+   * already said, and your rival's, so you see what they said.
+   */
+  const { tone } = useThemeContext();
+  const { nameFor } = useSocial();
+  const { excuses, submit: submitExcuse } = useChallengeExcuses(route.params.challengeId);
+  const [skipping, setSkipping] = useState(false);
+  const [filing, setFiling] = useState(false);
+
+  const rivalUid =
+    challenge && challenge.creatorId === currentUserId
+      ? challenge.opponentId
+      : challenge?.creatorId;
+  const myExcuse = excuses.find(e => e.uid === currentUserId && e.day === today);
+  const rivalExcuse = rivalUid
+    ? excuses.find(e => e.uid === rivalUid && e.day === today)
+    : undefined;
+
+  const fileExcuse = async (reason: ExcuseReason) => {
+    setFiling(true);
+    try {
+      await submitExcuse(today, reason);
+    } catch {
+      // Create-only: a refusal here means today's excuse already exists, and
+      // the live listener is about to show it. Nothing to report.
+    } finally {
+      setFiling(false);
+      setSkipping(false);
+    }
+  };
 
   const shareInvite = async () => {
     if (!challenge || !challenge.inviteToken) {
@@ -279,6 +322,65 @@ export function ChallengeDetailScreen() {
         </Card>
       )}
 
+      {/*
+        Skip, with the tax stated up front. The reason is shown to the rival,
+        and the screen says so before anything is picked — a tax people pay
+        unknowingly is a trap, not a nudge.
+      */}
+      {!isComplete && !hasLoggedTodayFlag ? (
+        myExcuse ? (
+          <Card variant="light" padding="base" style={styles.excuseCard}>
+            <Text variant="bodyStrong">Skipped today: {EXCUSE_LABEL[myExcuse.reason]}</Text>
+            <Text variant="bodySm" tone="muted" style={styles.excuseBody}>
+              Still time to log it if you go after all.
+            </Text>
+          </Card>
+        ) : skipping ? (
+          <Card variant="light" padding="base" style={styles.excuseCard}>
+            <Text variant="bodyStrong">Why are you skipping?</Text>
+            <Text variant="bodySm" tone="muted" style={styles.excuseBody}>
+              {excuseWarning}
+            </Text>
+            <View style={styles.excuseList}>
+              {EXCUSE_REASONS.map(r => (
+                <OptionCard
+                  key={r}
+                  mode="action"
+                  title={EXCUSE_LABEL[r]}
+                  disabled={filing}
+                  onPress={() => fileExcuse(r)}
+                />
+              ))}
+            </View>
+            <Button
+              label="Never mind, I'll go"
+              variant="ghost"
+              size="sm"
+              onPress={() => setSkipping(false)}
+            />
+          </Card>
+        ) : (
+          <Button
+            label="Skip today"
+            variant="ghost"
+            size="sm"
+            style={styles.skipButton}
+            onPress={() => setSkipping(true)}
+          />
+        )
+      ) : null}
+
+      {rivalExcuse && rivalUid ? (
+        <Card variant="dark" padding="base" style={styles.excuseCard}>
+          <Text variant="label" tone="accent" uppercase>
+            Their excuse
+          </Text>
+          <Text variant="bodyStrong" tone="inverse" style={styles.excuseBody}>
+            {excuseLine(nameFor(rivalUid), rivalExcuse.reason, tone)}
+          </Text>
+        </Card>
+      ) : null}
+
       {/* Done for today */}
       {!isComplete && hasLoggedTodayFlag && (
         <Card variant="light" padding="base" style={styles.doneCta}>
@@ -374,6 +476,10 @@ export function ChallengeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  excuseCard: { marginTop: 12 },
+  excuseBody: { marginTop: 4 },
+  excuseList: { marginTop: 12, rowGap: 8 },
+  skipButton: { marginTop: 8, alignSelf: 'center' },
   content: { paddingBottom: 140 },
   loadingText: { marginTop: 16, textAlign: 'center' },
   errorTitle: { textAlign: 'center' },

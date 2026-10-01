@@ -333,6 +333,37 @@ service cloud.firestore {
           .hasAny(['creatorId', 'opponentId', 'groupId', 'inviteToken', 'inviteTokenHash', 'acceptedAt', 'targetDays']);
       
       allow delete: if false;
+
+      /*
+       * The excuse tax: why somebody skipped a day, visible to their rival.
+       *
+       *   - One per person per day, and the id says so (`{uid}_{day}`), so
+       *     nobody can file an excuse for their opponent or stack several.
+       *   - Create-only. The whole tax is that "couldn't be bothered" stays
+       *     said; an excuse that could be edited into "planned rest day" after
+       *     the rival has read it would cost nothing.
+       *   - Only the two people in the challenge can read or write them.
+       */
+      match /excuses/{excuseId} {
+        function inThisChallenge() {
+          return isChallengeParticipant(
+            get(/databases/$(database)/documents/challenges/$(challengeId)).data
+          );
+        }
+
+        allow read: if inThisChallenge();
+
+        allow create: if inThisChallenge()
+          && request.resource.data.keys().hasOnly(['uid', 'day', 'reason', 'createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.day is string
+          && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && excuseId == request.auth.uid + '_' + request.resource.data.day
+          && request.resource.data.reason in ['rest', 'injured', 'busy', 'weather', 'motivation']
+          && request.resource.data.createdAt == request.time;
+
+        allow update, delete: if false;
+      }
     }
 
     // Challenge submissions (activity logs)

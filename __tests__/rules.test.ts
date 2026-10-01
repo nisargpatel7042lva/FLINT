@@ -806,3 +806,77 @@ describe('club runs', () => {
     await assertFails(setDoc(doc(db, 'groups', 'g-c'), { ...base, kind: 'admin' }));
   });
 });
+
+describe('excuses', () => {
+  const CHALLENGE = 'c-excuse';
+  const CAROL = 'carol';
+  const DAY = '2026-10-01';
+
+  type Db = ReturnType<ReturnType<RulesTestEnvironment['authenticatedContext']>['firestore']>;
+  const excuseDoc = (db: Db, id: string) => doc(db, 'challenges', CHALLENGE, 'excuses', id);
+
+  const seed = () =>
+    env.withSecurityRulesDisabled(async ctx => {
+      await setDoc(doc(ctx.firestore(), 'challenges', CHALLENGE), {
+        type: 'one_on_one',
+        creatorId: ALICE,
+        opponentId: BOB,
+        status: 'active',
+        targetDays: 30,
+      });
+    });
+
+  const excuse = (uid: string, overrides: Record<string, unknown> = {}) => ({
+    uid,
+    day: DAY,
+    reason: 'motivation',
+    createdAt: serverTimestamp(),
+    ...overrides,
+  });
+
+  it('lets a participant file their own excuse, and the rival read it', async () => {
+    await seed();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertSucceeds(setDoc(excuseDoc(alice, `${ALICE}_${DAY}`), excuse(ALICE)));
+
+    const bob = env.authenticatedContext(BOB).firestore();
+    await assertSucceeds(getDoc(excuseDoc(bob, `${ALICE}_${DAY}`)));
+  });
+
+  it('keeps bystanders out entirely', async () => {
+    await seed();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await setDoc(excuseDoc(alice, `${ALICE}_${DAY}`), excuse(ALICE));
+
+    const carol = env.authenticatedContext(CAROL).firestore();
+    await assertFails(getDoc(excuseDoc(carol, `${ALICE}_${DAY}`)));
+    await assertFails(setDoc(excuseDoc(carol, `${CAROL}_${DAY}`), excuse(CAROL)));
+  });
+
+  it('refuses filing an excuse on your rival\’s behalf', async () => {
+    await seed();
+    const bob = env.authenticatedContext(BOB).firestore();
+    await assertFails(setDoc(excuseDoc(bob, `${ALICE}_${DAY}`), excuse(ALICE)));
+    await assertFails(setDoc(excuseDoc(bob, `${ALICE}_${DAY}`), excuse(BOB)));
+  });
+
+  /* The tax: once "couldn't be bothered" is said, it stays said. */
+  it('never lets an excuse be softened after the fact', async () => {
+    await seed();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await setDoc(excuseDoc(alice, `${ALICE}_${DAY}`), excuse(ALICE));
+    await assertFails(
+      setDoc(excuseDoc(alice, `${ALICE}_${DAY}`), excuse(ALICE, { reason: 'rest' })),
+    );
+    await assertFails(deleteDoc(excuseDoc(alice, `${ALICE}_${DAY}`)));
+  });
+
+  it('refuses an id that does not match the day, or an unknown reason', async () => {
+    await seed();
+    const alice = env.authenticatedContext(ALICE).firestore();
+    await assertFails(setDoc(excuseDoc(alice, `${ALICE}_2026-09-01`), excuse(ALICE)));
+    await assertFails(
+      setDoc(excuseDoc(alice, `${ALICE}_${DAY}`), excuse(ALICE, { reason: 'dog ate it' })),
+    );
+  });
+});

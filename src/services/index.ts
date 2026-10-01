@@ -30,6 +30,7 @@ export * from './runs';
 export * from './clubBoard';
 export * from './predictions';
 export * from './ego';
+export * from './excuses';
 export * from './challenges';
 export * from './repository.challenges';
 export * from './deeplinks';
