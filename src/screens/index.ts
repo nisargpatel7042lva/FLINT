@@ -52,3 +52,4 @@ export * from './social/CreateOneOnOneScreen';
 export * from './social/AcceptChallengeScreen';
 export * from './social/ChallengeDetailScreen';
 export * from './social/ChallengeLogScreen';
+export * from './profile/JoinClubScreen';

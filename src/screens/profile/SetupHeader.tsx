@@ -6,7 +6,8 @@ import { ArrowLeft } from 'lucide-react-native';
 import { IconButton, PageDots, Text } from '../../components';
 import { useTheme } from '../../theme';
 
-export const SETUP_STEPS = 4;
+// Name, then club. Goals and body basics moved to Settings for the run-club v1.
+export const SETUP_STEPS = 2;
 
 export type SetupHeaderProps = {
   /** Zero-based step index. */

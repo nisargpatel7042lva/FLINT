@@ -1,7 +1,10 @@
 import {
+  EmailAuthProvider,
   createUserWithEmailAndPassword,
   getAuth,
+  linkWithCredential,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInAnonymously,
   signInWithEmailAndPassword,
   signOut as fbSignOut,
@@ -62,16 +65,73 @@ export function watchAuth(cb: (user: AuthUser | null) => void): () => void {
   );
 }
 
-export async function signUpWithEmail(email: string, password: string) {
+/**
+ * Creates an email account.
+ *
+ * When somebody is already signed in anonymously — they ran, or joined a
+ * club, before making an account — the email is LINKED to that same uid
+ * rather than starting a new one. A new uid would orphan every run and club
+ * membership they had, which is exactly the moment they decided to stay.
+ */
+export async function signUpWithEmail(email: string, password: string): Promise<AuthUser> {
+  if (!isFirebaseConfigured()) {
+    return { uid: LOCAL_UID, email, isAnonymous: false };
+  }
   const auth = getAuth(requireFirebase());
-  // TODO: when the current user is anonymous, link the credential instead of
-  // creating a new account, so the streak earned before signup survives.
-  // `linkWithCredential(auth.currentUser, EmailAuthProvider.credential(...))`.
-  return createUserWithEmailAndPassword(auth, email, password);
+  const clean = email.trim();
+  const cred =
+    auth.currentUser?.isAnonymous
+      ? await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(clean, password))
+      : await createUserWithEmailAndPassword(auth, clean, password);
+  return { uid: cred.user.uid, email: cred.user.email, isAnonymous: false };
 }
 
-export async function signInWithEmail(email: string, password: string) {
-  return signInWithEmailAndPassword(getAuth(requireFirebase()), email, password);
+export async function signInWithEmail(email: string, password: string): Promise<AuthUser> {
+  if (!isFirebaseConfigured()) {
+    return { uid: LOCAL_UID, email, isAnonymous: false };
+  }
+  const cred = await signInWithEmailAndPassword(
+    getAuth(requireFirebase()),
+    email.trim(),
+    password,
+  );
+  return { uid: cred.user.uid, email: cred.user.email, isAnonymous: false };
+}
+
+export async function resetPassword(email: string): Promise<void> {
+  await sendPasswordResetEmail(getAuth(requireFirebase()), email.trim());
+}
+
+/**
+ * What went wrong, in words a runner can act on.
+ *
+ * Firebase's own messages are written for developers — "[auth/email-already-
+ * in-use] The email address is already in use by another account." — and a
+ * tester who sees one assumes the app is broken.
+ */
+export function authErrorMessage(e: unknown): string {
+  const code = (e as { code?: string } | null)?.code ?? '';
+  switch (code) {
+    case 'auth/email-already-in-use':
+    case 'auth/credential-already-in-use':
+      return 'That email already has an account. Log in instead.';
+    case 'auth/invalid-email':
+      return 'That email address does not look right.';
+    case 'auth/weak-password':
+      return 'Use at least 8 characters for your password.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+      return 'That email and password do not match.';
+    case 'auth/too-many-requests':
+      return 'Too many tries. Wait a few minutes and try again.';
+    case 'auth/network-request-failed':
+      return 'No connection. Check your internet and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Email sign-up is switched off for now. Tell the Flint team.';
+    default:
+      return 'Something went wrong. Try again in a moment.';
+  }
 }
 
 export async function signOut() {

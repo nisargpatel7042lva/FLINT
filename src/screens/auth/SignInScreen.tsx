@@ -3,32 +3,52 @@ import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Lock, Mail } from 'lucide-react-native';
 
-import {
-  Avatar,
-  Button,
-  Divider,
-  IconButton,
-  Input,
-  Screen,
-  Text,
-} from '../../components';
+import { Button, IconButton, Input, Screen, Text } from '../../components';
+import { authErrorMessage, resetPassword, signInWithEmail } from '../../services';
+import { useProfile } from '../../hooks';
 import { useTheme } from '../../theme';
 
-/**
- * Log in. Auth is not wired yet — submitting jumps straight into the app so the
- * shell can be exercised.
- */
+/** Log in with an existing account. */
 export function SignInScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const { update } = useProfile();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0;
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !busy;
 
-  const enterApp = () =>
-    navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
+  const submit = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await signInWithEmail(email, password);
+      // An existing account has been through setup, on some phone. Without
+      // this a new phone would replay the whole introduction next launch.
+      update({ completed: true });
+      navigation.reset({ index: 0, routes: [{ name: 'Tabs', params: { screen: 'City' } }] });
+    } catch (e) {
+      setMessage({ text: authErrorMessage(e), error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const forgot = async () => {
+    if (!email.trim()) {
+      setMessage({ text: 'Type your email above first, then tap this again.', error: true });
+      return;
+    }
+    try {
+      await resetPassword(email);
+      setMessage({ text: `A reset link is on its way to ${email.trim()}.`, error: false });
+    } catch (e) {
+      setMessage({ text: authErrorMessage(e), error: true });
+    }
+  };
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -47,7 +67,7 @@ export function SignInScreen() {
           Welcome{'\n'}back
         </Text>
         <Text variant="body" tone="muted" style={styles.subtitle}>
-          Pick up where you left off.
+          Your club has been running without you.
         </Text>
 
         <View style={styles.form}>
@@ -73,27 +93,24 @@ export function SignInScreen() {
         </View>
 
         <View style={styles.forgotRow}>
-          <Button label="Forgot password?" variant="ghost" size="sm" />
+          <Button label="Forgot password?" variant="ghost" size="sm" onPress={forgot} />
         </View>
 
+        {message ? (
+          <Text
+            variant="bodySm"
+            tone={message.error ? 'danger' : 'success'}
+            style={styles.message}>
+            {message.text}
+          </Text>
+        ) : null}
+
         <Button
-          label="Log in"
+          label={busy ? 'Logging in…' : 'Log in'}
           size="lg"
           fullWidth
           disabled={!canSubmit}
-          onPress={enterApp}
-        />
-
-        <Divider label="or continue with" style={styles.divider} />
-
-        {/* Placeholder: swap the badge for the real Google mark when auth lands. */}
-        <Button
-          label="Continue with Google"
-          variant="light"
-          size="lg"
-          fullWidth
-          onPress={enterApp}
-          iconLeft={<Avatar name="G" size="sm" />}
+          onPress={submit}
         />
 
         <View style={styles.footer}>
@@ -119,7 +136,7 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: 8 },
   form: { marginTop: 24, rowGap: 16 },
   forgotRow: { alignItems: 'flex-end', marginTop: 8, marginBottom: 12 },
-  divider: { marginVertical: 20 },
+  message: { marginBottom: 12 },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',

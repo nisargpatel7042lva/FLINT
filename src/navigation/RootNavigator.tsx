@@ -42,6 +42,7 @@ import {
   TeamWarScreen,
   TimeBudgetScreen,
   TrackingScreen,
+  JoinClubScreen,
   HistoryScreen,
   TrainScreen,
   TrainingPlaceScreen,
@@ -132,6 +133,7 @@ export function RootNavigator() {
         <Stack.Screen name="BodyBasics" component={BodyBasicsScreen} />
         <Stack.Screen name="ProfileGoal" component={ProfileGoalScreen} />
         <Stack.Screen name="FindFriends" component={FindFriendsScreen} />
+        <Stack.Screen name="JoinClub" component={JoinClubScreen} />
 
         {/* Main app. Entered via `reset` so back does not return to setup. */}
         <Stack.Screen name="Tabs" component={TabNavigator} />

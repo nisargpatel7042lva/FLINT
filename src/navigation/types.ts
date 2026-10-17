@@ -105,6 +105,8 @@ export type RootStackParamList = {
   ExerciseDetail: { id: string };
   /** Live GPS session. Defaults to a run when no kind is given. */
   Tracking: { kind: 'run' | 'walk' } | undefined;
+  /** Last setup step: join a club by code, or start one. */
+  JoinClub: undefined;
   /** Off the tab bar for v1 — running leads; these stay one tap away. */
   History: undefined;
   Train: undefined;

@@ -1,42 +1,44 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, GraduationCap, Lock, Mail, User } from 'lucide-react-native';
+import { ArrowLeft, Lock, Mail } from 'lucide-react-native';
 
-import {
-  Avatar,
-  Button,
-  Divider,
-  IconButton,
-  Input,
-  Screen,
-  Text,
-} from '../../components';
-import { checkCode } from '../../services';
+import { Button, IconButton, Input, Screen, Text } from '../../components';
+import { authErrorMessage, signUpWithEmail } from '../../services';
 import { useTheme } from '../../theme';
 
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 /**
- * Account creation. Auth is not wired yet — submitting advances the flow so the
- * rest of onboarding can be walked end to end.
+ * Account creation: email and password, nothing else.
+ *
+ * The name and handle come on the next screen, where they are explained. Asking
+ * for them here as well would be asking twice.
  */
 export function SignUpScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
 
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [collegeCode, setCollegeCode] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Optional: someone who found the app on their own must never be blocked by
-  // a field that exists for campus rollouts.
-  const code = checkCode(collegeCode);
+  const emailOk = EMAIL.test(email.trim());
+  const canSubmit = emailOk && password.length >= 8 && !saving;
 
-  const canSubmit =
-    name.trim().length > 0 &&
-    email.trim().length > 0 &&
-    password.length >= 8 &&
-    code.state !== 'invalid';
+  const submit = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await signUpWithEmail(email, password);
+      navigation.navigate('ProfileName');
+    } catch (e) {
+      setError(authErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -55,24 +57,18 @@ export function SignUpScreen() {
           Create your{'\n'}account
         </Text>
         <Text variant="body" tone="muted" style={styles.subtitle}>
-          Start tracking, challenge friends, and join a team.
+          So your runs, your club and your blocks follow you to a new phone.
         </Text>
 
         <View style={styles.form}>
           <Input
-            label="Name"
-            placeholder="Your name"
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-            textContentType="name"
-            iconLeft={<User color={theme.colors.textMuted} size={18} />}
-          />
-          <Input
             label="Email"
             placeholder="you@example.com"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={t => {
+              setEmail(t);
+              setError(null);
+            }}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -82,50 +78,30 @@ export function SignUpScreen() {
             label="Password"
             placeholder="At least 8 characters"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={t => {
+              setPassword(t);
+              setError(null);
+            }}
             secureToggle
             autoCapitalize="none"
             iconLeft={<Lock color={theme.colors.textMuted} size={18} />}
             hint="Use 8 or more characters."
           />
-
-          <Input
-            label="College code (optional)"
-            placeholder="e.g. VTAK34"
-            value={collegeCode}
-            onChangeText={setCollegeCode}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={8}
-            iconLeft={<GraduationCap color={theme.colors.textMuted} size={18} />}
-            error={code.state === 'invalid' ? code.reason : undefined}
-            hint={
-              code.state === 'valid'
-                ? 'You will join your college’s challenge.'
-                : 'Have one from your college? Enter it to join their challenge.'
-            }
-          />
         </View>
 
+        {error ? (
+          <Text variant="bodySm" tone="danger" style={styles.error}>
+            {error}
+          </Text>
+        ) : null}
+
         <Button
-          label="Create account"
+          label={saving ? 'Creating…' : 'Create account'}
           size="lg"
           fullWidth
           disabled={!canSubmit}
-          onPress={() => navigation.navigate('ProfileName')}
+          onPress={submit}
           style={styles.submit}
-        />
-
-        <Divider label="or continue with" style={styles.divider} />
-
-        {/* Placeholder: swap the badge for the real Google mark when auth lands. */}
-        <Button
-          label="Continue with Google"
-          variant="light"
-          size="lg"
-          fullWidth
-          onPress={() => navigation.navigate('ProfileName')}
-          iconLeft={<Avatar name="G" size="sm" />}
         />
 
         <View style={styles.footer}>
@@ -150,8 +126,8 @@ const styles = StyleSheet.create({
   title: { marginTop: 20 },
   subtitle: { marginTop: 8 },
   form: { marginTop: 24, rowGap: 16 },
+  error: { marginTop: 16 },
   submit: { marginTop: 24 },
-  divider: { marginVertical: 20 },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
