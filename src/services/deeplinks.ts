@@ -76,6 +76,8 @@ export const linkingConfig: LinkingOptions<RootStackParamList> = {
     screens: {
       AcceptChallenge: 'invite/:token',
       ChallengeDetail: 'challenge/:challengeId',
+      // The run screen. Also where the "run in progress" notification lands.
+      Tracking: 'run/:kind?',
       Tabs: {
         screens: {
           Home: '',

@@ -9,10 +9,14 @@
     <!--
       Location. Coarse is requested alongside fine because Android 12+ lets the
       user grant only approximate location, and the app must still work then.
-      No background location is requested - sessions are logged in-app.
+      No background location is requested: a run is recorded by a foreground
+      service started while the app is open, which keeps while-in-use access
+      for as long as its notification is showing.
     -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!--
       Health Connect. Only the read permissions actually used are declared;
@@ -81,6 +85,14 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
 
+        <!-- flint:// links: club invites, and the run notification. -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="flint" />
+        </intent-filter>
+
         <!-- Health Connect sends the user here to read our privacy policy. -->
         <intent-filter>
             <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
@@ -98,5 +110,11 @@
             <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
         </intent-filter>
       </activity-alias>
+
+      <!-- Records a run while the screen is off. See RunTrackingService. -->
+      <service
+        android:name=".run.RunTrackingService"
+        android:exported="false"
+        android:foregroundServiceType="location" />
     </application>
 </manifest>

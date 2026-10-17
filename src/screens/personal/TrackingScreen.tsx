@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, StyleSheet, View } from 'react-native';
+import { Alert, AppState, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import {
   ArrowLeft,
+  BatteryCharging,
   Check,
   Compass,
   Footprints,
@@ -41,15 +42,28 @@ import {
   saveRun,
   verdictLine,
   type Prediction,
-  startTracking,
-  type LocationTracker,
+  isBatteryRestricted,
+  movingSeconds,
+  openBatterySettings,
+  resumeActiveRun,
+  startRun,
+  type LiveRun,
+  type RunKind,
   type TrackSummary,
 } from '../../services';
 import { useProfile, useSessions, useSocial } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme, useThemeContext } from '../../theme';
 
-type Status = 'idle' | 'starting' | 'running' | 'paused' | 'denied' | 'saved';
+type Status =
+  | 'loading'
+  | 'idle'
+  | 'starting'
+  | 'running'
+  | 'paused'
+  | 'denied'
+  | 'failed'
+  | 'saved';
 
 const KIND_LABEL = { run: 'Run', walk: 'Walk' } as const;
 
@@ -73,12 +87,13 @@ export function TrackingScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'Tracking'>>();
-  const kind = route.params?.kind ?? 'run';
+  const [kind, setKind] = useState<RunKind>(route.params?.kind ?? 'run');
 
   const { addSession } = useSessions();
   const { profile } = useProfile();
 
-  const [status, setStatus] = useState<Status>('idle');
+  // 'loading' until we know whether a run is already being recorded.
+  const [status, setStatus] = useState<Status>('loading');
   const [summary, setSummary] = useState<TrackSummary>(EMPTY_SUMMARY);
   const [elapsed, setElapsed] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -122,75 +137,120 @@ export function TrackingScreen() {
     null,
   );
 
-  const tracker = useRef<LocationTracker | null>(null);
+  const live = useRef<LiveRun | null>(null);
+  const [batteryRestricted, setBatteryRestricted] = useState(false);
 
   const running = status === 'running';
+  const recording = status === 'running' || status === 'paused';
 
   /*
-   * The clock ticks locally rather than being read off the GPS fixes.
+   * Reattach to a run already in progress.
    *
-   * Fixes arrive every few seconds at best, and stop entirely when someone
-   * stands still — a timer driven by them would visibly freeze while the
-   * person is very much still out there.
+   * The run is recorded natively, so leaving this screen, or the app being
+   * killed, does not end it. Coming back must land on the same run, not offer
+   * a fresh start over the top of one still recording.
    */
   useEffect(() => {
-    if (!running) {
+    let alive = true;
+    resumeActiveRun()
+      .then(run => {
+        if (!alive) {
+          return;
+        }
+        if (!run) {
+          setStatus('idle');
+          return;
+        }
+        const s = run.status();
+        live.current = run;
+        startedAt.current = s.startedAt;
+        setKind(s.kind);
+        setSummary(run.summary());
+        setElapsed(movingSeconds(s, Date.now()));
+        setStatus(s.paused ? 'paused' : 'running');
+      })
+      .catch(() => alive && setStatus('idle'));
+    isBatteryRestricted()
+      .then(r => alive && setBatteryRestricted(r))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /*
+   * The clock and the route, refreshed once a second.
+   *
+   * Time comes from the recorder's timestamps, not from counting ticks: ticks
+   * stop while the phone is in a pocket, timestamps do not.
+   */
+  const refresh = useCallback(async () => {
+    const run = live.current;
+    if (!run) {
       return;
     }
-    const t = setInterval(() => setElapsed(e => e + 1), 1000);
-    return () => clearInterval(t);
-  }, [running]);
+    const next = await run.sync();
+    setSummary(next);
+    setElapsed(movingSeconds(run.status(), Date.now()));
+  }, []);
 
-  /*
-   * Foreground-only location means a backgrounded app stops receiving fixes.
-   * Auto-pausing on the way out is the honest response: the alternative is a
-   * clock that keeps counting over a route that stopped being recorded.
-   */
+  useEffect(() => {
+    if (!recording) {
+      return;
+    }
+    const t = setInterval(() => {
+      refresh().catch(() => {});
+    }, 1000);
+    return () => clearInterval(t);
+  }, [recording, refresh]);
+
+  // Back from the lock screen: catch up at once rather than on the next tick.
   useEffect(() => {
     const sub = AppState.addEventListener('change', next => {
-      if (next !== 'active' && tracker.current && !tracker.current.isPaused()) {
-        tracker.current.pause();
-        setStatus(s => (s === 'running' ? 'paused' : s));
+      if (next === 'active') {
+        refresh().catch(() => {});
       }
     });
     return () => sub.remove();
-  }, []);
-
-  // Stop the watch if the screen goes away mid-session; a live GPS subscription
-  // outliving its screen is a battery drain nobody can see or cancel.
-  useEffect(
-    () => () => {
-      tracker.current?.stop();
-      tracker.current = null;
-    },
-    [],
-  );
+  }, [refresh]);
 
   const begin = useCallback(async () => {
     setStatus('starting');
-    const t = await startTracking(setSummary);
-    if (!t) {
-      setStatus('denied');
+    const result = await startRun(kind);
+    if (!result.ok) {
+      setStatus(result.reason);
       return;
     }
-    tracker.current = t;
-    startedAt.current = Date.now();
+    live.current = result.run;
+    startedAt.current = result.run.status().startedAt;
     lockedPrediction.current = prediction;
     setElapsed(0);
     setStatus('running');
-  }, [prediction]);
+  }, [kind, prediction]);
 
-  const togglePause = () => {
-    if (!tracker.current) {
+  const togglePause = async () => {
+    const run = live.current;
+    if (!run) {
       return;
     }
-    if (tracker.current.isPaused()) {
-      tracker.current.resume();
+    if (run.status().paused) {
+      await run.resume();
       setStatus('running');
     } else {
-      tracker.current.pause();
+      await run.pause();
       setStatus('paused');
     }
+    setElapsed(movingSeconds(run.status(), Date.now()));
+  };
+
+  const allowBackground = async () => {
+    await openBatterySettings();
+    // They come back from Settings; check again rather than assume.
+    setTimeout(() => {
+      isBatteryRestricted()
+        .then(setBatteryRestricted)
+        .catch(() => {});
+    }, 1500);
   };
 
   const kcal = useMemo(() => {
@@ -201,9 +261,12 @@ export function TrackingScreen() {
     return fromDistance > 0 ? fromDistance : kcalFor(profile, elapsed / 60, kind);
   }, [summary.distanceKm, elapsed, kind, profile]);
 
-  const finish = () => {
-    const final = tracker.current?.stop() ?? summary;
-    tracker.current = null;
+  const finish = async () => {
+    const run = live.current;
+    const finalElapsed = run ? movingSeconds(run.status(), Date.now()) : elapsed;
+    const final = run ? await run.finish() : summary;
+    live.current = null;
+    setElapsed(finalElapsed);
     setSummary(final);
     setStatus('saved');
 
@@ -238,7 +301,7 @@ export function TrackingScreen() {
         id: runId(uid || 'me', startedAt.current),
         kind,
         distanceKm: Math.round(final.distanceKm * 100) / 100,
-        durationSec: Math.max(1, elapsed),
+        durationSec: Math.max(1, finalElapsed),
         day: TRAINING_TODAY,
         startedAt: new Date(startedAt.current).toISOString(),
       };
@@ -262,7 +325,7 @@ export function TrackingScreen() {
       }
     }
 
-    const minutes = Math.max(1, Math.round(elapsed / 60));
+    const minutes = Math.max(1, Math.round(finalElapsed / 60));
     addSession({
       day: TRAINING_TODAY,
       title:
@@ -277,6 +340,18 @@ export function TrackingScreen() {
       totalSets: 1,
       kcal: final.distanceKm > 0 ? Math.round(final.distanceKm * KCAL_PER_KM[kind]) : kcal,
     }).catch(e => setSaveError(e instanceof Error ? e.message : String(e)));
+  };
+
+  const confirmFinish = () => {
+    // Under 100 m nothing is posted, so say so before ending rather than after.
+    if (summary.distanceKm < 0.1) {
+      Alert.alert('Finish now?', 'Under 100 m does not count toward your club.', [
+        { text: 'Keep going', style: 'cancel' },
+        { text: 'Finish', style: 'destructive', onPress: () => finish().catch(() => {}) },
+      ]);
+      return;
+    }
+    finish().catch(() => {});
   };
 
   const done = status === 'saved';
@@ -315,7 +390,13 @@ export function TrackingScreen() {
       </View>
 
       <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
-        {done ? 'Session saved' : running ? 'Recording' : status === 'paused' ? 'Paused' : 'Ready'}
+        {done
+          ? 'Session saved'
+          : running
+          ? 'Recording · screen can lock'
+          : status === 'paused'
+          ? 'Paused'
+          : 'Ready'}
       </Text>
 
       {/*
@@ -439,6 +520,43 @@ export function TrackingScreen() {
         </Card>
       ) : null}
 
+      {status === 'failed' ? (
+        <Card variant="light" padding="base" radius="xl" style={styles.notice}>
+          <Text variant="bodyStrong">GPS did not start</Text>
+          <Text variant="bodySm" tone="muted" style={styles.noticeBody}>
+            Android stopped Flint from starting the recorder. Keep the app open
+            on this screen and try again.
+          </Text>
+        </Card>
+      ) : null}
+
+      {/*
+        Asked before the run, never during it. On several popular Android
+        brands a locked screen kills GPS unless the app is exempted, and the
+        runner finds out at kilometre six otherwise.
+      */}
+      {batteryRestricted && (status === 'idle' || status === 'denied') ? (
+        <Card variant="light" padding="base" radius="xl" style={styles.notice}>
+          <View style={styles.exploredRow}>
+            <BatteryCharging color={theme.colors.accent} size={20} />
+            <View style={styles.flex}>
+              <Text variant="bodyStrong">Keep recording with the screen off</Text>
+              <Text variant="bodySm" tone="muted" style={styles.noticeBody}>
+                Some phones cut GPS to save battery once the screen locks. Set
+                Flint to "Don't optimise" so your whole run counts.
+              </Text>
+            </View>
+          </View>
+          <Button
+            label="Open battery settings"
+            size="sm"
+            variant="outline"
+            onPress={allowBackground}
+            style={styles.noticeAction}
+          />
+        </Card>
+      ) : null}
+
       {saveError ? (
         <Card variant="light" padding="base" radius="xl" style={styles.notice}>
           <Text variant="bodyStrong">Couldn't save that one</Text>
@@ -469,9 +587,9 @@ export function TrackingScreen() {
       ) : null}
 
       <View style={styles.controls}>
-        {status === 'idle' || status === 'denied' ? (
+        {status === 'idle' || status === 'denied' || status === 'failed' ? (
           <Button
-            label={status === 'denied' ? 'Try again' : `Start ${KIND_LABEL[kind].toLowerCase()}`}
+            label={status === 'idle' ? `Start ${KIND_LABEL[kind].toLowerCase()}` : 'Try again'}
             size="lg"
             fullWidth
             onPress={begin}
@@ -504,7 +622,7 @@ export function TrackingScreen() {
               size="lg"
               fullWidth
               variant="ghost"
-              onPress={finish}
+              onPress={confirmFinish}
               iconLeft={<Square color={theme.colors.accent} size={16} />}
             />
           </>
@@ -548,6 +666,7 @@ const styles = StyleSheet.create({
   map: { marginTop: 16 },
   notice: { marginTop: 16 },
   noticeBody: { marginTop: 4 },
+  noticeAction: { marginTop: 12, alignSelf: 'flex-start' },
   section: { marginTop: 28 },
   splits: { rowGap: 10 },
   splitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -34,3 +34,4 @@ export * from './excuses';
 export * from './challenges';
 export * from './repository.challenges';
 export * from './deeplinks';
+export * from './runRecorder';
