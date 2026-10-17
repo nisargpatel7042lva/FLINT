@@ -54,3 +54,4 @@ export * from './WeeklyBars';
 export * from './tour';
 export * from './Logo';
 export * from './ExploredMap';
+export * from './CityMap';

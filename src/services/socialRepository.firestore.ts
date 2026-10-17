@@ -33,6 +33,8 @@ import {
 } from './socialRepository';
 import type { Unsubscribe } from './repository';
 import type { ClubRun } from './clubBoard';
+import type { CityRun } from './city';
+import type { CityPost } from './socialRepository';
 import type { Group, GroupKind } from './types';
 
 /**
@@ -70,6 +72,18 @@ const groupRunsCol = (groupId: string) =>
 /** A busy club's week fits comfortably; the feed shows far fewer. */
 const CLUB_RUNS_LIMIT = 500;
 const groupCodesCol = () => collection(db(), 'groupCodes');
+const cityRunsCol = () => collection(db(), 'cityRuns');
+
+/**
+ * Upper bound on city runs loaded for the map.
+ *
+ * Two weeks of a city's runs. Plenty for a beta across a handful of clubs;
+ * past that the map wants a server-side summary rather than raw runs.
+ */
+const CITY_RUNS_LIMIT = 2000;
+
+/** Cell ids look like `"18530:61540"`. Anything else is ignored, not drawn. */
+const CELL_ID = /^-?\d{1,6}:-?\d{1,7}$/;
 
 const GROUPS_LIMIT = 50;
 /** Draws before giving up on finding a free code. Collisions are ~1 in 10^8. */
@@ -150,6 +164,21 @@ function toDay(value: unknown): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
   ).padStart(2, '0')}`;
+}
+
+function toCityRun(id: string, data: Record<string, unknown>): CityRun {
+  const created = data.createdAt as { toMillis?: () => number } | null | undefined;
+  return {
+    id,
+    uid: String(data.uid ?? ''),
+    clubId: String(data.clubId ?? ''),
+    clubName: String(data.clubName ?? 'A club'),
+    cells: Array.isArray(data.cells)
+      ? data.cells.filter((c): c is string => typeof c === 'string' && CELL_ID.test(c))
+      : [],
+    // A pending server timestamp reads as null until it lands: treat it as now.
+    createdAtMs: created?.toMillis?.() ?? Date.now(),
+  };
 }
 
 function toClubRun(id: string, data: Record<string, unknown>): ClubRun {
@@ -459,7 +488,12 @@ export class FirestoreSocialRepository implements SocialRepository {
     });
   }
 
-  async postRun(uid: string, run: ClubRun, groupIds: string[]): Promise<void> {
+  async postRun(
+    uid: string,
+    run: ClubRun,
+    groupIds: string[],
+    city?: CityPost,
+  ): Promise<void> {
     if (groupIds.length === 0) {
       return;
     }
@@ -479,7 +513,46 @@ export class FirestoreSocialRepository implements SocialRepository {
         createdAt: serverTimestamp(),
       });
     });
+    if (city && city.cells.length > 0) {
+      city.clubs
+        .filter(c => groupIds.includes(c.id))
+        .slice(0, 20)
+        .forEach(c => {
+          batch.set(doc(cityRunsCol(), `${run.id}_${c.id}`), {
+            uid,
+            clubId: c.id,
+            clubName: c.name,
+            cells: city.cells,
+            region: city.region,
+            day: run.day,
+            createdAt: serverTimestamp(),
+          });
+        });
+    }
     await batch.commit();
+  }
+
+  watchCity(
+    regions: string[],
+    sinceMs: number,
+    onChange: (runs: CityRun[]) => void,
+  ): Unsubscribe {
+    if (regions.length === 0) {
+      onChange([]);
+      return () => {};
+    }
+    const q = query(
+      cityRunsCol(),
+      where('region', 'in', regions.slice(0, 30)),
+      where('createdAt', '>=', new Date(sinceMs)),
+      orderBy('createdAt', 'asc'),
+      limit(CITY_RUNS_LIMIT),
+    );
+    return onSnapshot(
+      q,
+      snap => onChange(snap.docs.map(d => toCityRun(d.id, d.data()))),
+      () => onChange([]),
+    );
   }
 
   watchGroupRuns(

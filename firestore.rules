@@ -308,6 +308,63 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    /**
+     * Light up the city: the blocks each club run lit.
+     *
+     * Readable by everyone signed in, because the map is the point — a club
+     * has to see who holds the ground it wants. So what is stored here is the
+     * minimum the map needs, and nothing that finds a person:
+     *
+     *   - blocks (~120 m), not a route, with both ends of the run already cut
+     *     off on the phone so no block marks a front door
+     *   - no distance, pace or time
+     *
+     * Every city run must be accompanied, in the same write, by the club run
+     * it came from (`existsAfter`). That club run has already passed the pace
+     * floor and the server timestamp check, so a block cannot be lit by a run
+     * the club board would have refused — and there is one place, not two, to
+     * get the anti-cheat right.
+     *
+     * Id: `{uid}_{startedAtMs}_{clubId}` — the club run's id plus the club.
+     */
+    match /cityRuns/{cityRunId} {
+      function parts() {
+        return cityRunId.split('_');
+      }
+      function club() {
+        return get(/databases/$(database)/documents/groups/$(request.resource.data.clubId)).data;
+      }
+
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && parts().size() == 3
+        && parts()[0] == request.auth.uid
+        && parts()[1].matches('[0-9]+')
+        && parts()[2] == request.resource.data.clubId
+        && request.resource.data.keys().hasOnly(
+          ['uid', 'clubId', 'clubName', 'cells', 'region', 'day', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.clubId is string
+        // A club, not a squad: squads are private and do not light the city.
+        && club().get('kind', 'squad') == 'club'
+        && request.auth.uid in club().memberIds
+        // The name shown on the map is the club's real name, not a taunt.
+        && request.resource.data.clubName == club().name
+        && request.resource.data.cells is list
+        && request.resource.data.cells.size() > 0
+        && request.resource.data.cells.size() <= 400
+        && request.resource.data.region is string
+        && request.resource.data.region.matches('^-?[0-9]{1,4}:-?[0-9]{1,4}$')
+        && request.resource.data.day is string
+        && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/groups/$(request.resource.data.clubId)/runs/$(parts()[0] + '_' + parts()[1]));
+
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // ── 1:1 challenges ───────────────────────────────────────────────────
     //
     // Everything below is written by Cloud Functions and is read-mostly from

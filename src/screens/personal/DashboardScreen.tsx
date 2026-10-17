@@ -371,7 +371,7 @@ export function DashboardScreen() {
       <SectionHeader
         title="Recent"
         actionLabel="All"
-        onActionPress={() => navigation.navigate('Tabs', { screen: 'History' })}
+        onActionPress={() => navigation.navigate('History')}
         style={styles.section}
       />
       <View style={styles.recent}>

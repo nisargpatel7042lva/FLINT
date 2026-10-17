@@ -16,7 +16,15 @@ jest.mock('react-native-gesture-handler', () => {
   const { View } = require('react-native');
   const noopGesture = () => {
     const g = {};
-    for (const k of ['onBegin', 'onUpdate', 'onEnd', 'onFinalize', 'onStart']) {
+    for (const k of [
+      'onBegin',
+      'onUpdate',
+      'onEnd',
+      'onFinalize',
+      'onStart',
+      'minDistance',
+      'maxDistance',
+    ]) {
       g[k] = () => g;
     }
     return g;
@@ -24,7 +32,7 @@ jest.mock('react-native-gesture-handler', () => {
   return {
     GestureHandlerRootView: View,
     GestureDetector: ({ children }) => children,
-    Gesture: { Pan: noopGesture, Tap: noopGesture },
+    Gesture: { Pan: noopGesture, Tap: noopGesture, Race: noopGesture },
     Directions: {},
     State: {},
   };

@@ -24,9 +24,10 @@ export type MainTabParamList = {
    * already explained.
    */
   Home: { justOnboarded?: boolean } | undefined;
-  Train: undefined;
+  City: undefined;
+  /** Not a screen: the centre button, which opens the run screen. */
+  Run: undefined;
   Squad: undefined;
-  History: undefined;
   Profile: undefined;
 };
 
@@ -104,6 +105,9 @@ export type RootStackParamList = {
   ExerciseDetail: { id: string };
   /** Live GPS session. Defaults to a run when no kind is given. */
   Tracking: { kind: 'run' | 'walk' } | undefined;
+  /** Off the tab bar for v1 — running leads; these stay one tap away. */
+  History: undefined;
+  Train: undefined;
 
   // Social screens, kept reachable but off the tab bar this phase.
   Feed: undefined;

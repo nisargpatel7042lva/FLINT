@@ -25,6 +25,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 
 const ALICE = 'alice';
@@ -878,5 +879,148 @@ describe('excuses', () => {
     await assertFails(
       setDoc(excuseDoc(alice, `${ALICE}_${DAY}`), excuse(ALICE, { reason: 'dog ate it' })),
     );
+  });
+});
+
+describe('city runs', () => {
+  const CLUB = 'clubowls';
+  const SQUAD = 'squadpals';
+  const CAROL = 'carol';
+  const STARTED = 1_790_000_000_000;
+
+  type Db = ReturnType<ReturnType<RulesTestEnvironment['authenticatedContext']>['firestore']>;
+
+  const seed = () =>
+    env.withSecurityRulesDisabled(async ctx => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'groups', CLUB), {
+        name: 'Night Owls',
+        kind: 'club',
+        code: 'OWLS22',
+        ownerUid: ALICE,
+        memberIds: [ALICE, BOB],
+      });
+      await setDoc(doc(db, 'groups', SQUAD), {
+        name: 'Pals',
+        kind: 'squad',
+        code: 'PALS22',
+        ownerUid: ALICE,
+        memberIds: [ALICE],
+      });
+    });
+
+  const clubRun = (uid: string, overrides: Record<string, unknown> = {}) => ({
+    uid,
+    kind: 'run',
+    distanceKm: 5,
+    durationSec: 1800,
+    day: '2026-10-01',
+    createdAt: serverTimestamp(),
+    ...overrides,
+  });
+
+  const cityRun = (uid: string, overrides: Record<string, unknown> = {}) => ({
+    uid,
+    clubId: CLUB,
+    clubName: 'Night Owls',
+    cells: ['18530:61540', '18531:61540'],
+    region: '89:292',
+    day: '2026-10-01',
+    createdAt: serverTimestamp(),
+    ...overrides,
+  });
+
+  /** The club run and the city run, in one batch, as the app writes them. */
+  const post = (
+    db: Db,
+    uid: string,
+    opts: { club?: string; city?: Record<string, unknown>; run?: Record<string, unknown> } = {},
+  ) => {
+    const club = opts.club ?? CLUB;
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'groups', club, 'runs', `${uid}_${STARTED}`), clubRun(uid, opts.run));
+    batch.set(
+      doc(db, 'cityRuns', `${uid}_${STARTED}_${club}`),
+      cityRun(uid, { clubId: club, ...opts.city }),
+    );
+    return batch.commit();
+  };
+
+  it('lets a club member light blocks with a real run', async () => {
+    await seed();
+    await assertSucceeds(post(asAlice(), ALICE));
+  });
+
+  it('lets anyone signed in see the map, and nobody signed out', async () => {
+    await seed();
+    await post(asAlice(), ALICE);
+    const id = `${ALICE}_${STARTED}_${CLUB}`;
+    const carol = env.authenticatedContext(CAROL).firestore();
+    await assertSucceeds(getDoc(doc(carol, 'cityRuns', id)));
+    await assertFails(getDoc(doc(asAnon(), 'cityRuns', id)));
+  });
+
+  it('refuses blocks with no club run behind them', async () => {
+    await seed();
+    await assertFails(
+      setDoc(doc(asAlice(), 'cityRuns', `${ALICE}_${STARTED}_${CLUB}`), cityRun(ALICE)),
+    );
+  });
+
+  it('refuses blocks lit by a run the club board would refuse', async () => {
+    await seed();
+    // 10 km in 15 minutes: a car.
+    await assertFails(post(asAlice(), ALICE, { run: { distanceKm: 10, durationSec: 900 } }));
+  });
+
+  it('refuses lighting blocks for a club you are not in', async () => {
+    await seed();
+    const carol = env.authenticatedContext(CAROL).firestore();
+    await assertFails(post(carol, CAROL));
+  });
+
+  it('refuses lighting blocks for a squad', async () => {
+    await seed();
+    await assertFails(
+      post(asAlice(), ALICE, { club: SQUAD, city: { clubName: 'Pals' } }),
+    );
+  });
+
+  it('refuses a made-up club name on the map', async () => {
+    await seed();
+    await assertFails(post(asAlice(), ALICE, { city: { clubName: 'Owls are slow' } }));
+  });
+
+  it('refuses lighting blocks as somebody else', async () => {
+    await seed();
+    const db = asBob();
+    const b = writeBatch(db);
+    b.set(doc(db, 'groups', CLUB, 'runs', `${BOB}_${STARTED}`), clubRun(BOB));
+    // Bob's run, but the city run claims Alice.
+    b.set(doc(db, 'cityRuns', `${BOB}_${STARTED}_${CLUB}`), cityRun(ALICE));
+    await assertFails(b.commit());
+  });
+
+  it('refuses extra fields, like a route', async () => {
+    await seed();
+    await assertFails(
+      post(asAlice(), ALICE, { city: { route: [22.3, 73.1, 22.31, 73.1] } }),
+    );
+  });
+
+  it('refuses an empty run and an oversized one', async () => {
+    await seed();
+    await assertFails(post(asAlice(), ALICE, { city: { cells: [] } }));
+    const huge = Array.from({ length: 401 }, (_, i) => `1:${i}`);
+    await assertFails(post(asAlice(), ALICE, { city: { cells: huge } }));
+  });
+
+  it('never lets a city run be edited, only deleted by its runner', async () => {
+    await seed();
+    await post(asAlice(), ALICE);
+    const id = `${ALICE}_${STARTED}_${CLUB}`;
+    await assertFails(updateDoc(doc(asAlice(), 'cityRuns', id), { cells: ['1:1'] }));
+    await assertFails(deleteDoc(doc(asBob(), 'cityRuns', id)));
+    await assertSucceeds(deleteDoc(doc(asAlice(), 'cityRuns', id)));
   });
 });

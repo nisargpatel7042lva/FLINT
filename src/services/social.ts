@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { CURRENT_USER_ID, GROUPS, MEMBERS, TODAY } from './mockData';
 import type { ClubRun } from './clubBoard';
+import type { CityRun } from './city';
 import type { Group, GroupKind, Member } from './types';
 
 /**
@@ -65,7 +66,11 @@ export type SocialState = {
   pokes: Poke[];
   /** Runs posted to each group, by group id. Device-local mode only. */
   groupRuns: Record<string, ClubRun[]>;
+  /** City runs with their region. Device-local mode only. */
+  cityRuns: LocalCityRun[];
 };
+
+export type LocalCityRun = CityRun & { region: string };
 
 const KEY = 'kasrat.social.v1';
 
@@ -137,6 +142,7 @@ function seed(): SocialState {
       },
     ],
     groupRuns: {},
+    cityRuns: [],
   };
 }
 
@@ -206,6 +212,7 @@ class SocialStore {
                 parsed.groupRuns && typeof parsed.groupRuns === 'object'
                   ? parsed.groupRuns
                   : {},
+              cityRuns: Array.isArray(parsed.cityRuns) ? parsed.cityRuns : [],
             };
           }
         } catch {
@@ -321,6 +328,16 @@ class SocialStore {
       }
     });
     this.commit({ ...this.state, groupRuns });
+  }
+
+  /** Lights the local map. Two weeks is all the map ever reads. */
+  postCityRuns(runs: LocalCityRun[]) {
+    const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const fresh = runs.filter(r => !this.state.cityRuns.some(e => e.id === r.id));
+    this.commit({
+      ...this.state,
+      cityRuns: [...this.state.cityRuns.filter(r => r.createdAtMs >= since), ...fresh],
+    });
   }
 
   addFriend(memberId: string) {

@@ -1,11 +1,11 @@
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { CalendarDays, Dumbbell, House, User, Users } from 'lucide-react-native';
+import { House, Map, Play, User, Users } from 'lucide-react-native';
 
 import { DashboardScreen } from '../screens/personal/DashboardScreen';
-import { TrainScreen } from '../screens/personal/TrainScreen';
-import { HistoryScreen } from '../screens/personal/HistoryScreen';
+import { CityScreen } from '../screens/city/CityScreen';
 import { ProfileScreen } from '../screens/personal/ProfileScreen';
 import { GroupsScreen } from '../screens/social/GroupsScreen';
 import { FlintTabBar } from './FlintTabBar';
@@ -20,12 +20,19 @@ type TabIconProps = { color: string; size: number };
  * slides one element between tabs instead of toggling a background per item.
  */
 const HomeIcon = ({ color, size }: TabIconProps) => <House color={color} size={size} />;
-const TrainIcon = ({ color, size }: TabIconProps) => (
-  <Dumbbell color={color} size={size} />
+const CityIcon = ({ color, size }: TabIconProps) => <Map color={color} size={size} />;
+/**
+ * White, not accent: the accent pill marks where you are, and this is not a
+ * place — it is the one button on the bar that starts something.
+ */
+const RunIcon = ({ size }: TabIconProps) => (
+  <View style={styles.runButton}>
+    <Play color="#FF6B1A" fill="#FF6B1A" size={size - 3} />
+  </View>
 );
-const HistoryIcon = ({ color, size }: TabIconProps) => (
-  <CalendarDays color={color} size={size} />
-);
+
+/** The Run tab never becomes the current tab; it opens the run screen. */
+const Nothing = () => null;
 const SquadIcon = ({ color, size }: TabIconProps) => <Users color={color} size={size} />;
 const ProfileIcon = ({ color, size }: TabIconProps) => <User color={color} size={size} />;
 
@@ -50,19 +57,25 @@ export function TabNavigator() {
         options={{ tabBarAccessibilityLabel: 'Home', tabBarIcon: HomeIcon }}
       />
       <Tab.Screen
-        name="Train"
-        component={TrainScreen}
-        options={{ tabBarAccessibilityLabel: 'Train', tabBarIcon: TrainIcon }}
+        name="City"
+        component={CityScreen}
+        options={{ tabBarAccessibilityLabel: 'City map', tabBarIcon: CityIcon }}
+      />
+      <Tab.Screen
+        name="Run"
+        component={Nothing}
+        options={{ tabBarAccessibilityLabel: 'Start a run', tabBarIcon: RunIcon }}
+        listeners={({ navigation }) => ({
+          tabPress: e => {
+            e.preventDefault();
+            navigation.getParent()?.navigate('Tracking', { kind: 'run' });
+          },
+        })}
       />
       <Tab.Screen
         name="Squad"
         component={GroupsScreen}
         options={{ tabBarAccessibilityLabel: 'Clubs', tabBarIcon: SquadIcon }}
-      />
-      <Tab.Screen
-        name="History"
-        component={HistoryScreen}
-        options={{ tabBarAccessibilityLabel: 'History', tabBarIcon: HistoryIcon }}
       />
       <Tab.Screen
         name="Profile"
@@ -72,3 +85,14 @@ export function TabNavigator() {
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  runButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

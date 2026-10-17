@@ -33,7 +33,9 @@ import {
   formatDuration,
   formatPace,
   checkPlausible,
+  cityCellsForRun,
   judge,
+  regionForRun,
   kcalFor,
   loadRuns,
   predict,
@@ -312,12 +314,15 @@ export function TrackingScreen() {
       } else {
         saveRun(record).catch(() => {});
         if (groups.length > 0) {
+          const cells = cityCellsForRun(final.segments);
+          const region = regionForRun(final.segments);
           postRun({
             startedAtMs: startedAt.current,
             kind: record.kind,
             distanceKm: record.distanceKm,
             durationSec: record.durationSec,
             day: record.day,
+            city: cells.length > 0 && region ? { cells, region } : undefined,
           })
             .then(() => setClubPost({ state: 'posted', names: groups.map(g => g.name) }))
             .catch(() => setClubPost({ state: 'failed' }));
@@ -633,7 +638,7 @@ export function TrackingScreen() {
             label="Done"
             size="lg"
             fullWidth
-            onPress={() => navigation.navigate('Tabs', { screen: 'History' })}
+            onPress={() => navigation.navigate('Tabs', { screen: 'City' })}
             iconLeft={<Check color={theme.colors.onAccent} size={18} />}
           />
         ) : null}

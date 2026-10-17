@@ -1,6 +1,7 @@
 import { CODE_ALPHABET, type Poke, type PokeKind } from './social';
 import type { Unsubscribe } from './repository';
 import type { ClubRun } from './clubBoard';
+import type { CityRun } from './city';
 import type { Group, GroupKind } from './types';
 
 /**
@@ -111,7 +112,20 @@ export interface SocialRepository {
    * — tops out at 30 members per Firestore `in` clause, which is smaller than
    * a single Saturday run club.
    */
-  postRun(uid: string, run: ClubRun, groupIds: string[]): Promise<void>;
+  /**
+   * Posts a run to clubs, and lights the city with it when `city` is given.
+   *
+   * One write: the city run is only accepted alongside the club run it came
+   * from, so the two can never disagree.
+   */
+  postRun(uid: string, run: ClubRun, groupIds: string[], city?: CityPost): Promise<void>;
+
+  /** City runs in these regions since `sinceMs`. */
+  watchCity(
+    regions: string[],
+    sinceMs: number,
+    onChange: (runs: CityRun[]) => void,
+  ): Unsubscribe;
 
   /** A group's runs from `sinceDay` on, newest first. */
   watchGroupRuns(
@@ -129,6 +143,13 @@ export interface SocialRepository {
  * either way and the screen could not tell the difference, so re-entering your
  * own code read as a fresh join.
  */
+/** What a run adds to the map. Only clubs (not squads) light blocks. */
+export type CityPost = {
+  cells: string[];
+  region: string;
+  clubs: Array<{ id: string; name: string }>;
+};
+
 export type JoinResult =
   | { state: 'joined'; group: Group }
   | { state: 'already'; group: Group }

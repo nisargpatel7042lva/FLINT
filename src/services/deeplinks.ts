@@ -78,11 +78,12 @@ export const linkingConfig: LinkingOptions<RootStackParamList> = {
       ChallengeDetail: 'challenge/:challengeId',
       // The run screen. Also where the "run in progress" notification lands.
       Tracking: 'run/:kind?',
+      History: 'history',
+      Train: 'train',
       Tabs: {
         screens: {
           Home: '',
-          Train: 'train',
-          History: 'history',
+          City: 'city',
           Profile: 'profile',
         },
       },

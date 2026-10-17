@@ -35,3 +35,5 @@ export * from './challenges';
 export * from './repository.challenges';
 export * from './deeplinks';
 export * from './runRecorder';
+export * from './city';
+export * from './mercator';

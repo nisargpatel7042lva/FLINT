@@ -11,6 +11,8 @@ import { runId } from '../services/runs';
 /** A finished run before it has a poster: the id is derived from their uid. */
 export type ClubRunDraft = Omit<ClubRun, 'id' | 'uid' | 'createdAt'> & {
   startedAtMs: number;
+  /** The blocks this run lights, already trimmed for privacy. */
+  city?: { cells: string[]; region: string };
 };
 
 export type SocialApi = {
@@ -217,7 +219,7 @@ export function useSocial(): SocialApi {
    * there.
    */
   const postRun = useCallback(
-    async ({ startedAtMs, ...run }: ClubRunDraft) => {
+    async ({ startedAtMs, city, ...run }: ClubRunDraft) => {
       const uidNow = uidRef.current || (await ensureSignedIn()).uid;
       const ids = groups.map(g => g.id);
       if (ids.length === 0) {
@@ -232,6 +234,15 @@ export function useSocial(): SocialApi {
           createdAt: new Date().toISOString(),
         },
         ids,
+        city
+          ? {
+              ...city,
+              // Clubs light the city; squads are private and do not.
+              clubs: groups
+                .filter(g => g.kind === 'club')
+                .map(g => ({ id: g.id, name: g.name })),
+            }
+          : undefined,
       );
       return ids.length;
     },

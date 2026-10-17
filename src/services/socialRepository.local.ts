@@ -9,6 +9,8 @@ import {
 } from './socialRepository';
 import type { Unsubscribe } from './repository';
 import type { ClubRun } from './clubBoard';
+import type { CityRun } from './city';
+import type { CityPost } from './socialRepository';
 import type { Group, GroupKind } from './types';
 
 /**
@@ -141,8 +143,40 @@ export class LocalSocialRepository implements SocialRepository {
    * every other method here ignores the uid it is handed: on this device the
    * fixture user IS the signed-in user.
    */
-  async postRun(_uid: string, run: ClubRun, groupIds: string[]): Promise<void> {
+  async postRun(
+    _uid: string,
+    run: ClubRun,
+    groupIds: string[],
+    city?: CityPost,
+  ): Promise<void> {
     socialStore.postRun({ ...run, uid: CURRENT_USER_ID }, groupIds);
+    if (city && city.cells.length > 0) {
+      socialStore.postCityRuns(
+        city.clubs
+          .filter(c => groupIds.includes(c.id))
+          .map(c => ({
+            id: `${run.id}_${c.id}`,
+            uid: CURRENT_USER_ID,
+            clubId: c.id,
+            clubName: c.name,
+            cells: city.cells,
+            region: city.region,
+            createdAtMs: Date.now(),
+          })),
+      );
+    }
+  }
+
+  watchCity(
+    regions: string[],
+    sinceMs: number,
+    onChange: (runs: CityRun[]) => void,
+  ): Unsubscribe {
+    return socialStore.subscribe(s =>
+      onChange(
+        s.cityRuns.filter(r => regions.includes(r.region) && r.createdAtMs >= sinceMs),
+      ),
+    );
   }
 
   watchGroupRuns(

@@ -40,16 +40,20 @@ export type CellId = string;
  *
  * A degree of longitude shrinks toward the poles, so a fixed degree step would
  * make cells progressively narrower the further north you go — 120m tall and
- * 60m wide in Norway. Deriving the step from the row's own latitude keeps every
- * cell roughly square wherever somebody is running.
+ * 60m wide in Norway. Scaling the step by latitude keeps cells roughly square
+ * wherever somebody is running.
  *
- * The row's CENTRE is used rather than the point's own latitude, so every point
- * inside a row agrees on the column boundaries. Using the point's latitude
- * would put two people standing side by side in different columns.
+ * The scale is taken from the middle of the row's whole-degree BAND, not from
+ * the row itself. Column boundaries are `col × step`, and with a column index
+ * in the tens of thousands even a tiny difference in step between neighbouring
+ * rows shifts their boundaries by a large fraction of a block — the grid comes
+ * out staggered like brickwork, and "blocks" stop lining up with each other.
+ * One step per band keeps the columns straight for ~111 km at a time; inside a
+ * band the width varies by under 1%.
  */
 function lonStepForRow(row: number): number {
-  const rowCentreLat = (row + 0.5) * LAT_STEP;
-  const cos = Math.cos((rowCentreLat * Math.PI) / 180);
+  const bandLat = Math.floor((row + 0.5) * LAT_STEP) + 0.5;
+  const cos = Math.cos((bandLat * Math.PI) / 180);
   // Guard the poles, where cos approaches zero and the step would explode.
   return LAT_STEP / Math.max(cos, 0.01);
 }
@@ -103,7 +107,8 @@ export function cellsForTrack(segments: Segment[]): Set<CellId> {
 /** Cell id → number of separate sessions that touched it. */
 export type ExploredCells = Record<CellId, number>;
 
-const KEY = 'kasrat.exploration.v1';
+// v2: the grid's columns changed (see lonStepForRow); v1 ids no longer line up.
+const KEY = 'kasrat.exploration.v2';
 
 /**
  * Upper bound on stored cells.

@@ -42,6 +42,8 @@ import {
   TeamWarScreen,
   TimeBudgetScreen,
   TrackingScreen,
+  HistoryScreen,
+  TrainScreen,
   TrainingPlaceScreen,
   TrainingPreferencesScreen,
   WorkoutDetailScreen,
@@ -160,6 +162,8 @@ export function RootNavigator() {
         {/* Personal tracking loop. */}
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
         <Stack.Screen name="Tracking" component={TrackingScreen} />
+        <Stack.Screen name="History" component={HistoryScreen} />
+        <Stack.Screen name="Train" component={TrainScreen} />
         <Stack.Screen name="Explored" component={ExploredScreen} />
 
         {/* Exercise library — 873 movements, bundled and offline. */}
