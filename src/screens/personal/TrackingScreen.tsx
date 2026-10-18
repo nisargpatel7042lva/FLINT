@@ -29,7 +29,7 @@ import {
   loadExplored,
   recordTrack,
   saveExplored,
-  TRAINING_TODAY,
+  todayKey,
   formatDuration,
   formatPace,
   checkPlausible,
@@ -304,7 +304,9 @@ export function TrackingScreen() {
         kind,
         distanceKm: Math.round(final.distanceKm * 100) / 100,
         durationSec: Math.max(1, finalElapsed),
-        day: TRAINING_TODAY,
+        // Read now, not at app start: a run that finishes after midnight in a
+        // session opened yesterday must not be filed under yesterday.
+        day: todayKey(),
         startedAt: new Date(startedAt.current).toISOString(),
       };
       const verdict = checkPlausible(record);
@@ -332,7 +334,7 @@ export function TrackingScreen() {
 
     const minutes = Math.max(1, Math.round(finalElapsed / 60));
     addSession({
-      day: TRAINING_TODAY,
+      day: todayKey(),
       title:
         final.distanceKm > 0
           ? `${final.distanceKm.toFixed(2)} km ${KIND_LABEL[kind]}`

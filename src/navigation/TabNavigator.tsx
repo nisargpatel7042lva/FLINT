@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { House, Map, Play, User, Users } from 'lucide-react-native';
 
-import { DashboardScreen } from '../screens/personal/DashboardScreen';
+import { RunHomeScreen } from '../screens/home/RunHomeScreen';
 import { CityScreen } from '../screens/city/CityScreen';
 import { ProfileScreen } from '../screens/personal/ProfileScreen';
 import { GroupsScreen } from '../screens/social/GroupsScreen';
@@ -53,7 +53,7 @@ export function TabNavigator() {
       screenOptions={{ headerShown: false, tabBarShowLabel: false }}>
       <Tab.Screen
         name="Home"
-        component={DashboardScreen}
+        component={RunHomeScreen}
         options={{ tabBarAccessibilityLabel: 'Home', tabBarIcon: HomeIcon }}
       />
       <Tab.Screen

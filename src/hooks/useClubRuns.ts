@@ -48,6 +48,13 @@ export function useClubRuns(groupId: string, uid: string): ClubRunsState {
   const [seenReady, setSeenReady] = useState(false);
 
   useEffect(() => {
+    // No club yet (Home before joining one): nothing to watch, and an empty
+    // id would be an invalid Firestore path.
+    if (!groupId) {
+      setRuns([]);
+      setLoading(false);
+      return;
+    }
     const unsub = repo.watchGroupRuns(groupId, weekStart, next => {
       setRuns(next);
       setLoading(false);
