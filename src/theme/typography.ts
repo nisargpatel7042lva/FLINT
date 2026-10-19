@@ -35,6 +35,27 @@ export const fontWeight = {
  * numerals. Everything else is clean sans for body and UI chrome.
  */
 export const typography = {
+  /**
+   * The live run's distance, and the countdown. Read at arm's length while
+   * moving, so it is as big as the screen allows: condensed, italic, black.
+   */
+  hero: {
+    fontFamily: fontFamily.condensed,
+    fontSize: 120,
+    lineHeight: 124,
+    fontWeight: fontWeight.black,
+    fontStyle: 'italic',
+    letterSpacing: -4,
+    fontVariant: ['tabular-nums'],
+  },
+  /** The 3-2-1 before a run: one digit, filling the screen. */
+  countdown: {
+    fontFamily: fontFamily.condensed,
+    fontSize: 240,
+    lineHeight: 250,
+    fontWeight: fontWeight.black,
+    fontStyle: 'italic',
+  },
   displayLg: {
     fontFamily: fontFamily.display,
     fontSize: 44,

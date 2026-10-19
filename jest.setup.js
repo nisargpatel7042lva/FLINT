@@ -68,6 +68,7 @@ jest.mock('@react-native-firebase/firestore', () => ({
   getDoc: jest.fn(),
   getDocs: jest.fn(),
   setDoc: jest.fn(),
+  addDoc: jest.fn(),
   onSnapshot: jest.fn(),
   query: jest.fn(),
   orderBy: jest.fn(),
@@ -122,4 +123,11 @@ jest.mock('@react-native-async-storage/async-storage', () => {
       }),
     },
   };
+});
+
+/** Native share sheet and view capture: neither exists in a JS test run. */
+jest.mock('react-native-share', () => ({ open: jest.fn(() => Promise.resolve({})) }));
+jest.mock('react-native-view-shot', () => {
+  const { View } = require('react-native');
+  return { __esModule: true, default: View, captureRef: jest.fn() };
 });

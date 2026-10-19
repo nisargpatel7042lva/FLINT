@@ -353,3 +353,56 @@ export function formatPace(paceMinPerKm: number | null): string {
   const carry = secs === 60;
   return `${carry ? mins + 1 : mins}:${String(carry ? 0 : secs).padStart(2, '0')} /km`;
 }
+
+// ── Waiting for a fix ──────────────────────────────────────────────────────
+
+/** Good enough to start on: a city block is 120 m, this is a sixth of one. */
+export const GOOD_FIX_M = 20;
+
+export type FixResult = { ok: true; accuracy: number } | { ok: false; accuracy: number | null };
+
+/**
+ * Waits until GPS is accurate enough to start a run, or gives up.
+ *
+ * Starting on the first fix is how a run begins with a 300 m jump from where
+ * the phone last knew it was. Waiting a few seconds for a real fix costs less
+ * than the filter having to guess which points to throw away. Reports the
+ * accuracy as it improves, so the screen can say "almost there".
+ */
+export function waitForFix(
+  timeoutMs: number,
+  onAccuracy?: (metres: number) => void,
+): { promise: Promise<FixResult>; cancel: () => void } {
+  let best: number | null = null;
+  let settle: (r: FixResult) => void = () => {};
+  const promise = new Promise<FixResult>(resolve => {
+    settle = resolve;
+  });
+
+  const watchId = Geolocation.watchPosition(
+    pos => {
+      const acc = pos.coords.accuracy ?? 9999;
+      best = best === null ? acc : Math.min(best, acc);
+      onAccuracy?.(acc);
+      if (acc <= GOOD_FIX_M) {
+        finish({ ok: true, accuracy: acc });
+      }
+    },
+    () => {},
+    { enableHighAccuracy: true, distanceFilter: 0, interval: 1000, fastestInterval: 500 },
+  );
+  const timer = setTimeout(() => finish({ ok: false, accuracy: best }), timeoutMs);
+
+  let done = false;
+  function finish(r: FixResult) {
+    if (done) {
+      return;
+    }
+    done = true;
+    clearTimeout(timer);
+    Geolocation.clearWatch(watchId);
+    settle(r);
+  }
+
+  return { promise, cancel: () => finish({ ok: false, accuracy: best }) };
+}

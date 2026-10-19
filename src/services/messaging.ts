@@ -122,3 +122,26 @@ export function registerBackgroundHandler() {
     // display. Nothing to do here yet beyond acknowledging delivery.
   });
 }
+
+/**
+ * Re-registers the push token on launch, without ever prompting.
+ *
+ * Tokens change after reinstalls and restores. If permission was already
+ * given, the fresh token is stored; if not, nothing is asked here — asking is
+ * the alerts screen's job, where the reason is on screen.
+ */
+export async function refreshPushToken(userId: string): Promise<void> {
+  if (!isFirebaseConfigured() || !userId) {
+    return;
+  }
+  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+    const granted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    );
+    if (!granted) {
+      return;
+    }
+  }
+  const token = await getToken(getMessaging(requireFirebase()));
+  await getRepository().upsertProfile(userId, { fcmToken: token });
+}

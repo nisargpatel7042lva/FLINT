@@ -1,15 +1,32 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, StyleSheet, View } from 'react-native';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Alert,
+  AppState,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import RNShare from 'react-native-share';
+import type { ViewShotRef } from 'react-native-view-shot';
+import {
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import {
   ArrowLeft,
   BatteryCharging,
+  Share2,
   Check,
   Compass,
   Footprints,
-  Pause,
   Play,
-  Square,
   Zap,
 } from 'lucide-react-native';
 
@@ -31,9 +48,9 @@ import {
   saveExplored,
   todayKey,
   formatDuration,
-  formatPace,
   checkPlausible,
   cityCellsForRun,
+  clubColour,
   judge,
   regionForRun,
   kcalFor,
@@ -49,6 +66,9 @@ import {
   openBatterySettings,
   resumeActiveRun,
   startRun,
+  requestLocationPermission,
+  askForNotifications,
+  waitForFix,
   type LiveRun,
   type RunKind,
   type TrackSummary,
@@ -56,10 +76,35 @@ import {
 import { useProfile, useSessions, useSocial } from '../../hooks';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme, useThemeContext } from '../../theme';
+import { Countdown } from './run/Countdown';
+import { LiveRunView } from './run/LiveRunView';
+import { RunShareCard } from './run/RunShareCard';
+
+/**
+ * A save failure, said so a tester knows what to do.
+ *
+ * The run itself is always kept on the phone first; what failed is the copy
+ * to the server. Saying "permission-denied" makes people think the run is lost.
+ */
+function saveErrorMessage(e: unknown): string {
+  const code = (e as { code?: string } | null)?.code ?? '';
+  if (code.includes('unavailable') || code.includes('network')) {
+    return 'Your run is saved on this phone. It will sync when you are back online.';
+  }
+  if (code.includes('permission-denied') || code.includes('unauthenticated')) {
+    return 'Your run is saved on this phone, but the server refused the copy. Tap Report a problem in your profile so we can fix it.';
+  }
+  return 'Your run is saved on this phone, but did not reach the server. Try again later.';
+}
 
 type Status =
   | 'loading'
   | 'idle'
+  /** Waiting for a GPS fix good enough to start on. */
+  | 'acquiring'
+  /** GPS never got good enough; the runner decides. */
+  | 'weakGps'
+  | 'countdown'
   | 'starting'
   | 'running'
   | 'paused'
@@ -135,11 +180,42 @@ export function TrackingScreen() {
     | null
   >(null);
   /** What this session added to the explored map, filled in on finish. */
-  const [explored, setExplored] = useState<{ discovered: number; text: string } | null>(
-    null,
-  );
+  const [explored, setExplored] = useState<{
+    discovered: number;
+    text: string;
+  } | null>(null);
 
   const live = useRef<LiveRun | null>(null);
+  const shareRef = useRef<ViewShotRef>(null);
+  /** Blocks this run lit, trimmed for privacy: what the share card draws. */
+  const [lit, setLit] = useState<string[]>([]);
+  const { width: screenW } = useWindowDimensions();
+  const cardWidth = Math.min(420, screenW - 48);
+  const clubs = useMemo(() => groups.filter(g => g.kind === 'club'), [groups]);
+  const clubColourFor = clubs[0]
+    ? clubColour(clubs[0].id)
+    : theme.colors.accent;
+
+  const shareRun = async () => {
+    const uri = await shareRef.current?.capture?.();
+    if (!uri) {
+      return;
+    }
+    const n = lit.length;
+    await RNShare.open({
+      url: uri.startsWith('file://') ? uri : `file://${uri}`,
+      type: 'image/png',
+      message:
+        n > 0
+          ? `Lit ${n} block${n === 1 ? '' : 's'}${
+              clubs[0] ? ` for ${clubs[0].name}` : ''
+            } on Flint. Come run with us: https://use-flint.vercel.app`
+          : `${summary.distanceKm.toFixed(
+              2,
+            )} km on Flint. https://use-flint.vercel.app`,
+      failOnCancel: false,
+    });
+  };
   const [batteryRestricted, setBatteryRestricted] = useState(false);
 
   const running = status === 'running';
@@ -216,7 +292,35 @@ export function TrackingScreen() {
     return () => sub.remove();
   }, [refresh]);
 
+  /** The fix wait in progress, so leaving the screen can stop it. */
+  const fixWait = useRef<{ cancel: () => void } | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  useEffect(() => () => fixWait.current?.cancel(), []);
+
+  /*
+   * Start, step one: a usable fix.
+   *
+   * Permission first (the wait needs it), then up to 25 seconds for GPS to
+   * settle. A good fix goes straight to the countdown; a weak one asks, rather
+   * than silently starting a run whose first point is in the wrong street.
+   */
   const begin = useCallback(async () => {
+    if (!(await requestLocationPermission())) {
+      setStatus('denied');
+      return;
+    }
+    await askForNotifications();
+    setAccuracy(null);
+    setStatus('acquiring');
+    const wait = waitForFix(25_000, setAccuracy);
+    fixWait.current = wait;
+    const fix = await wait.promise;
+    fixWait.current = null;
+    setStatus(s => (s !== 'acquiring' ? s : fix.ok ? 'countdown' : 'weakGps'));
+  }, []);
+
+  /** Start, step two: after the countdown, the recorder itself. */
+  const startRecording = useCallback(async () => {
     setStatus('starting');
     const result = await startRun(kind);
     if (!result.ok) {
@@ -260,16 +364,21 @@ export function TrackingScreen() {
     // Indoors or with no fix yet, distance is 0 and a time-based estimate is
     // the only thing left that is not simply a lie. With a body weight on the
     // profile that estimate is MET-scaled rather than a flat guess.
-    return fromDistance > 0 ? fromDistance : kcalFor(profile, elapsed / 60, kind);
+    return fromDistance > 0
+      ? fromDistance
+      : kcalFor(profile, elapsed / 60, kind);
   }, [summary.distanceKm, elapsed, kind, profile]);
 
   const finish = async () => {
     const run = live.current;
-    const finalElapsed = run ? movingSeconds(run.status(), Date.now()) : elapsed;
+    const finalElapsed = run
+      ? movingSeconds(run.status(), Date.now())
+      : elapsed;
     const final = run ? await run.finish() : summary;
     live.current = null;
     setElapsed(finalElapsed);
     setSummary(final);
+    setLit(cityCellsForRun(final.segments));
     setStatus('saved');
 
     /*
@@ -281,7 +390,10 @@ export function TrackingScreen() {
      */
     loadExplored()
       .then(current => {
-        const { discovered, revisited, next } = recordTrack(current, final.segments);
+        const { discovered, revisited, next } = recordTrack(
+          current,
+          final.segments,
+        );
         setExplored({
           discovered: discovered.length,
           text: explorationSummary(discovered.length, revisited.length),
@@ -326,7 +438,9 @@ export function TrackingScreen() {
             day: record.day,
             city: cells.length > 0 && region ? { cells, region } : undefined,
           })
-            .then(() => setClubPost({ state: 'posted', names: groups.map(g => g.name) }))
+            .then(() =>
+              setClubPost({ state: 'posted', names: groups.map(g => g.name) }),
+            )
             .catch(() => setClubPost({ state: 'failed' }));
         }
       }
@@ -345,23 +459,56 @@ export function TrackingScreen() {
       // everywhere that reads completion as a ratio.
       completedSets: 1,
       totalSets: 1,
-      kcal: final.distanceKm > 0 ? Math.round(final.distanceKm * KCAL_PER_KM[kind]) : kcal,
-    }).catch(e => setSaveError(e instanceof Error ? e.message : String(e)));
+      kcal:
+        final.distanceKm > 0
+          ? Math.round(final.distanceKm * KCAL_PER_KM[kind])
+          : kcal,
+    }).catch(e => setSaveError(saveErrorMessage(e)));
   };
 
   const confirmFinish = () => {
     // Under 100 m nothing is posted, so say so before ending rather than after.
+    // The hold already proved intent for a real run; this catches the false start.
     if (summary.distanceKm < 0.1) {
-      Alert.alert('Finish now?', 'Under 100 m does not count toward your club.', [
-        { text: 'Keep going', style: 'cancel' },
-        { text: 'Finish', style: 'destructive', onPress: () => finish().catch(() => {}) },
-      ]);
+      Alert.alert(
+        'Finish now?',
+        'Under 100 m does not count toward your club.',
+        [
+          { text: 'Keep going', style: 'cancel' },
+          {
+            text: 'Finish',
+            style: 'destructive',
+            onPress: () => finish().catch(() => {}),
+          },
+        ],
+      );
       return;
     }
     finish().catch(() => {});
   };
 
   const done = status === 'saved';
+
+  if (status === 'countdown') {
+    return <Countdown onDone={startRecording} />;
+  }
+
+  if (recording) {
+    return (
+      <LiveRunView
+        summary={summary}
+        elapsed={elapsed}
+        kcal={kcal}
+        paused={status === 'paused'}
+        kind={kind}
+        onTogglePause={() => {
+          togglePause().catch(() => {});
+        }}
+        onFinish={confirmFinish}
+        onMinimise={() => navigation.goBack()}
+      />
+    );
+  }
 
   /* Judged only when the run is real and was not refused as implausible. */
   const call = done ? lockedPrediction.current : prediction;
@@ -377,7 +524,8 @@ export function TrackingScreen() {
           accessibilityLabel="Go back"
           variant="muted"
           size="md"
-          onPress={() => navigation.goBack()}>
+          onPress={() => navigation.goBack()}
+        >
           <ArrowLeft color={theme.colors.text} size={20} />
         </IconButton>
         <Chip
@@ -385,7 +533,10 @@ export function TrackingScreen() {
           variant={running ? 'accent' : 'muted'}
           icon={
             kind === 'run' ? (
-              <Zap color={running ? theme.colors.onAccent : theme.colors.textMuted} size={14} />
+              <Zap
+                color={running ? theme.colors.onAccent : theme.colors.textMuted}
+                size={14}
+              />
             ) : (
               <Footprints
                 color={running ? theme.colors.onAccent : theme.colors.textMuted}
@@ -399,10 +550,8 @@ export function TrackingScreen() {
       <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
         {done
           ? 'Session saved'
-          : running
-          ? 'Recording · screen can lock'
-          : status === 'paused'
-          ? 'Paused'
+          : status === 'acquiring' || status === 'weakGps'
+          ? 'Getting ready'
           : 'Ready'}
       </Text>
 
@@ -416,63 +565,68 @@ export function TrackingScreen() {
           variant={verdict?.beaten ? 'accent' : 'light'}
           padding="base"
           radius="xl"
-          style={styles.call}>
+          style={styles.call}
+        >
           <Text
             variant="label"
             tone={verdict?.beaten ? 'onAccent' : 'accent'}
-            uppercase>
-            {verdict ? (verdict.beaten ? 'Proved us wrong' : 'Our call stood') : 'Our call'}
+            uppercase
+          >
+            {verdict
+              ? verdict.beaten
+                ? 'Proved us wrong'
+                : 'Our call stood'
+              : 'Our call'}
           </Text>
           <Text
             variant="bodyStrong"
             tone={verdict?.beaten ? 'onAccent' : 'default'}
-            style={styles.callText}>
+            style={styles.callText}
+          >
             {verdict ? verdictLine(verdict, tone) : predictionLine(call, tone)}
           </Text>
         </Card>
       ) : null}
 
-      {/* Distance leads. It is the number people repeat to themselves. */}
-      <View style={styles.headline}>
-        <Text variant="displayLg">{summary.distanceKm.toFixed(2)}</Text>
-        <Text variant="h2" tone="muted" style={styles.unit}>
-          km
-        </Text>
-      </View>
-
-      <Card variant="dark" padding="base" radius="xxl" style={styles.stats}>
-        <View style={styles.statRow}>
-          <View style={styles.stat}>
-            <Text variant="label" tone="inverseMuted" uppercase>
-              Time
-            </Text>
-            <Text variant="statSm" tone="inverse" style={styles.statValue}>
-              {formatDuration(elapsed)}
-            </Text>
-          </View>
-          <View style={styles.stat}>
-            <Text variant="label" tone="inverseMuted" uppercase>
-              Pace
-            </Text>
-            <Text variant="statSm" tone="inverse" style={styles.statValue}>
-              {formatPace(summary.paceMinPerKm)}
-            </Text>
-          </View>
-          <View style={styles.stat}>
-            <Text variant="label" tone="inverseMuted" uppercase>
-              Kcal
-            </Text>
-            <Text variant="statSm" tone="inverse" style={styles.statValue}>
-              {kcal}
-            </Text>
-          </View>
+      {/*
+        The share card leads a finished run. Posting it is how a club's
+        friends hear about Flint, so it sits where the thumb already is.
+      */}
+      {done ? (
+        <View style={styles.share}>
+          <RunShareCard
+            ref={shareRef}
+            width={cardWidth}
+            cells={lit}
+            colour={clubColourFor}
+            clubName={clubs[0]?.name ?? null}
+            distanceKm={summary.distanceKm}
+            durationSec={elapsed}
+            paceMinPerKm={summary.paceMinPerKm}
+            date={new Date(startedAt.current || Date.now())}
+          />
+          <Button
+            label="Share"
+            size="lg"
+            fullWidth
+            onPress={() => {
+              shareRun().catch(() => {});
+            }}
+            iconLeft={<Share2 color={theme.colors.onAccent} size={18} />}
+            style={styles.shareButton}
+          />
         </View>
-      </Card>
+      ) : null}
 
       {/* What today added to the map. Only after finishing — mid-run it would
           be a distraction from the run. */}
       {done && explored ? (
-        <Card variant="light" padding="base" radius="xl" style={styles.explored}>
+        <Card
+          variant="light"
+          padding="base"
+          radius="xl"
+          style={styles.explored}
+        >
           <View style={styles.exploredRow}>
             <Compass color={theme.colors.accent} size={20} />
             <View style={styles.flex}>
@@ -490,11 +644,18 @@ export function TrackingScreen() {
       ) : null}
 
       {done && clubPost ? (
-        <Card variant="light" padding="base" radius="xl" style={styles.explored}>
+        <Card
+          variant="light"
+          padding="base"
+          radius="xl"
+          style={styles.explored}
+        >
           <Text variant="bodyStrong">
             {clubPost.state === 'posted'
               ? `Posted to ${clubPost.names.slice(0, 2).join(' and ')}${
-                  clubPost.names.length > 2 ? ` +${clubPost.names.length - 2}` : ''
+                  clubPost.names.length > 2
+                    ? ` +${clubPost.names.length - 2}`
+                    : ''
                 }`
               : clubPost.state === 'refused'
               ? 'Not posted to your clubs'
@@ -510,12 +671,14 @@ export function TrackingScreen() {
         </Card>
       ) : null}
 
-      <RouteMap
-        segments={summary.segments}
-        height={210}
-        showMarkers={done}
-        style={styles.map}
-      />
+      {done ? (
+        <RouteMap
+          segments={summary.segments}
+          height={210}
+          showMarkers
+          style={styles.map}
+        />
+      ) : null}
 
       {status === 'denied' ? (
         <Card variant="light" padding="base" radius="xl" style={styles.notice}>
@@ -547,7 +710,9 @@ export function TrackingScreen() {
           <View style={styles.exploredRow}>
             <BatteryCharging color={theme.colors.accent} size={20} />
             <View style={styles.flex}>
-              <Text variant="bodyStrong">Keep recording with the screen off</Text>
+              <Text variant="bodyStrong">
+                Keep recording with the screen off
+              </Text>
               <Text variant="bodySm" tone="muted" style={styles.noticeBody}>
                 Some phones cut GPS to save battery once the screen locks. Set
                 Flint to "Don't optimise" so your whole run counts.
@@ -566,7 +731,7 @@ export function TrackingScreen() {
 
       {saveError ? (
         <Card variant="light" padding="base" radius="xl" style={styles.notice}>
-          <Text variant="bodyStrong">Couldn't save that one</Text>
+          <Text variant="bodyStrong">Not synced yet</Text>
           <Text variant="bodySm" tone="muted" style={styles.noticeBody}>
             {saveError}
           </Text>
@@ -575,7 +740,11 @@ export function TrackingScreen() {
 
       {summary.splits.length > 0 ? (
         <View>
-          <SectionHeader title="Splits" subtitle="Per kilometre" style={styles.section} />
+          <SectionHeader
+            title="Splits"
+            subtitle="Per kilometre"
+            style={styles.section}
+          />
           <Card variant="light" padding="base" radius="xl">
             <View style={styles.splits}>
               {summary.splits.map(s => (
@@ -596,7 +765,11 @@ export function TrackingScreen() {
       <View style={styles.controls}>
         {status === 'idle' || status === 'denied' || status === 'failed' ? (
           <Button
-            label={status === 'idle' ? `Start ${KIND_LABEL[kind].toLowerCase()}` : 'Try again'}
+            label={
+              status === 'idle'
+                ? `Start ${KIND_LABEL[kind].toLowerCase()}`
+                : 'Try again'
+            }
             size="lg"
             fullWidth
             onPress={begin}
@@ -604,35 +777,50 @@ export function TrackingScreen() {
           />
         ) : null}
 
-        {status === 'starting' ? (
-          <Button label="Finding GPS…" size="lg" fullWidth disabled />
-        ) : null}
-
-        {running || status === 'paused' ? (
+        {status === 'acquiring' ? (
           <>
             <Button
-              label={status === 'paused' ? 'Resume' : 'Pause'}
+              label={
+                accuracy === null
+                  ? 'Finding GPS…'
+                  : `Finding GPS… ±${Math.round(accuracy)} m`
+              }
               size="lg"
               fullWidth
-              variant={status === 'paused' ? 'primary' : 'outline'}
-              onPress={togglePause}
-              iconLeft={
-                status === 'paused' ? (
-                  <Play color={theme.colors.onAccent} size={18} />
-                ) : (
-                  <Pause color={theme.colors.text} size={18} />
-                )
-              }
+              disabled
+            />
+            <Text variant="caption" tone="muted" align="center">
+              Step outside or away from tall buildings. Starts on its own once
+              GPS is sharp.
+            </Text>
+          </>
+        ) : null}
+
+        {status === 'weakGps' ? (
+          <>
+            <Text variant="bodySm" tone="muted" align="center">
+              GPS is weak here
+              {accuracy !== null ? ` (±${Math.round(accuracy)} m)` : ''}. Your
+              first few hundred metres may be off.
+            </Text>
+            <Button
+              label="Start anyway"
+              size="lg"
+              fullWidth
+              onPress={() => setStatus('countdown')}
             />
             <Button
-              label="Finish"
-              size="lg"
-              fullWidth
+              label="Keep waiting"
+              size="md"
               variant="ghost"
-              onPress={confirmFinish}
-              iconLeft={<Square color={theme.colors.accent} size={16} />}
+              fullWidth
+              onPress={begin}
             />
           </>
+        ) : null}
+
+        {status === 'starting' ? (
+          <Button label="Starting…" size="lg" fullWidth disabled />
         ) : null}
 
         {done ? (
@@ -660,23 +848,23 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   eyebrow: { marginTop: 22 },
-  headline: { flexDirection: 'row', alignItems: 'baseline', columnGap: 8, marginTop: 2 },
-  unit: { marginBottom: 4 },
-  stats: { marginTop: 18 },
-  statRow: { flexDirection: 'row' },
-  stat: { flex: 1 },
-  statValue: { marginTop: 4 },
   flex: { flex: 1 },
   explored: { marginTop: 16 },
   exploredRow: { flexDirection: 'row', alignItems: 'center', columnGap: 14 },
   exploredText: { marginTop: 2 },
   map: { marginTop: 16 },
+  share: { marginTop: 16, alignItems: 'center' },
+  shareButton: { marginTop: 14 },
   notice: { marginTop: 16 },
   noticeBody: { marginTop: 4 },
   noticeAction: { marginTop: 12, alignSelf: 'flex-start' },
   section: { marginTop: 28 },
   splits: { rowGap: 10 },
-  splitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  splitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   splitKm: { minWidth: 70 },
   controls: { marginTop: 28, rowGap: 10 },
 });

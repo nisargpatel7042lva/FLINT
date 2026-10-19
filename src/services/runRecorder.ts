@@ -106,8 +106,14 @@ export function feedPoints(
   return seg;
 }
 
-/** Android 13+ hides a foreground service's notification without this. */
-async function askForNotifications() {
+/**
+ * Android 13+ hides a foreground service's notification without this.
+ *
+ * Asked BEFORE the countdown, by the run screen. Asked after it, the prompt
+ * lands exactly as the runner pockets the phone, and the run sits waiting
+ * behind a dialog nobody can see.
+ */
+export async function askForNotifications() {
   if (Platform.OS !== 'android' || Number(Platform.Version) < 33) {
     return;
   }
@@ -231,7 +237,6 @@ export async function startRun(kind: RunKind): Promise<StartResult> {
   if (!(await requestLocationPermission())) {
     return { ok: false, reason: 'denied' };
   }
-  await askForNotifications();
   try {
     return { ok: true, run: await attach(native, await native.start(kind)) };
   } catch {

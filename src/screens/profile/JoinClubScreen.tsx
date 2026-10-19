@@ -30,7 +30,7 @@ export function JoinClubScreen() {
   const theme = useTheme();
   const navigation = useNavigation<Nav>();
   const { joinGroup, createGroup } = useSocial();
-  const { update } = useProfile();
+  const { profile, update } = useProfile();
 
   const [mode, setMode] = useState<Mode>('join');
   const [code, setCode] = useState('');
@@ -39,7 +39,15 @@ export function JoinClubScreen() {
   const [error, setError] = useState<string | null>(null);
   const [club, setClub] = useState<{ group: Group; started: boolean } | null>(null);
 
+  /*
+   * In setup, the alerts step comes next. Reached later from Home, the person
+   * has been through setup already — back to the city, no second primer.
+   */
   const finish = () => {
+    if (!profile.completed) {
+      navigation.navigate('AlertsPrimer');
+      return;
+    }
     update({ completed: true });
     navigation.reset({ index: 0, routes: [{ name: 'Tabs', params: { screen: 'City' } }] });
   };

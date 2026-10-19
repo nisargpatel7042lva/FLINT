@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,6 +23,7 @@ import {
   loadRuns,
   predict,
   predictionLine,
+  refreshPushToken,
   stealLine,
   todayKey,
   weekStartKey,
@@ -56,6 +57,13 @@ export function RunHomeScreen() {
   const { steals, standings } = useCity(clubs.map(c => c.id));
 
   const [runs, setRuns] = useState<RunRecord[]>([]);
+
+  // Keeps the push token current after reinstalls, without ever prompting.
+  useEffect(() => {
+    if (uid) {
+      refreshPushToken(uid).catch(() => {});
+    }
+  }, [uid]);
   const [runActive, setRunActive] = useState(false);
 
   // Refreshed on every visit: a run finished a minute ago belongs here now.
