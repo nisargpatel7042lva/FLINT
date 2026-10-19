@@ -43,6 +43,8 @@ import {
   TimeBudgetScreen,
   TrackingScreen,
   JoinClubScreen,
+  AlertsPrimerScreen,
+  FeedbackScreen,
   HistoryScreen,
   TrainScreen,
   TrainingPlaceScreen,
@@ -134,6 +136,8 @@ export function RootNavigator() {
         <Stack.Screen name="ProfileGoal" component={ProfileGoalScreen} />
         <Stack.Screen name="FindFriends" component={FindFriendsScreen} />
         <Stack.Screen name="JoinClub" component={JoinClubScreen} />
+        <Stack.Screen name="AlertsPrimer" component={AlertsPrimerScreen} />
+        <Stack.Screen name="Feedback" component={FeedbackScreen} />
 
         {/* Main app. Entered via `reset` so back does not return to setup. */}
         <Stack.Screen name="Tabs" component={TabNavigator} />

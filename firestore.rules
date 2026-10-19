@@ -365,6 +365,33 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
+    /**
+     * Beta feedback: "Report a problem".
+     *
+     * Write-only from the app. Testers describe what went wrong; only the team
+     * reads it, from the console. Nobody — not even the author — reads it back
+     * through the app, so a report can be blunt about another person without
+     * that person ever seeing it.
+     */
+    match /feedback/{feedbackId} {
+      allow read, update, delete: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(
+          ['uid', 'message', 'kind', 'screen', 'appVersion', 'device', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+        && request.resource.data.kind in ['bug', 'idea', 'other']
+        && request.resource.data.screen is string
+        && request.resource.data.screen.size() <= 60
+        && request.resource.data.appVersion is string
+        && request.resource.data.appVersion.size() <= 30
+        && request.resource.data.device is string
+        && request.resource.data.device.size() <= 120
+        && request.resource.data.createdAt == request.time;
+    }
+
     // ── 1:1 challenges ───────────────────────────────────────────────────
     //
     // Everything below is written by Cloud Functions and is read-mostly from

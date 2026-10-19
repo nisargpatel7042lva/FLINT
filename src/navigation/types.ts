@@ -107,6 +107,10 @@ export type RootStackParamList = {
   Tracking: { kind: 'run' | 'walk' } | undefined;
   /** Last setup step: join a club by code, or start one. */
   JoinClub: undefined;
+  /** Shows the two alerts Flint sends before Android asks for permission. */
+  AlertsPrimer: undefined;
+  /** Beta: report a problem or send an idea. */
+  Feedback: undefined;
   /** Off the tab bar for v1 — running leads; these stay one tap away. */
   History: undefined;
   Train: undefined;

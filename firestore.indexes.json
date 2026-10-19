@@ -1,16 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "sessions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "day",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "pokes",
       "queryScope": "COLLECTION",
       "fields": [

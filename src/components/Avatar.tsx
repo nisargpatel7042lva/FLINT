@@ -8,7 +8,6 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { placeholderAvatar, remote } from '../assets/placeholders';
 import { useTheme } from '../theme';
 import { Text } from './Text';
 
@@ -63,10 +62,15 @@ export function Avatar({
   const initialsVariant =
     size === 'xl' ? 'statMd' : size === 'sm' ? 'label' : 'bodyStrong';
 
-  // PLACEHOLDER: auto-sourced avatar so no screen ships with an empty circle.
-  // Stable per name. Pass `initialsOnly` or a real `source` to opt out.
-  const resolved =
-    source ?? (initialsOnly || !name ? undefined : remote(placeholderAvatar(name, d * 2)));
+  /*
+   * Initials unless a real photo is passed.
+   *
+   * This used to fill in a stock face per name so no screen looked empty. With
+   * real people on the app that is worse than empty: a tester opens their own
+   * profile and finds a stranger's face. `initialsOnly` stays for callers that
+   * already pass it.
+   */
+  const resolved = initialsOnly ? undefined : source;
 
   // Placeholder avatars are remote, so they can be slow or fail outright.
   // Initials are ALWAYS rendered underneath and the photo fades in on top —

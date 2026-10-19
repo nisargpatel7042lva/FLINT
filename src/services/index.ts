@@ -37,3 +37,4 @@ export * from './deeplinks';
 export * from './runRecorder';
 export * from './city';
 export * from './mercator';
+export * from './feedback';

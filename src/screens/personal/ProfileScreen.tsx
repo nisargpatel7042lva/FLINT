@@ -1,63 +1,101 @@
-import React, { useMemo } from 'react';
-import { useNavigation } from '@react-navigation/native';
-import { StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
+  CalendarDays,
   ChevronRight,
   Dumbbell,
-  Flame,
+  LogOut,
+  MessageSquareWarning,
   Palette,
-  Timer,
-  Trophy,
+  UserPlus,
+  Users,
 } from 'lucide-react-native';
 
 import {
   Avatar,
+  Button,
   Card,
-  Spark,
-  Chip,
   ListRow,
-  MeterBar,
-  PhotoCard,
   Screen,
   SectionHeader,
   SegmentedControl,
   StatPill,
   Text,
-  sparkStateForStreak,
 } from '../../components';
 import {
-  SPARK_STAGES,
-  EXPERIENCE_LABEL,
-  GOAL_LABEL,
-  PLACE_LABEL,
-  PROFILE,
-  barrierById,
-  barrierReminder,
+  APP_BUILD,
+  APP_VERSION,
+  clubColour,
+  currentUser,
   ensureSignedIn,
-  sparkStage,
+  loadRuns,
+  signOut,
   syncTone,
+  type RunRecord,
   type Tone,
 } from '../../services';
-import { useSessions } from '../../hooks/useSessions';
-import { useProfile } from '../../hooks';
-import { placeholderPhoto, remote } from '../../assets/placeholders';
+import { getSocialRepository } from '../../services/socialRepositoryProvider';
+import type { PublicProfile } from '../../services/socialRepository';
+import { useProfile, useSocial } from '../../hooks';
+import type { RootStackParamList } from '../../navigation/types';
 import { useTheme, useThemeContext } from '../../theme';
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 /**
- * Personal profile: who you are, where Spark is, and what you've built.
+ * You: who you are on Flint, what you have run, and the few settings a runner
+ * actually changes.
  *
- * Follows the reference's layered treatment — a photo cover with the avatar
- * breaking out over its lower edge. Spark's own card stays dark on purpose: it
- * is a glowing ember, and it needs a dark ground to read as lit rather than as
- * an orange blob on a photograph.
+ * Everything here is the signed-in person's own data. The earlier version
+ * showed a fixture profile, which meant every tester saw the same stranger's
+ * name on their own profile.
  */
 export function ProfileScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
-
-  const { streak, atRisk, best, stats, source } = useSessions();
-  const { profile } = useProfile();
+  const navigation = useNavigation<Nav>();
+  const { uid, groups } = useSocial();
+  const { update } = useProfile();
   const { tone, setTone } = useThemeContext();
+
+  const [me, setMe] = useState<PublicProfile | null>(null);
+  const [runs, setRuns] = useState<RunRecord[]>([]);
+  const user = currentUser();
+  const anonymous = !user || user.isAnonymous;
+
+  useEffect(() => {
+    if (!uid) {
+      return;
+    }
+    let alive = true;
+    getSocialRepository()
+      .getProfile(uid)
+      .then(p => alive && setMe(p))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [uid]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      loadRuns()
+        .then(r => alive && setRuns(r))
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
+
+  const stats = useMemo(() => {
+    const onlyRuns = runs.filter(r => r.kind === 'run');
+    const km = onlyRuns.reduce((s, r) => s + r.distanceKm, 0);
+    const longest = onlyRuns.reduce((m, r) => Math.max(m, r.distanceKm), 0);
+    return { km, count: onlyRuns.length, longest };
+  }, [runs]);
 
   /*
    * Savage mode. Stored on the device, mirrored to the account so the server's
@@ -70,170 +108,107 @@ export function ProfileScreen() {
       .then(u => syncTone(u.uid, next))
       .catch(() => {});
   };
-  const { stage, next, progress, daysToNext } = useMemo(
-    () => sparkStage(streak),
-    [streak],
-  );
+
+  const confirmSignOut = () =>
+    Alert.alert(
+      'Log out?',
+      anonymous
+        ? 'You have no account yet, so your runs and clubs on this phone cannot be recovered after logging out.'
+        : 'Log back in any time with your email.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut().catch(() => {});
+            update({ completed: false });
+            navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+          },
+        },
+      ],
+    );
+
+  const clubs = groups.filter(g => g.kind === 'club');
+  const name = me?.name ?? 'Runner';
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
-      {/* Cover photo. The avatar below overlaps its lower edge. */}
-      <PhotoCard
-        source={remote(placeholderPhoto('strength', 'profile-cover', 900, 420))}
-        height={140}
-        layout="spread"
-        padding="base"
-        scrim={0.35}
-        style={styles.cover}>
-        <View style={styles.coverTop}>
-          <Chip label="" value={stage.name} variant="accent" />
-          <Chip
-            label=""
-            value={source === 'firestore' ? 'Firestore' : 'Local'}
-            variant="dark"
-          />
-        </View>
-        <View />
-      </PhotoCard>
-
       <View style={styles.identity}>
-        <Avatar name={PROFILE.name} size="xl" ring style={styles.avatar} />
-        <View style={styles.identityText}>
+        <Avatar name={name} size="xl" ring />
+        <View style={styles.flex}>
           <Text variant="h1" numberOfLines={1}>
-            {PROFILE.name}
+            {name}
           </Text>
           <Text variant="bodySm" tone="muted" numberOfLines={1}>
-            {PROFILE.handle} · since {PROFILE.joinedDay}
+            {me?.handle ? `@${me.handle.replace(/^@/, '')}` : anonymous ? 'No account yet' : ''}
           </Text>
         </View>
       </View>
 
-      {/* Spark's evolution stage. Dark ground so the ember reads as lit. */}
-      <Card variant="dark" padding="lg" radius="xxl" style={styles.charCard}>
-        <View style={styles.charRow}>
-          <Spark state={sparkStateForStreak(streak, { atRisk })} size={110} />
-          <View style={styles.flex}>
-            <Text variant="label" tone="inverseMuted" uppercase>
-              Current stage
-            </Text>
-            <Text variant="h1" tone="inverse" style={styles.stageName}>
-              {stage.name}
-            </Text>
-            <Text variant="bodySm" tone="inverseMuted" style={styles.stageBlurb}>
-              {stage.blurb}
-            </Text>
-          </View>
-        </View>
-
-        {next ? (
-          <View style={styles.nextBlock}>
-            <View style={styles.nextRow}>
-              <Text variant="caption" tone="inverseMuted">
-                Next: {next.name}
+      {anonymous ? (
+        <Card variant="accent" padding="base" radius="xl" style={styles.card}>
+          <View style={styles.saveRow}>
+            <UserPlus color={theme.colors.onAccent} size={20} />
+            <View style={styles.flex}>
+              <Text variant="bodyStrong" tone="onAccent">
+                Save your runs
               </Text>
-              <Text variant="caption" tone="inverse">
-                {daysToNext} {daysToNext === 1 ? 'day' : 'days'} to go
+              <Text variant="bodySm" tone="onAccent">
+                Make an account so your runs and clubs survive a new phone.
               </Text>
             </View>
-            <MeterBar
-              value={progress * 100}
-              trackColor={theme.colors.surfaceInverseMuted}
-            />
           </View>
-        ) : (
-          <Text variant="caption" tone="inverseMuted" style={styles.nextBlock}>
-            Final stage reached.
-          </Text>
-        )}
-      </Card>
-
-      {/* Streaks, given the weight they carry in this product. */}
-      <View style={styles.streakRow}>
-        <Card variant="accent" padding="base" style={styles.streakCard}>
-          <View style={styles.streakInner}>
-            <Flame color={theme.colors.onAccent} size={22} />
-            <Text variant="statMd" tone="onAccent">
-              {streak}
-            </Text>
-          </View>
-          <Text variant="label" tone="onAccent" uppercase>
-            Current streak
-          </Text>
-        </Card>
-        <Card variant="light" padding="base" style={styles.streakCard}>
-          <View style={styles.streakInner}>
-            <Trophy color={theme.colors.accent} size={22} />
-            <Text variant="statMd">{best}</Text>
-          </View>
-          <Text variant="label" tone="muted" uppercase>
-            Longest ever
-          </Text>
-        </Card>
-      </View>
-
-      {/*
-        Why this person started, in their own words from the first screen.
-        A streak explains what somebody has done; this explains what it is for,
-        and it is the only thing on this screen that will still mean something
-        on the day they consider stopping.
-      */}
-      {profile.barrier ? (
-        <Card variant="light" padding="base" radius="xl" style={styles.why}>
-          <Text variant="label" tone="muted" uppercase>
-            Why you started
-          </Text>
-          <Text variant="bodyStrong" style={styles.whyTitle}>
-            {barrierById(profile.barrier).title}
-          </Text>
-          <Text variant="bodySm" tone="muted" style={styles.whyBlurb}>
-            {barrierReminder(profile.barrier)}
-          </Text>
+          <Button
+            label="Create account"
+            size="sm"
+            variant="dark"
+            onPress={() => navigation.navigate('SignUp')}
+            style={styles.saveButton}
+          />
         </Card>
       ) : null}
 
-      <SectionHeader
-        title="Lifetime"
-        subtitle={`Training since ${PROFILE.joinedDay}`}
-        style={styles.section}
-      />
+      <SectionHeader title="Lifetime" subtitle="Runs recorded with Flint" style={styles.section} />
       <View style={styles.stats}>
-        <StatPill
-          value={stats.totalSessions}
-          label="Sessions"
-          variant="light"
-          size="sm"
-        />
-        <StatPill
-          value={stats.totalMinutes}
-          label="Minutes"
-          variant="light"
-          size="sm"
-          icon={<Timer color={theme.colors.accent} size={15} />}
-        />
-        <StatPill value={stats.totalKcal} label="Kcal" variant="light" size="sm" />
+        <StatPill value={stats.km.toFixed(1)} label="Km" variant="light" size="sm" />
+        <StatPill value={stats.count} label="Runs" variant="light" size="sm" />
+        <StatPill value={stats.longest.toFixed(1)} label="Longest" variant="light" size="sm" />
       </View>
+      <ListRow
+        filled
+        title="All runs"
+        leading={<CalendarDays color={theme.colors.accent} size={20} />}
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('History')}
+        style={styles.row}
+      />
 
-      <SectionHeader title="Settings" style={styles.section} />
-      <ListRow
-        filled
-        title="Training"
-        subtitle={`${PLACE_LABEL[profile.place]} · ${EXPERIENCE_LABEL[
-          profile.experience
-        ].toLowerCase()} · ${GOAL_LABEL[profile.goal].toLowerCase()}`}
-        leading={<Dumbbell color={theme.colors.accent} size={20} />}
-        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
-        onPress={() => navigation.navigate('TrainingPreferences')}
-        style={styles.settingsRow}
-      />
-      <ListRow
-        filled
-        title="Appearance"
-        subtitle="Theme, accent colour and the walkthrough"
-        leading={<Palette color={theme.colors.accent} size={20} />}
-        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
-        onPress={() => navigation.navigate('Appearance')}
-        style={styles.settingsRow}
-      />
+      <SectionHeader title="Your clubs" style={styles.section} />
+      {clubs.length === 0 ? (
+        <ListRow
+          filled
+          title="Join or start a club"
+          subtitle="Club runs light up the city map"
+          leading={<Users color={theme.colors.accent} size={20} />}
+          trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+          onPress={() => navigation.navigate('JoinClub')}
+          style={styles.row}
+        />
+      ) : (
+        clubs.map(c => (
+          <ListRow
+            key={c.id}
+            filled
+            title={c.name}
+            subtitle={`${c.memberIds.length} members · code ${c.code}`}
+            leading={<View style={[styles.swatch, { backgroundColor: clubColour(c.id) }]} />}
+            trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+            onPress={() => navigation.navigate('GroupDetail', { groupId: c.id })}
+            style={styles.row}
+          />
+        ))
+      )}
 
       {/*
         How hard the app pushes back. Opt-in by design: savage is something a
@@ -243,7 +218,7 @@ export function ProfileScreen() {
       */}
       <SectionHeader
         title="How hard should we push?"
-        subtitle="Predictions, overtakes and your rival's excuses"
+        subtitle="Predictions, steals and overtakes"
         style={styles.section}
       />
       <SegmentedControl<Tone>
@@ -261,35 +236,45 @@ export function ProfileScreen() {
           : '“Your last 6 runs put your limit around 5 km today. Go past it.”'}
       </Text>
 
-      <SectionHeader
-        title="All stages"
-        subtitle="Driven by your current streak, so your spark can fall back too"
-        style={styles.section}
+      <SectionHeader title="Settings" style={styles.section} />
+      <ListRow
+        filled
+        title="Report a problem"
+        subtitle="Goes straight to the people building Flint"
+        leading={<MessageSquareWarning color={theme.colors.accent} size={20} />}
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('Feedback')}
+        style={styles.row}
       />
-      <View style={styles.stages}>
-        {SPARK_STAGES.map(s => {
-          const reached = streak >= s.minStreak;
-          const isCurrent = s.id === stage.id;
-          return (
-            <ListRow
-              key={s.id}
-              filled
-              title={s.name}
-              subtitle={
-                s.minStreak === 0 ? 'From day one' : `${s.minStreak}-day streak`
-              }
-              leading={<Spark state={reached ? 'glowing' : 'dim'} size={40} />}
-              trailing={
-                isCurrent ? (
-                  <Chip label="Now" variant="accent" />
-                ) : reached ? (
-                  <Chip label="Reached" variant="muted" />
-                ) : undefined
-              }
-            />
-          );
-        })}
-      </View>
+      <ListRow
+        filled
+        title="Appearance"
+        subtitle="Theme and accent colour"
+        leading={<Palette color={theme.colors.accent} size={20} />}
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('Appearance')}
+        style={styles.row}
+      />
+      <ListRow
+        filled
+        title="Gym workouts"
+        subtitle="Strength sessions, for days off the road"
+        leading={<Dumbbell color={theme.colors.accent} size={20} />}
+        trailing={<ChevronRight color={theme.colors.textMuted} size={18} />}
+        onPress={() => navigation.navigate('Train')}
+        style={styles.row}
+      />
+      <ListRow
+        filled
+        title="Log out"
+        leading={<LogOut color={theme.colors.accent} size={20} />}
+        onPress={confirmSignOut}
+        style={styles.row}
+      />
+
+      <Text variant="caption" tone="muted" align="center" style={styles.version}>
+        Flint {APP_VERSION} ({APP_BUILD}) · beta
+      </Text>
     </Screen>
   );
 }
@@ -297,43 +282,15 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   content: { paddingBottom: 160 },
   flex: { flex: 1 },
-  cover: { marginTop: 14 },
-  coverTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    columnGap: 8,
-  },
-  identity: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    columnGap: 14,
-    // Pulls the avatar up so it breaks over the cover's lower edge.
-    marginTop: -46,
-    paddingLeft: 4,
-  },
-  avatar: {},
-  identityText: { flex: 1, paddingBottom: 6 },
-  charCard: { marginTop: 22 },
-  charRow: { flexDirection: 'row', alignItems: 'center', columnGap: 14 },
-  stageName: { marginTop: 4 },
-  stageBlurb: { marginTop: 6 },
-  nextBlock: { marginTop: 20 },
-  nextRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  streakRow: { flexDirection: 'row', columnGap: 12, marginTop: 16 },
-  streakCard: { flex: 1 },
-  streakInner: { flexDirection: 'row', alignItems: 'center', columnGap: 10 },
-  why: { marginTop: 20 },
-  toneControl: { marginTop: 8 },
-  toneExample: { marginTop: 8 },
-  whyTitle: { marginTop: 8 },
-  whyBlurb: { marginTop: 4 },
-  section: { marginTop: 30 },
-  stats: { flexDirection: 'row', columnGap: 10, marginTop: 14 },
-  stages: { marginTop: 10, rowGap: 8 },
-  settingsRow: { marginTop: 12 },
+  identity: { flexDirection: 'row', alignItems: 'center', columnGap: 14, marginTop: 18 },
+  card: { marginTop: 18 },
+  saveRow: { flexDirection: 'row', columnGap: 12 },
+  saveButton: { marginTop: 12, alignSelf: 'flex-start' },
+  section: { marginTop: 28 },
+  stats: { flexDirection: 'row', columnGap: 10 },
+  row: { marginTop: 8 },
+  swatch: { width: 20, height: 20, borderRadius: 6 },
+  toneControl: { marginTop: 4 },
+  toneExample: { marginTop: 10 },
+  version: { marginTop: 32 },
 });

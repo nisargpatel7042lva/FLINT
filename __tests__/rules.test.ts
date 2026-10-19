@@ -1024,3 +1024,41 @@ describe('city runs', () => {
     await assertSucceeds(deleteDoc(doc(asAlice(), 'cityRuns', id)));
   });
 });
+
+describe('feedback', () => {
+  const report = (uid: string, overrides: Record<string, unknown> = {}) => ({
+    uid,
+    message: 'The map did not load on my Redmi.',
+    kind: 'bug',
+    screen: 'City',
+    appVersion: '0.1.0 (1)',
+    device: 'Xiaomi Redmi Note 12 · Android 14',
+    createdAt: serverTimestamp(),
+    ...overrides,
+  });
+
+  it('lets a signed-in tester send a report', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'feedback', 'f1'), report(ALICE)));
+  });
+
+  it('never lets anyone read reports back, the author included', async () => {
+    await setDoc(doc(asAlice(), 'feedback', 'f1'), report(ALICE));
+    await assertFails(getDoc(doc(asAlice(), 'feedback', 'f1')));
+    await assertFails(getDoc(doc(asBob(), 'feedback', 'f1')));
+  });
+
+  it('refuses reports signed as somebody else, empty or oversized', async () => {
+    await assertFails(setDoc(doc(asBob(), 'feedback', 'f2'), report(ALICE)));
+    await assertFails(setDoc(doc(asAlice(), 'feedback', 'f3'), report(ALICE, { message: '' })));
+    await assertFails(
+      setDoc(doc(asAlice(), 'feedback', 'f4'), report(ALICE, { message: 'x'.repeat(2001) })),
+    );
+    await assertFails(setDoc(doc(asAnon(), 'feedback', 'f5'), report(ALICE)));
+  });
+
+  it('refuses extra fields', async () => {
+    await assertFails(
+      setDoc(doc(asAlice(), 'feedback', 'f6'), report(ALICE, { email: 'a@b.c' })),
+    );
+  });
+});
