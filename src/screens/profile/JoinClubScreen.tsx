@@ -17,7 +17,7 @@ type Mode = 'join' | 'start';
 
 /** The message an organiser pastes into their club's WhatsApp group. */
 export const inviteMessage = (club: Group) =>
-  `${club.name} is on Flint. Every run we do lights up our blocks on the city map, and the club with the most runs through a block owns it.\n\nJoin with code ${club.code}\nGet the app: https://use-flint.vercel.app/beta`;
+  `${club.name} is on Flint. Every run we do lights up our blocks on the city map, and the club with the most runs through a block owns it.\n\nJoin with code ${club.code}\nGet the app: https://use-flint.web.app`;
 
 /**
  * Last setup step: get into a club.

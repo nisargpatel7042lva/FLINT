@@ -123,7 +123,7 @@ export const RunShareCard = forwardRef<ViewShotRef, Props>(function ShareCard(
         </View>
 
         <Text variant="caption" tone="inverseMuted" style={styles.footer}>
-          Light up your city · use-flint.vercel.app
+          Light up your city · use-flint.web.app
         </Text>
       </View>
     </ViewShot>

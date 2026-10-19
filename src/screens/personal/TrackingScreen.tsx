@@ -209,10 +209,10 @@ export function TrackingScreen() {
         n > 0
           ? `Lit ${n} block${n === 1 ? '' : 's'}${
               clubs[0] ? ` for ${clubs[0].name}` : ''
-            } on Flint. Come run with us: https://use-flint.vercel.app`
+            } on Flint. Come run with us: https://use-flint.web.app`
           : `${summary.distanceKm.toFixed(
               2,
-            )} km on Flint. https://use-flint.vercel.app`,
+            )} km on Flint. https://use-flint.web.app`,
       failOnCancel: false,
     });
   };

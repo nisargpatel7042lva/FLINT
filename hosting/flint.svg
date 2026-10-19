@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="240 240 544 544">
+  <defs>
+    <linearGradient id="sl" x1="333" y1="345.5" x2="512" y2="555.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B8B8B8"/><stop offset="1" stop-color="#FFDAC8"/>
+    </linearGradient>
+    <linearGradient id="sr" x1="706.501" y1="391.25" x2="529" y2="559.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B8B8B8"/><stop offset="1" stop-color="#FFD9C8"/>
+    </linearGradient>
+    <linearGradient id="sp" x1="517" y1="557.5" x2="606.5" y2="261" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF3B00"/><stop offset="1" stop-color="#FF9500"/>
+    </linearGradient>
+  </defs>
+  <path d="M303 408.5L353 255L426 360.5L512 556.5L507 769L303 408.5Z" fill="#EEEEEE"/>
+  <path d="M521.5 765.5L526 556.5L707 341.5L720.5 450.5L521.5 765.5Z" fill="#EEEEEE"/>
+  <path d="M427 362.5L354.5 261L359 413.5L483.5 642.5L511.5 556L427 362.5Z" fill="url(#sl)"/>
+  <path d="M512 557L485 645L507 766L512 557Z" fill="#A2988B"/>
+  <path d="M720 451L672.5 452L556.5 623L523.5 761L720 451Z" fill="#92887F"/>
+  <path d="M554.5 622.5L526 556.5L522.5 761L554.5 622.5Z" fill="#C1B4AC"/>
+  <path d="M358.5 414.5L303.5 409L505.5 766L482.5 645.5L358.5 414.5Z" fill="#ACA39B"/>
+  <path d="M526.5 556C585.25 485.895 703.862 346.08 706.458 342.567C706.479 342.523 706.493 342.5 706.5 342.5C706.505 342.5 706.491 342.523 706.458 342.567C705.275 345.074 682.298 416.796 671 452L555.5 620L526.5 556Z" fill="url(#sr)"/>
+  <path d="M672.5 451L707 342.5L720 450L672.5 451Z" fill="#D0C7BE"/>
+  <path d="M358 413.5L353 256L303.5 408L358 413.5Z" fill="#E8DFD6"/>
+  <path d="M519 551L483 467.5L519 513.5L581 474.5L519 551Z" fill="url(#sp)"/>
+  <path d="M489 398.5L465 393L510 486.5L489 398.5Z" fill="url(#sp)"/>
+  <path d="M522.5 340L506.5 350L521 451L522.5 340Z" fill="url(#sp)"/>
+  <path d="M628.5 375L619 358.5L586 424.5L628.5 375Z" fill="url(#sp)"/>
+  <path d="M575.5 453L566.5 450L554.5 473L575.5 453Z" fill="url(#sp)"/>
+  <path d="M587 455L594 443.5L599.5 446L587 455Z" fill="url(#sp)"/>
+  <path d="M579 278.5L526.5 503L620 265L579 278.5Z" fill="url(#sp)"/>
+</svg>

@@ -88,3 +88,6 @@ android/keystore.properties
 # Firebase emulator artefacts, written by `npm run test:rules`
 *-debug.log
 .firebase/
+
+# The beta APK is copied in at deploy time, never committed.
+hosting/*.apk

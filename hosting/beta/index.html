@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flint beta</title>
+  <meta name="description" content="Get the Flint beta for Android. Your runs light up the city for your club." />
+  <meta name="theme-color" content="#0b0b0c" />
+  <meta property="og:title" content="Flint beta for Android" />
+  <meta property="og:description" content="Your runs light up the city for your club. Get the beta." />
+  <link rel="icon" href="/flint.svg" type="image/svg+xml" />
+  <style>
+    :root {
+      --bg: #0b0b0c;
+      --card: #161618;
+      --line: #26262a;
+      --text: #f4f1ec;
+      --muted: #a09c96;
+      --accent: #ff6b1a;
+      --cyan: #22d3ee;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 560px; margin: 0 auto; padding: 32px 16px 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--accent);
+      font-weight: 800; letter-spacing: .12em; font-size: 13px; text-transform: uppercase; }
+    .grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; margin: 36px 0 28px; }
+    .grid span { aspect-ratio: 1; border-radius: 4px; background: #1c1c1e; }
+    .grid .a { background: rgba(255,107,26,.75); outline: 1.5px solid var(--accent); }
+    .grid .b { background: rgba(34,211,238,.7); outline: 1.5px solid var(--cyan); }
+    h1 { font-size: clamp(34px, 9vw, 48px); line-height: 1.02; margin: 0; letter-spacing: -.03em; font-weight: 900; }
+    .lead { color: var(--muted); font-size: 17px; margin: 14px 0 28px; }
+    .download {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 18px 20px; border-radius: 999px;
+      background: var(--accent); color: #fff; font-weight: 800; font-size: 18px;
+      text-decoration: none;
+    }
+    .download:active { transform: scale(.98); }
+    .meta { color: var(--muted); font-size: 13px; text-align: center; margin-top: 10px; }
+    h2 { font-size: 20px; margin: 44px 0 12px; letter-spacing: -.01em; }
+    ol { padding: 0; margin: 0; list-style: none; counter-reset: step; display: grid; gap: 10px; }
+    ol li {
+      counter-increment: step; background: var(--card); border: 1px solid var(--line);
+      border-radius: 18px; padding: 16px 16px 16px 56px; position: relative;
+    }
+    ol li::before {
+      content: counter(step); position: absolute; left: 16px; top: 15px;
+      width: 26px; height: 26px; border-radius: 50%; background: var(--accent);
+      color: #fff; font-weight: 800; font-size: 14px; display: grid; place-items: center;
+    }
+    ol b { display: block; }
+    ol span { color: var(--muted); font-size: 15px; }
+    .note { background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+      padding: 16px; color: var(--muted); font-size: 15px; }
+    .note b { color: var(--text); }
+    footer { color: var(--muted); font-size: 13px; margin-top: 44px; text-align: center; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">
+      <img src="/flint.svg" width="24" height="24" alt="" />
+      Flint · Beta
+    </div>
+
+    <div class="grid" aria-hidden="true" id="grid"></div>
+
+    <h1>Your runs light up the city.</h1>
+    <p class="lead">
+      Run with your club and every block you run turns your club's colour. Stop
+      running and another club takes it. This is the first version, for the
+      clubs testing it with us.
+    </p>
+
+    <a class="download" href="/flint-beta.apk" download>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
+      Download for Android
+    </a>
+    <p class="meta" id="meta">Flint 0.1.0 · Android 8 or newer</p>
+
+    <h2>Installing it</h2>
+    <ol>
+      <li><b>Tap Download, then open the file.</b><span>It is in your notifications or your Downloads folder.</span></li>
+      <li><b>Allow installs from your browser.</b><span>Android asks once, because the beta is not on the Play Store yet. Tap Settings, switch on "Allow from this source", then go back.</span></li>
+      <li><b>Tap Install.</b><span>If Play Protect warns about an unknown app, tap "More details" then "Install anyway". It warns about every app that is not from the Play Store.</span></li>
+      <li><b>Open Flint and join your club.</b><span>Your organiser has a 6-letter club code. Enter it after you sign up.</span></li>
+    </ol>
+
+    <h2>Before your first run</h2>
+    <div class="note">
+      <b>Let it run with the screen off.</b> Flint records with your phone locked,
+      but some phones (Xiaomi, Redmi, Oppo, Vivo, Realme, OnePlus) stop apps to
+      save battery. In Flint's run screen, tap <b>Open battery settings</b> and set
+      Flint to <b>Don't optimise</b> or <b>No restrictions</b>.
+    </div>
+
+    <h2>Something not right?</h2>
+    <div class="note">
+      In the app, go to <b>You → Report a problem</b>. It reaches the people
+      building Flint directly, with your phone model attached so we can fix it.
+    </div>
+
+    <footer>
+      iPhone version later · <a href="https://use-flint.vercel.app">use-flint.vercel.app</a>
+    </footer>
+  </main>
+  <script>
+    // Two clubs spreading over a 9x6 grid — the same picture as the app's first screen.
+    (function () {
+      var g = document.getElementById('grid');
+      var cells = [];
+      for (var i = 0; i < 54; i++) {
+        var s = document.createElement('span');
+        g.appendChild(s);
+        cells.push(s);
+      }
+      var a = [3, 4, 12, 13, 21], b = [40, 41, 49, 50, 32];
+      a.forEach(function (i) { cells[i].className = 'a'; });
+      b.forEach(function (i) { cells[i].className = 'b'; });
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      setInterval(function () {
+        var lit = cells.filter(function (c) { return c.className; });
+        var from = cells.indexOf(lit[Math.floor(Math.random() * lit.length)]);
+        var r = Math.floor(from / 9), c = from % 9;
+        var n = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(function (p) {
+          return p[0] >= 0 && p[0] < 6 && p[1] >= 0 && p[1] < 9;
+        });
+        var to = n[Math.floor(Math.random() * n.length)];
+        cells[to[0] * 9 + to[1]].className = cells[from].className;
+        if (Math.random() < 0.35) lit[Math.floor(Math.random() * lit.length)].className = '';
+      }, 450);
+    })();
+  </script>
+</body>
+</html>
