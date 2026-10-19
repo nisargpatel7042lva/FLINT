@@ -156,7 +156,6 @@ export class LocalSocialRepository implements SocialRepository {
           .filter(c => groupIds.includes(c.id))
           .map(c => ({
             id: `${run.id}_${c.id}`,
-            uid: CURRENT_USER_ID,
             clubId: c.id,
             clubName: c.name,
             cells: city.cells,

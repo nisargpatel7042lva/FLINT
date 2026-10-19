@@ -30,7 +30,6 @@ const run = (
   seq += 1;
   return {
     id: `u${seq}_${seq}_${clubId}`,
-    uid: `u${seq}`,
     clubId,
     clubName,
     cells,

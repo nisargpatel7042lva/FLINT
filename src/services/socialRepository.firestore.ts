@@ -33,7 +33,7 @@ import {
 } from './socialRepository';
 import type { Unsubscribe } from './repository';
 import type { ClubRun } from './clubBoard';
-import type { CityRun } from './city';
+import { cityRunId, type CityRun } from './city';
 import type { CityPost } from './socialRepository';
 import type { Group, GroupKind } from './types';
 
@@ -170,7 +170,6 @@ function toCityRun(id: string, data: Record<string, unknown>): CityRun {
   const created = data.createdAt as { toMillis?: () => number } | null | undefined;
   return {
     id,
-    uid: String(data.uid ?? ''),
     clubId: String(data.clubId ?? ''),
     clubName: String(data.clubName ?? 'A club'),
     cells: Array.isArray(data.cells)
@@ -514,17 +513,21 @@ export class FirestoreSocialRepository implements SocialRepository {
       });
     });
     if (city && city.cells.length > 0) {
+      // The club run's id is `${uid}_${startedAtMs}`; the rules find it again
+      // from request.auth plus this number.
+      const runMs = Number(run.id.slice(run.id.lastIndexOf('_') + 1));
       city.clubs
         .filter(c => groupIds.includes(c.id))
         .slice(0, 20)
         .forEach(c => {
-          batch.set(doc(cityRunsCol(), `${run.id}_${c.id}`), {
-            uid,
+          // No uid anywhere in a city run — the id is a one-way hash, and the
+          // rules check it against request.auth instead.
+          batch.set(doc(cityRunsCol(), cityRunId(uid, runMs, c.id)), {
             clubId: c.id,
             clubName: c.name,
             cells: city.cells,
             region: city.region,
-            day: run.day,
+            runMs,
             createdAt: serverTimestamp(),
           });
         });

@@ -28,6 +28,8 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 
+import { cityRunId } from '../src/services/cityId';
+
 const ALICE = 'alice';
 const BOB = 'bob';
 const TODAY = '2026-08-26';
@@ -919,13 +921,12 @@ describe('city runs', () => {
     ...overrides,
   });
 
-  const cityRun = (uid: string, overrides: Record<string, unknown> = {}) => ({
-    uid,
+  const cityRun = (overrides: Record<string, unknown> = {}) => ({
     clubId: CLUB,
     clubName: 'Night Owls',
     cells: ['18530:61540', '18531:61540'],
     region: '89:292',
-    day: '2026-10-01',
+    runMs: STARTED,
     createdAt: serverTimestamp(),
     ...overrides,
   });
@@ -934,14 +935,22 @@ describe('city runs', () => {
   const post = (
     db: Db,
     uid: string,
-    opts: { club?: string; city?: Record<string, unknown>; run?: Record<string, unknown> } = {},
+    opts: {
+      club?: string;
+      city?: Record<string, unknown>;
+      run?: Record<string, unknown>;
+      id?: string;
+      skipClubRun?: boolean;
+    } = {},
   ) => {
     const club = opts.club ?? CLUB;
     const batch = writeBatch(db);
-    batch.set(doc(db, 'groups', club, 'runs', `${uid}_${STARTED}`), clubRun(uid, opts.run));
+    if (!opts.skipClubRun) {
+      batch.set(doc(db, 'groups', club, 'runs', `${uid}_${STARTED}`), clubRun(uid, opts.run));
+    }
     batch.set(
-      doc(db, 'cityRuns', `${uid}_${STARTED}_${club}`),
-      cityRun(uid, { clubId: club, ...opts.city }),
+      doc(db, 'cityRuns', opts.id ?? cityRunId(uid, STARTED, club)),
+      cityRun({ clubId: club, ...opts.city }),
     );
     return batch.commit();
   };
@@ -951,10 +960,26 @@ describe('city runs', () => {
     await assertSucceeds(post(asAlice(), ALICE));
   });
 
+  it('stores nothing that says who ran: no uid in the document or its id', async () => {
+    await seed();
+    await post(asAlice(), ALICE);
+    const id = cityRunId(ALICE, STARTED, CLUB);
+    expect(id).not.toContain(ALICE);
+    const snap = await getDoc(doc(env.authenticatedContext(CAROL).firestore(), 'cityRuns', id));
+    expect(Object.keys(snap.data() ?? {}).sort()).toEqual(
+      ['cells', 'clubId', 'clubName', 'createdAt', 'region', 'runMs'],
+    );
+  });
+
+  it("refuses a city run that carries the runner's uid", async () => {
+    await seed();
+    await assertFails(post(asAlice(), ALICE, { city: { uid: ALICE } }));
+  });
+
   it('lets anyone signed in see the map, and nobody signed out', async () => {
     await seed();
     await post(asAlice(), ALICE);
-    const id = `${ALICE}_${STARTED}_${CLUB}`;
+    const id = cityRunId(ALICE, STARTED, CLUB);
     const carol = env.authenticatedContext(CAROL).firestore();
     await assertSucceeds(getDoc(doc(carol, 'cityRuns', id)));
     await assertFails(getDoc(doc(asAnon(), 'cityRuns', id)));
@@ -962,15 +987,36 @@ describe('city runs', () => {
 
   it('refuses blocks with no club run behind them', async () => {
     await seed();
-    await assertFails(
-      setDoc(doc(asAlice(), 'cityRuns', `${ALICE}_${STARTED}_${CLUB}`), cityRun(ALICE)),
-    );
+    await assertFails(post(asAlice(), ALICE, { skipClubRun: true }));
   });
 
   it('refuses blocks lit by a run the club board would refuse', async () => {
     await seed();
     // 10 km in 15 minutes: a car.
     await assertFails(post(asAlice(), ALICE, { run: { distanceKm: 10, durationSec: 900 } }));
+  });
+
+  it('refuses lighting the city twice with one run', async () => {
+    await seed();
+    await assertSucceeds(post(asAlice(), ALICE));
+    // Same run, same id: a second write is an update, and those are refused.
+    await assertFails(
+      setDoc(doc(asAlice(), 'cityRuns', cityRunId(ALICE, STARTED, CLUB)), cityRun()),
+    );
+  });
+
+  it('refuses an id that is not the hash of this runner, run and club', async () => {
+    await seed();
+    await assertFails(post(asAlice(), ALICE, { id: 'made-up-id' }));
+    // The hash of somebody else's run: an attempt to post as Bob.
+    await assertFails(post(asAlice(), ALICE, { id: cityRunId(BOB, STARTED, CLUB) }));
+  });
+
+  it("refuses borrowing a clubmate's run", async () => {
+    await seed();
+    // Alice's run exists; Bob points his city run at its time.
+    await post(asAlice(), ALICE);
+    await assertFails(post(asBob(), BOB, { skipClubRun: true }));
   });
 
   it('refuses lighting blocks for a club you are not in', async () => {
@@ -981,9 +1027,7 @@ describe('city runs', () => {
 
   it('refuses lighting blocks for a squad', async () => {
     await seed();
-    await assertFails(
-      post(asAlice(), ALICE, { club: SQUAD, city: { clubName: 'Pals' } }),
-    );
+    await assertFails(post(asAlice(), ALICE, { club: SQUAD, city: { clubName: 'Pals' } }));
   });
 
   it('refuses a made-up club name on the map', async () => {
@@ -991,21 +1035,9 @@ describe('city runs', () => {
     await assertFails(post(asAlice(), ALICE, { city: { clubName: 'Owls are slow' } }));
   });
 
-  it('refuses lighting blocks as somebody else', async () => {
-    await seed();
-    const db = asBob();
-    const b = writeBatch(db);
-    b.set(doc(db, 'groups', CLUB, 'runs', `${BOB}_${STARTED}`), clubRun(BOB));
-    // Bob's run, but the city run claims Alice.
-    b.set(doc(db, 'cityRuns', `${BOB}_${STARTED}_${CLUB}`), cityRun(ALICE));
-    await assertFails(b.commit());
-  });
-
   it('refuses extra fields, like a route', async () => {
     await seed();
-    await assertFails(
-      post(asAlice(), ALICE, { city: { route: [22.3, 73.1, 22.31, 73.1] } }),
-    );
+    await assertFails(post(asAlice(), ALICE, { city: { route: [22.3, 73.1, 22.31, 73.1] } }));
   });
 
   it('refuses an empty run and an oversized one', async () => {
@@ -1015,13 +1047,12 @@ describe('city runs', () => {
     await assertFails(post(asAlice(), ALICE, { city: { cells: huge } }));
   });
 
-  it('never lets a city run be edited, only deleted by its runner', async () => {
+  it('never lets a city run be edited or deleted', async () => {
     await seed();
     await post(asAlice(), ALICE);
-    const id = `${ALICE}_${STARTED}_${CLUB}`;
+    const id = cityRunId(ALICE, STARTED, CLUB);
     await assertFails(updateDoc(doc(asAlice(), 'cityRuns', id), { cells: ['1:1'] }));
-    await assertFails(deleteDoc(doc(asBob(), 'cityRuns', id)));
-    await assertSucceeds(deleteDoc(doc(asAlice(), 'cityRuns', id)));
+    await assertFails(deleteDoc(doc(asAlice(), 'cityRuns', id)));
   });
 });
 

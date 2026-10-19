@@ -1,6 +1,8 @@
 import { cellFor, type CellId } from './exploration';
 import { haversineKm, type GeoPoint, type Segment } from './location';
 
+export { cityRunId } from './cityId';
+
 /**
  * Light up the city.
  *
@@ -42,9 +44,13 @@ export const MAX_CITY_CELLS = 400;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * One run's mark on the map. Says which club, never which person: the map is
+ * public to everyone signed in, and it only needs the club to decide who owns
+ * a block. See the cityRuns rules.
+ */
 export type CityRun = {
   id: string;
-  uid: string;
   clubId: string;
   clubName: string;
   cells: CellId[];
