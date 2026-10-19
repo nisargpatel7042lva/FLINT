@@ -35,6 +35,12 @@
     .grid .b { background: rgba(34,211,238,.7); outline: 1.5px solid var(--cyan); }
     h1 { font-size: clamp(34px, 9vw, 48px); line-height: 1.02; margin: 0; letter-spacing: -.03em; font-weight: 900; }
     .lead { color: var(--muted); font-size: 17px; margin: 14px 0 28px; }
+    .get {
+      background: var(--card); border: 1px solid var(--accent); border-radius: 18px;
+      padding: 18px; font-size: 16px; color: var(--muted);
+    }
+    .get b { display: block; color: var(--text); font-size: 18px; margin-bottom: 4px; }
+    .file { color: var(--text); font-weight: 700; }
     .download {
       display: flex; align-items: center; justify-content: center; gap: 10px;
       width: 100%; padding: 18px 20px; border-radius: 999px;
@@ -79,16 +85,18 @@
       clubs testing it with us.
     </p>
 
-    <a class="download" href="/flint-beta.apk" download>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14"/></svg>
-      Download for Android
-    </a>
-    <p class="meta" id="meta">Flint 0.1.0 · Android 8 or newer</p>
+    <div class="get">
+      <b>Get the app from your club organiser.</b>
+      During the beta, Flint is shared as a file on WhatsApp, not from the Play
+      Store. Ask your organiser for <span class="file">Flint-beta.apk</span>,
+      then follow the steps below.
+    </div>
+    <p class="meta">Flint 0.1.0 · Android 8 or newer · iPhone later</p>
 
     <h2>Installing it</h2>
     <ol>
-      <li><b>Tap Download, then open the file.</b><span>It is in your notifications or your Downloads folder.</span></li>
-      <li><b>Allow installs from your browser.</b><span>Android asks once, because the beta is not on the Play Store yet. Tap Settings, switch on "Allow from this source", then go back.</span></li>
+      <li><b>Tap the file in WhatsApp.</b><span>If it does not open, find it in Files → Downloads (or WhatsApp → Documents).</span></li>
+      <li><b>Allow installs from WhatsApp or Files.</b><span>Android asks once, because the beta is not on the Play Store yet. Tap Settings, switch on "Allow from this source", then go back.</span></li>
       <li><b>Tap Install.</b><span>If Play Protect warns about an unknown app, tap "More details" then "Install anyway". It warns about every app that is not from the Play Store.</span></li>
       <li><b>Open Flint and join your club.</b><span>Your organiser has a 6-letter club code. Enter it after you sign up.</span></li>
     </ol>
@@ -108,7 +116,7 @@
     </div>
 
     <footer>
-      iPhone version later · <a href="https://use-flint.vercel.app">use-flint.vercel.app</a>
+      <a href="https://use-flint.vercel.app">use-flint.vercel.app</a>
     </footer>
   </main>
   <script>
