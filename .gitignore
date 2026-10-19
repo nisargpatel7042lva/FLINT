@@ -91,3 +91,6 @@ android/keystore.properties
 
 # The beta APK is copied in at deploy time, never committed.
 hosting/*.apk
+
+# Release builds handed to testers. Never committed.
+dist/
