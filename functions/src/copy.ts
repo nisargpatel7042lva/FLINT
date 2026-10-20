@@ -30,8 +30,25 @@ export function passedNudge(passer: string, club: string, tone: Tone): Nudge {
     title: tone === 'savage' ? `${passer} took your spot` : 'Overtaken',
     body:
       tone === 'savage'
-        ? `${passer} just took your spot on ${club}. Going to let that stand?`
+        ? `${passer} just ran past you on ${club}. If I were you, I'd challenge them and take it back today.`
         : `${passer} passed you on the ${club} board. One run gets it back.`,
+  };
+}
+
+/**
+ * "Another club took your blocks." Pushed to the members of the club that
+ * lost them.
+ *
+ * Mirrors `stealPushLine` in `src/services/city.ts`; parity is tested.
+ */
+export function stealNudge(thief: string, yourClub: string, blocks: number, tone: Tone): Nudge {
+  const n = blocks === 1 ? 'a block' : `${blocks} blocks`;
+  return {
+    title: tone === 'savage' ? `${thief} is in your streets` : `${thief} took ${n}`,
+    body:
+      tone === 'savage'
+        ? `${thief} just took ${n} off ${yourClub}. If I were you, I'd lace up and take them back tonight.`
+        : `${thief} took ${n} from ${yourClub}. Run through them this week to win them back.`,
   };
 }
 

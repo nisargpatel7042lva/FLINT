@@ -6,6 +6,9 @@
     <!-- Cloud Messaging: required to show notifications on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- A short buzz when a nudge pops up in the app. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!--
       Location. Coarse is requested alongside fine because Android 12+ lets the
       user grant only approximate location, and the app must still work then.

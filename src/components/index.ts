@@ -57,3 +57,4 @@ export * from './ExploredMap';
 export * from './CityMap';
 export * from './HoldButton';
 export * from './GoogleButton';
+export * from './InAppBanner';

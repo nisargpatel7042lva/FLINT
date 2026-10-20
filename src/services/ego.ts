@@ -62,7 +62,7 @@ export function verdictLine(v: Verdict, tone: Tone): string {
 /** When somebody overtakes you on a club board. */
 export function passedLine(passer: string, club: string, tone: Tone): string {
   return tone === 'savage'
-    ? `${passer} just took your spot on ${club}. Going to let that stand?`
+    ? `${passer} just ran past you on ${club}. If I were you, I'd challenge them and take it back today.`
     : `${passer} passed you on the ${club} board. One run gets it back.`;
 }
 

@@ -58,6 +58,8 @@ import {
   WelcomeScreen,
 } from '../screens';
 import { TabNavigator } from './TabNavigator';
+import { LiveAlerts } from './LiveAlerts';
+import { navigationRef } from './ref';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -116,7 +118,7 @@ export function RootNavigator() {
   const initialRouteName = logs.length > 0 || profile.completed ? 'Tabs' : 'Splash';
 
   return (
-    <NavigationContainer theme={navTheme} linking={linkingConfig}>
+    <NavigationContainer ref={navigationRef} theme={navTheme} linking={linkingConfig}>
       <Stack.Navigator
         initialRouteName={initialRouteName}
         screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
@@ -196,6 +198,7 @@ export function RootNavigator() {
           options={{ animation: 'slide_from_bottom' }}
         />
       </Stack.Navigator>
+      <LiveAlerts />
     </NavigationContainer>
   );
 }

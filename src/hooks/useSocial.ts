@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ensureSignedIn } from '../services/auth';
+import { ensureSignedIn, watchAuth } from '../services/auth';
 import { socialStore, todayKey, type Poke, type PokeKind } from '../services/social';
 import { getSocialRepository } from '../services/socialRepositoryProvider';
 import type { JoinResult, PublicProfile } from '../services/socialRepository';
@@ -97,22 +97,41 @@ export function useSocial(): SocialApi {
 
   useEffect(() => {
     let alive = true;
-    const unsubs: (() => void)[] = [];
+    let unsubs: (() => void)[] = [];
+    const stop = () => {
+      unsubs.forEach(u => u());
+      unsubs = [];
+    };
 
-    (async () => {
-      const user = await ensureSignedIn();
+    /*
+     * Follows the signed-in account, not just the first one seen. Logging
+     * into an existing account replaces the anonymous one, and anything still
+     * listening to the old uid's inbox would never hear another nudge.
+     */
+    const subscribe = (id: string) => {
+      stop();
+      uidRef.current = id;
+      setUid(id);
+      unsubs.push(repo.watchFriends(id, next => alive && setFriends(next)));
+      unsubs.push(repo.watchGroups(id, next => alive && setGroups(next)));
+      unsubs.push(repo.watchInbox(id, next => alive && setReceived(next)));
+      unsubs.push(repo.watchSent(id, next => alive && setSent(next)));
+      setLoading(false);
+    };
+
+    const unwatchAuth = watchAuth(user => {
       if (!alive) {
         return;
       }
-      uidRef.current = user.uid;
-      setUid(user.uid);
-
-      unsubs.push(repo.watchFriends(user.uid, next => alive && setFriends(next)));
-      unsubs.push(repo.watchGroups(user.uid, next => alive && setGroups(next)));
-      unsubs.push(repo.watchInbox(user.uid, next => alive && setReceived(next)));
-      unsubs.push(repo.watchSent(user.uid, next => alive && setSent(next)));
-      setLoading(false);
-    })();
+      if (user) {
+        if (user.uid !== uidRef.current) {
+          subscribe(user.uid);
+        }
+        return;
+      }
+      // Signed out (or first launch): an anonymous account keeps the app working.
+      ensureSignedIn().catch(() => {});
+    });
 
     /*
      * The local repository reads groups straight out of this store, so it has
@@ -123,7 +142,8 @@ export function useSocial(): SocialApi {
 
     return () => {
       alive = false;
-      unsubs.forEach(u => u());
+      unwatchAuth();
+      stop();
     };
   }, [repo]);
 

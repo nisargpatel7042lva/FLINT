@@ -320,6 +320,14 @@ export function stealLine(s: Steal, savage: boolean): string {
       } to win ${n === 1 ? 'it' : 'them'} back.`;
 }
 
+/** Word-for-word the push body (functions/src/copy.ts `stealNudge`). */
+export function stealPushLine(thief: string, yourClub: string, blocks: number, savage: boolean): string {
+  const n = blocks === 1 ? 'a block' : `${blocks} blocks`;
+  return savage
+    ? `${thief} just took ${n} off ${yourClub}. If I were you, I'd lace up and take them back tonight.`
+    : `${thief} took ${n} from ${yourClub}. Run through them this week to win them back.`;
+}
+
 export function takeLine(block: BlockOwner, myClubId: string | null): string {
   if (!myClubId) {
     return `${block.clubName} owns this block with ${block.runs} run${block.runs === 1 ? '' : 's'} this week.`;

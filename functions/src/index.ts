@@ -22,9 +22,11 @@ import {
   comebackNudge,
   milestoneNudge,
   passedNudge,
+  stealNudge,
   streakAtRiskNudge,
 } from './copy';
 import { overtakenBy, weekStartKey, type ClubRun } from './board';
+import { CITY_WINDOW_DAYS, stolenBy, type CityRunLite } from './city';
 import { pokeNudge, seedFrom, type PokeKind } from './pokeCopy';
 
 initializeApp();
@@ -402,6 +404,91 @@ export const onClubRunCreated = onDocumentCreated(
     logger.info('club run processed', { groupId, runId, overtaken: overtaken.length });
   },
 );
+
+/**
+ * "Another club took your blocks" — pushed to the club that lost them.
+ *
+ * When a city run lands, ownership of its blocks is worked out with and
+ * without it (the same rule the map uses, see ./city.ts). Every club that
+ * just lost blocks to this run hears about it, once:
+ *   - at most one steal alert per person per losing club every 6 hours, so a
+ *     rival club's Saturday long run is one alert, not twelve;
+ *   - never to someone who is ALSO in the club that took the blocks;
+ *   - in the voice each person chose — the savage one dares them to go and
+ *     take the blocks back, never anything about them as a person.
+ */
+export const onCityRunCreated = onDocumentCreated('cityRuns/{cityRunId}', async event => {
+  const snap = event.data;
+  if (!snap) {
+    return;
+  }
+  const d = snap.data();
+  const now = Date.now();
+  const toLite = (id: string, x: FirebaseFirestore.DocumentData): CityRunLite => ({
+    id,
+    clubId: String(x.clubId ?? ''),
+    clubName: String(x.clubName ?? 'A club'),
+    cells: Array.isArray(x.cells) ? x.cells.filter((c: unknown) => typeof c === 'string') : [],
+    createdAtMs: (x.createdAt?.toMillis?.() as number | undefined) ?? now,
+  });
+  const next = toLite(snap.id, d);
+  const region = String(d.region ?? '');
+  if (!next.clubId || next.cells.length === 0 || !region) {
+    return;
+  }
+
+  const since = new Date(now - CITY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const recent = await db
+    .collection('cityRuns')
+    .where('region', '==', region)
+    .where('createdAt', '>=', since)
+    .get();
+  const before = recent.docs.filter(x => x.id !== snap.id).map(x => toLite(x.id, x.data()));
+
+  const lost = stolenBy(before, next, now);
+  if (lost.size === 0) {
+    return;
+  }
+  const thiefClub = await db.doc(`groups/${next.clubId}`).get();
+  const thieves = new Set<string>((thiefClub.get('memberIds') as string[]) ?? []);
+
+  const SIX_HOURS = 6 * 60 * 60 * 1000;
+  await Promise.all(
+    [...lost.entries()].map(async ([victimId, { clubName, cells }]) => {
+      const victim = await db.doc(`groups/${victimId}`).get();
+      const members = ((victim.get('memberIds') as string[]) ?? []).filter(u => !thieves.has(u));
+      await Promise.all(
+        members.slice(0, 100).map(async uid => {
+          const limit = db.doc(`rateLimits/steal_${uid}_${victimId}`);
+          const fresh = await db.runTransaction(async tx => {
+            const prev = await tx.get(limit);
+            const last = (prev.get('at') as number | undefined) ?? 0;
+            if (now - last < SIX_HOURS) {
+              return false;
+            }
+            tx.set(limit, { at: now });
+            return true;
+          });
+          if (!fresh) {
+            return;
+          }
+          const user = await db.doc(`users/${uid}`).get();
+          const token = user.get('fcmToken');
+          if (!token) {
+            return;
+          }
+          const tone = user.get('tone') === 'savage' ? 'savage' : 'warm';
+          try {
+            await send(String(token), stealNudge(next.clubName, clubName, cells.length, tone));
+          } catch (e) {
+            logger.warn('steal push failed', { uid, victimId, error: String(e) });
+          }
+        }),
+      );
+    }),
+  );
+  logger.info('city run processed', { id: snap.id, victims: lost.size });
+});
 
 /**
  * Compute challenge streaks when a submission is created or updated.
