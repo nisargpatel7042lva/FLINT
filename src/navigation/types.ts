@@ -105,6 +105,8 @@ export type RootStackParamList = {
   ExerciseDetail: { id: string };
   /** Live GPS session. Defaults to a run when no kind is given. */
   Tracking: { kind: 'run' | 'walk' } | undefined;
+  /** Setup: how often and how far you run now, and what you are chasing. */
+  RunnerProfile: undefined;
   /** Last setup step: join a club by code, or start one. */
   JoinClub: undefined;
   /** Shows the two alerts Flint sends before Android asks for permission. */

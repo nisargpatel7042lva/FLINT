@@ -43,6 +43,7 @@ import {
   TimeBudgetScreen,
   TrackingScreen,
   JoinClubScreen,
+  RunnerProfileScreen,
   AlertsPrimerScreen,
   FeedbackScreen,
   RunHistoryScreen,
@@ -136,6 +137,7 @@ export function RootNavigator() {
         <Stack.Screen name="BodyBasics" component={BodyBasicsScreen} />
         <Stack.Screen name="ProfileGoal" component={ProfileGoalScreen} />
         <Stack.Screen name="FindFriends" component={FindFriendsScreen} />
+        <Stack.Screen name="RunnerProfile" component={RunnerProfileScreen} />
         <Stack.Screen name="JoinClub" component={JoinClubScreen} />
         <Stack.Screen name="AlertsPrimer" component={AlertsPrimerScreen} />
         <Stack.Screen name="Feedback" component={FeedbackScreen} />

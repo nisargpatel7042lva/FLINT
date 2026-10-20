@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   IconButton,
+  MeterBar,
   Screen,
   SectionHeader,
   Text,
@@ -23,6 +24,9 @@ import {
   loadRuns,
   predict,
   predictionLine,
+  loadRunnerProfile,
+  typicalRunKm,
+  type RunnerProfile,
   refreshPushToken,
   runPaceSec,
   stealLine,
@@ -66,6 +70,7 @@ export function RunHomeScreen() {
     }
   }, [uid]);
   const [runActive, setRunActive] = useState(false);
+  const [runner, setRunner] = useState<RunnerProfile | null>(null);
 
   // Refreshed on every visit: a run finished a minute ago belongs here now.
   useFocusEffect(
@@ -77,6 +82,9 @@ export function RunHomeScreen() {
       getRecorderStatus()
         .then(s => alive && setRunActive(s.active))
         .catch(() => {});
+      loadRunnerProfile()
+        .then(p => alive && setRunner(p))
+        .catch(() => {});
       return () => {
         alive = false;
       };
@@ -86,7 +94,11 @@ export function RunHomeScreen() {
   const weekStart = weekStartKey(todayKey());
   const week = runs.filter(r => r.day >= weekStart && r.kind === 'run');
   const weekKm = week.reduce((s, r) => s + r.distanceKm, 0);
-  const prediction = useMemo(() => predict(runs, 'run'), [runs]);
+  const prediction = useMemo(
+    () => predict(runs, 'run', runner ? typicalRunKm[runner.longest] : undefined),
+    [runs, runner],
+  );
+  const goalKm = runner?.weeklyGoalKm ?? null;
 
   const myName = uid ? nameFor(uid) : '';
   const firstName = myName && myName !== 'Someone' ? myName.split(' ')[0] : '';
@@ -151,6 +163,19 @@ export function RunHomeScreen() {
             km
           </Text>
         </View>
+        {goalKm ? (
+          <View style={styles.goal}>
+            <MeterBar
+              value={Math.min(100, (weekKm / goalKm) * 100)}
+              trackColor={theme.colors.surfaceInverseMuted}
+            />
+            <Text variant="caption" tone="inverseMuted" style={styles.goalText}>
+              {weekKm >= goalKm
+                ? `Weekly goal of ${goalKm} km done. Everything now is extra.`
+                : `${(goalKm - weekKm).toFixed(1)} km to your ${goalKm} km goal`}
+            </Text>
+          </View>
+        ) : null}
         <Text variant="bodySm" tone="inverseMuted">
           {week.length === 0
             ? 'No runs yet this week.'
@@ -320,6 +345,8 @@ const styles = StyleSheet.create({
   headline: { flexDirection: 'row', alignItems: 'baseline', columnGap: 8, marginTop: 4 },
   unit: { marginBottom: 4 },
   ahead: { marginTop: 6 },
+  goal: { marginTop: 10, marginBottom: 8 },
+  goalText: { marginTop: 6 },
   call: { marginTop: 20 },
   callText: { marginTop: 4 },
   start: { marginTop: 20 },

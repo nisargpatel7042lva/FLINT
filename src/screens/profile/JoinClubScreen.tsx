@@ -89,7 +89,7 @@ export function JoinClubScreen() {
     return (
       <Screen padding="lg" contentContainerStyle={styles.doneContent}>
         <SetupHeader
-          step={1}
+          step={2}
           title={club.started ? `${club.group.name}\nis live` : `You're in\n${club.group.name}`}
           subtitle={
             club.started
@@ -130,7 +130,7 @@ export function JoinClubScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}>
         <SetupHeader
-          step={1}
+          step={2}
           title={'Find your\nrun club'}
           subtitle="Your runs light up the city for your club. Ask your organiser for the code."
         />

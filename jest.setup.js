@@ -70,6 +70,7 @@ jest.mock('@react-native-firebase/firestore', () => ({
   getDoc: jest.fn(),
   getDocs: jest.fn(),
   setDoc: jest.fn(),
+  deleteField: jest.fn(),
   addDoc: jest.fn(),
   onSnapshot: jest.fn(),
   query: jest.fn(),
@@ -133,3 +134,19 @@ jest.mock('react-native-view-shot', () => {
   const { View } = require('react-native');
   return { __esModule: true, default: View, captureRef: jest.fn() };
 });
+
+/** Google sign-in is native; tests never reach a real Google account. */
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn(() => Promise.resolve(true)),
+    signIn: jest.fn(() => Promise.resolve({ type: 'cancelled', data: null })),
+    signOut: jest.fn(() => Promise.resolve(null)),
+  },
+  isErrorWithCode: () => false,
+  statusCodes: { IN_PROGRESS: 'IN_PROGRESS' },
+}));
+
+jest.mock('react-native-image-picker', () => ({
+  launchImageLibrary: jest.fn(() => Promise.resolve({ didCancel: true })),
+}));

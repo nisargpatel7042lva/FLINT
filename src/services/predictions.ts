@@ -53,7 +53,12 @@ function median(values: number[]): number {
  * the runner cannot reach on a Tuesday — the call has to be about their normal,
  * not their best.
  */
-export function predict(runs: RunRecord[], kind: RunKind): Prediction {
+export function predict(
+  runs: RunRecord[],
+  kind: RunKind,
+  /** What onboarding says a usual run is, used until there is real history. */
+  typicalKm?: number,
+): Prediction {
   const recent = runs
     // Flagged runs (a GPS glitch, a ride) would skew the call either way.
     .filter(r => r.kind === kind && r.distanceKm > 0 && !r.flagged)
@@ -61,7 +66,9 @@ export function predict(runs: RunRecord[], kind: RunKind): Prediction {
     .slice(0, WINDOW);
 
   if (recent.length < MIN_HISTORY) {
-    return { kind, targetKm: FIRST_RUN_KM, basis: 'first', sample: recent.length };
+    const target =
+      typicalKm && kind === 'run' ? Math.max(1, ceilToHalf(typicalKm * STRETCH)) : FIRST_RUN_KM;
+    return { kind, targetKm: target, basis: 'first', sample: recent.length };
   }
 
   const typical = median(recent.map(r => r.distanceKm));

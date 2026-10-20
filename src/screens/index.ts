@@ -57,3 +57,4 @@ export * from './profile/AlertsPrimerScreen';
 export * from './personal/FeedbackScreen';
 export * from './runs/RunHistoryScreen';
 export * from './runs/RunDetailScreen';
+export * from './profile/RunnerProfileScreen';

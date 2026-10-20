@@ -13,6 +13,8 @@ import {
 } from '../../components';
 import { checkHandle, normaliseHandle } from '../../services/socialRepository';
 import { useSocial } from '../../hooks';
+import { pickProfilePhoto } from '../../services/photo';
+import { getSocialRepository } from '../../services/socialRepositoryProvider';
 import { useTheme } from '../../theme';
 import { SetupHeader } from './SetupHeader';
 
@@ -40,6 +42,17 @@ export function ProfileNameScreen() {
   /** True once the user edits the handle, so we stop overwriting their choice. */
   const [handleTouched, setHandleTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Picked now, saved once the profile exists — the rules need it first. */
+  const [photo, setPhoto] = useState<string | null>(null);
+
+  const choosePhoto = async () => {
+    const picked = await pickProfilePhoto().catch(() => null);
+    if (picked?.state === 'picked') {
+      setPhoto(picked.dataUrl);
+    } else if (picked?.state === 'too-big') {
+      setError('That photo is too detailed. Try a simpler one.');
+    }
+  };
   const [error, setError] = useState<string | null>(null);
 
   const effectiveHandle = handleTouched ? handle : suggestHandle(name);
@@ -65,8 +78,14 @@ export function ProfileNameScreen() {
     setSaving(true);
     setError(null);
     try {
-      await claimProfile(name, check.handle);
-      navigation.navigate('JoinClub');
+      const profile = await claimProfile(name, check.handle);
+      if (photo) {
+        // Not fatal: a photo that fails to save can be added from Profile.
+        await getSocialRepository()
+          .setPhoto(profile.uid, photo)
+          .catch(() => {});
+      }
+      navigation.navigate('RunnerProfile');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -90,9 +109,13 @@ export function ProfileNameScreen() {
             name={name || undefined}
             size="xl"
             ring
+            source={photo ? { uri: photo } : undefined}
             badge={
-              // Image picker is a later phase — this is the affordance only.
-              <IconButton accessibilityLabel="Change photo" variant="accent" size="sm">
+              <IconButton
+                accessibilityLabel={photo ? 'Change photo' : 'Add a photo'}
+                variant="accent"
+                size="sm"
+                onPress={choosePhoto}>
                 <Camera color={theme.colors.onAccent} size={16} />
               </IconButton>
             }

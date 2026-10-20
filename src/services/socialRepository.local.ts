@@ -47,6 +47,10 @@ export class LocalSocialRepository implements SocialRepository {
     return MEMBERS.some(m => m.id === uid) ? toProfile(uid) : null;
   }
 
+  async setPhoto(): Promise<void> {
+    // Device-local mode has no public profiles to put a photo on.
+  }
+
   async searchProfiles(term: string, _excludeUid: string): Promise<PublicProfile[]> {
     const q = normaliseHandle(term);
     return MEMBERS.filter(

@@ -24,6 +24,8 @@ export type PublicProfile = {
   uid: string;
   name: string;
   handle: string;
+  /** A small JPEG as a data URL, when the person has set one. */
+  photo?: string;
 };
 
 export interface SocialRepository {
@@ -39,6 +41,9 @@ export interface SocialRepository {
   ensureProfile(uid: string, name: string, handle: string): Promise<PublicProfile>;
 
   getProfile(uid: string): Promise<PublicProfile | null>;
+
+  /** Sets (or, with null, removes) the signed-in person's profile photo. */
+  setPhoto(uid: string, photo: string | null): Promise<void>;
 
   /** Prefix search over handles. Returns at most a handful. */
   searchProfiles(term: string, excludeUid: string): Promise<PublicProfile[]>;

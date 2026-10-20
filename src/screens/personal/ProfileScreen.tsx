@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   CalendarDays,
+  Camera,
   ChevronRight,
   Dumbbell,
   LogOut,
@@ -31,6 +32,7 @@ import {
   currentUser,
   ensureSignedIn,
   loadRuns,
+  pickProfilePhoto,
   signOut,
   syncTone,
   type RunRecord,
@@ -109,6 +111,35 @@ export function ProfileScreen() {
       .catch(() => {});
   };
 
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  /*
+   * Pick, shrink, save. The photo goes on the public profile, so clubmates
+   * see it next to your name on the board and in nudges.
+   */
+  const changePhoto = async () => {
+    if (!uid || !me) {
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      const picked = await pickProfilePhoto();
+      if (picked.state === 'too-big') {
+        Alert.alert('That photo is too detailed', 'Try a simpler photo, or crop it first.');
+        return;
+      }
+      if (picked.state !== 'picked') {
+        return;
+      }
+      await getSocialRepository().setPhoto(uid, picked.dataUrl);
+      setMe({ ...me, photo: picked.dataUrl });
+    } catch {
+      Alert.alert('Could not save the photo', 'Check your connection and try again.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const confirmSignOut = () =>
     Alert.alert(
       'Log out?',
@@ -135,7 +166,23 @@ export function ProfileScreen() {
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
       <View style={styles.identity}>
-        <Avatar name={name} size="xl" ring />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={me?.photo ? 'Change profile photo' : 'Add a profile photo'}
+          onPress={changePhoto}
+          disabled={photoBusy || !me}>
+          <Avatar
+            name={name}
+            size="xl"
+            ring
+            source={me?.photo ? { uri: me.photo } : undefined}
+            badge={
+              <View style={[styles.camera, { backgroundColor: theme.colors.accent }]}>
+                <Camera color={theme.colors.onAccent} size={14} />
+              </View>
+            }
+          />
+        </Pressable>
         <View style={styles.flex}>
           <Text variant="h1" numberOfLines={1}>
             {name}
@@ -284,6 +331,13 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   identity: { flexDirection: 'row', alignItems: 'center', columnGap: 14, marginTop: 18 },
   card: { marginTop: 18 },
+  camera: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   saveRow: { flexDirection: 'row', columnGap: 12 },
   saveButton: { marginTop: 12, alignSelf: 'flex-start' },
   section: { marginTop: 28 },

@@ -120,6 +120,40 @@ describe('profiles', () => {
     );
   });
 
+  const aliceProfile = (extra: Record<string, unknown> = {}) => ({
+    name: 'Alice',
+    handle: '@alice',
+    handleLower: 'alice',
+    ...extra,
+  });
+
+  it('accepts a small JPEG profile photo', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), 'profiles', ALICE),
+        aliceProfile({ photo: 'data:image/jpeg;base64,' + 'A'.repeat(20000) }),
+      ),
+    );
+  });
+
+  it('refuses an oversized photo, a non-JPEG one, and fields a profile has no use for', async () => {
+    await assertFails(
+      setDoc(
+        doc(asAlice(), 'profiles', ALICE),
+        aliceProfile({ photo: 'data:image/jpeg;base64,' + 'A'.repeat(160000) }),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(asAlice(), 'profiles', ALICE),
+        aliceProfile({ photo: 'data:text/html;base64,PHNjcmlwdD4=' }),
+      ),
+    );
+    await assertFails(
+      setDoc(doc(asAlice(), 'profiles', ALICE), aliceProfile({ phone: '+919999999999' })),
+    );
+  });
+
   it('refuses a malformed handle', async () => {
     await env.withSecurityRulesDisabled(async ctx => {
       await setDoc(doc(ctx.firestore(), 'handles', 'ab'), { uid: ALICE });

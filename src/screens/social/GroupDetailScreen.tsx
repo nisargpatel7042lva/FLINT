@@ -40,7 +40,8 @@ export function GroupDetailScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'GroupDetail'>>();
-  const { groupById, uid, sendPoke, spent, leaveGroup, removeFromGroup, nameFor } = useSocial();
+  const { groupById, uid, sendPoke, spent, leaveGroup, removeFromGroup, nameFor, photoFor } =
+    useSocial();
 
   const group = groupById(route.params.groupId);
 
@@ -67,6 +68,7 @@ export function GroupDetailScreen() {
       group={group}
       uid={uid}
       nameFor={nameFor}
+      photoFor={photoFor}
       onBack={() => navigation.goBack()}
       onLeave={async () => {
         // Navigate first: the moment the write lands this club stops being
@@ -88,6 +90,7 @@ type ClubDetailProps = {
   group: Group;
   uid: string;
   nameFor: (uid: string) => string;
+  photoFor: (uid: string) => string | undefined;
   onBack: () => void;
   onLeave: () => void;
   onRemove: (uid: string) => void;
@@ -100,6 +103,7 @@ function ClubDetail({
   group,
   uid,
   nameFor,
+  photoFor,
   onBack,
   onLeave,
   onRemove,
@@ -239,7 +243,13 @@ function ClubDetail({
                     } · last ${relativeTime(m.entry.lastRunAt)}`
                   : 'No run this week'
               }
-              leading={<Avatar name={m.name} size="md" />}
+              leading={
+                <Avatar
+                  name={m.name}
+                  size="md"
+                  source={photoFor(m.uid) ? { uri: photoFor(m.uid) } : undefined}
+                />
+              }
               trailing={
                 isMe ? undefined : (
                   <View style={styles.row}>

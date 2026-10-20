@@ -60,6 +60,8 @@ import {
   runId,
   saveRun,
   saveRoute,
+  loadRunnerProfile,
+  typicalRunKm,
   encodeRoute,
   verdictLine,
   type Prediction,
@@ -163,7 +165,12 @@ export function TrackingScreen() {
   useEffect(() => {
     let alive = true;
     loadRuns()
-      .then(runs => alive && setPrediction(predict(runs, kind)))
+      .then(async runs => {
+        const runner = await loadRunnerProfile().catch(() => null);
+        if (alive) {
+          setPrediction(predict(runs, kind, runner ? typicalRunKm[runner.longest] : undefined));
+        }
+      })
       .catch(() => {});
     return () => {
       alive = false;

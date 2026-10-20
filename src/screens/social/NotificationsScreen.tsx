@@ -35,7 +35,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export function NotificationsScreen() {
   const theme = useTheme();
   const navigation = useNavigation<Nav>();
-  const { received, nameFor, markInboxRead, sendPoke, spent } = useSocial();
+  const { received, nameFor, photoFor, markInboxRead, sendPoke, spent } = useSocial();
 
   const items = useMemo(
     () => [...received].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
@@ -69,7 +69,11 @@ export function NotificationsScreen() {
         padding="base"
         elevation={p.read ? 'sm' : 'md'}>
         <View style={styles.rowInner}>
-          <Avatar name={name} size="md" />
+          <Avatar
+            name={name}
+            size="md"
+            source={photoFor(p.fromId) ? { uri: photoFor(p.fromId) } : undefined}
+          />
           <View style={styles.copy}>
             <View style={styles.titleRow}>
               {challenge ? (

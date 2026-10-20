@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Lock, Mail } from 'lucide-react-native';
 
-import { Button, IconButton, Input, Screen, Text } from '../../components';
+import { Button, GoogleButton, IconButton, Input, Screen, Text } from '../../components';
+import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
 import { authErrorMessage, signUpWithEmail } from '../../services';
 import { useTheme } from '../../theme';
 
@@ -18,6 +19,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export function SignUpScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const google = useGoogleSignIn();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -104,6 +106,20 @@ export function SignUpScreen() {
           style={styles.submit}
         />
 
+        <View style={styles.orRow}>
+          <View style={[styles.rule, { backgroundColor: theme.colors.border }]} />
+          <Text variant="caption" tone="muted">
+            or
+          </Text>
+          <View style={[styles.rule, { backgroundColor: theme.colors.border }]} />
+        </View>
+        <GoogleButton onPress={google.go} disabled={google.busy} />
+        {google.error ? (
+          <Text variant="bodySm" tone="danger" style={styles.googleError}>
+            {google.error}
+          </Text>
+        ) : null}
+
         <View style={styles.footer}>
           <Text variant="bodySm" tone="muted">
             Already have an account?
@@ -121,6 +137,9 @@ export function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
+  orRow: { flexDirection: 'row', alignItems: 'center', columnGap: 12, marginVertical: 18 },
+  rule: { flex: 1, height: StyleSheet.hairlineWidth },
+  googleError: { marginTop: 10 },
   content: { paddingBottom: 32 },
   flex: { flex: 1 },
   title: { marginTop: 20 },

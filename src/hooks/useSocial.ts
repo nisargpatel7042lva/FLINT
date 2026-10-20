@@ -60,6 +60,8 @@ export type SocialApi = {
   spent: (toUid: string, kind: PokeKind) => boolean;
   /** Display name for a uid, resolving in the background if it is a stranger. */
   nameFor: (uid: string) => string;
+  /** Their profile photo, once their profile has been fetched by `nameFor`. */
+  photoFor: (uid: string) => string | undefined;
 };
 
 /**
@@ -205,6 +207,11 @@ export function useSocial(): SocialApi {
     [friends, profiles, repo],
   );
 
+  const photoFor = useCallback(
+    (id: string) => friends.find(f => f.uid === id)?.photo ?? profiles[id]?.photo,
+    [friends, profiles],
+  );
+
   const createGroup = useCallback(
     async (name: string, kind?: GroupKind) => {
       const uidNow = uidRef.current || (await ensureSignedIn()).uid;
@@ -303,5 +310,6 @@ export function useSocial(): SocialApi {
     markInboxRead,
     spent,
     nameFor,
+    photoFor,
   };
 }

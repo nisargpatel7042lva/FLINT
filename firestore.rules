@@ -90,6 +90,16 @@ service cloud.firestore {
     match /profiles/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isOwner(userId)
+        // Only what a public profile is for. Anything else — a phone number,
+        // a push token — has no business on a document everyone can read.
+        && request.resource.data.keys().hasOnly(['name', 'handle', 'handleLower', 'photo'])
+        // The photo is a small JPEG inline (~20 KB after the app shrinks it).
+        // Capped well under Firestore's 1 MB document limit, and only JPEG,
+        // so the field cannot be used to host arbitrary content (JPEG or PNG).
+        && (!('photo' in request.resource.data)
+            || (request.resource.data.photo is string
+                && request.resource.data.photo.size() <= 150000
+                && request.resource.data.photo.matches('^data:image/(jpeg|png);base64,[A-Za-z0-9+/=]+$')))
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 40

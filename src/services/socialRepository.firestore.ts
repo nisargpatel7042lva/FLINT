@@ -3,6 +3,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   endAt,
   getDoc,
@@ -108,6 +109,7 @@ function toProfile(uid: string, data: Record<string, unknown> | undefined): Publ
     uid,
     name: String(data?.name ?? 'Unknown'),
     handle: String(data?.handle ?? '@unknown'),
+    photo: typeof data?.photo === 'string' ? data.photo : undefined,
   };
 }
 
@@ -241,6 +243,16 @@ export class FirestoreSocialRepository implements SocialRepository {
   async getProfile(uid: string): Promise<PublicProfile | null> {
     const snap = await getDoc(doc(profilesCol(), uid));
     return snap.exists() ? toProfile(uid, snap.data()) : null;
+  }
+
+  async setPhoto(uid: string, photo: string | null): Promise<void> {
+    // Merge onto the existing profile: the rules check the whole result, and
+    // name and handle must still be there.
+    await setDoc(
+      doc(profilesCol(), uid),
+      { photo: photo ?? deleteField() },
+      { merge: true },
+    );
   }
 
   async searchProfiles(term: string, excludeUid: string): Promise<PublicProfile[]> {

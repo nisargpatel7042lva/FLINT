@@ -1,3 +1,4 @@
+import type { RunnerProfile } from './runnerProfile';
 import type { SessionLog } from './training';
 
 /**
@@ -27,6 +28,12 @@ export type UserProfile = {
   /** Cached so Cloud Functions can decide who needs a nudge without a scan. */
   currentStreak?: number;
   lastSessionDay?: string;
+  /**
+   * The onboarding answers (see runnerProfile.ts). Private, like the tone:
+   * mirrored so a new phone keeps the goal, and so the server can time
+   * reminders to when this person actually runs.
+   */
+  runner?: RunnerProfile;
 };
 
 export type Unsubscribe = () => void;
