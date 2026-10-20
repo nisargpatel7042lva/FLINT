@@ -41,3 +41,4 @@ export * from './feedback';
 export * from './polyline';
 export * from './photo';
 export * from './runnerProfile';
+export * from './focus';

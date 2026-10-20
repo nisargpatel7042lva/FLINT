@@ -113,6 +113,8 @@ export type RootStackParamList = {
   AlertsPrimer: undefined;
   /** Beta: report a problem or send an idea. */
   Feedback: undefined;
+  /** Push-up challenge; `from: 'scroll'` when opened by the doom-scroll check. */
+  Pushups: { from?: 'scroll' } | undefined;
   /** One run from the phone's history, with its route. */
   RunDetail: { runId: string };
   /** Off the tab bar for v1 — running leads; these stay one tap away. */

@@ -79,6 +79,7 @@ export const linkingConfig: LinkingOptions<RootStackParamList> = {
       // The run screen. Also where the "run in progress" notification lands.
       Tracking: 'run/:kind?',
       History: 'history',
+      Pushups: 'pushups',
       Train: 'train',
       Tabs: {
         screens: {

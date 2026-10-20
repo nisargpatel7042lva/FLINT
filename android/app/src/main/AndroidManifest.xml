@@ -6,6 +6,15 @@
     <!-- Cloud Messaging: required to show notifications on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Usage access: lets the opt-in doom-scroll check see how long social apps
+      were on screen. A special permission only the user can grant, in
+      Settings; Flint never asks for it until they switch the check on.
+    -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
     <!-- A short buzz when a nudge pops up in the app. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 

@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
+  ArrowLeft,
   ChevronRight,
   Clock,
   Compass,
+  Flame,
   Dumbbell,
   Footprints,
   MapPin,
@@ -15,6 +17,8 @@ import {
   Button,
   Card,
   Chip,
+  IconButton,
+  MeterBar,
   ListRow,
   PhotoCard,
   PressableScale,
@@ -35,6 +39,9 @@ import {
   levelsFor,
   suggestFocus,
   totalSets,
+  loadPushups,
+  pushupStats,
+  todayKey,
   type Focus,
 } from '../../services';
 import { useProfile } from '../../hooks';
@@ -68,6 +75,14 @@ export function TrainScreen() {
   const navigation = useNavigation();
 
   const [minutes, setMinutes] = useState<number>(15);
+  const [pushups, setPushups] = useState({ best: 0, today: 0 });
+  useFocusEffect(
+    useCallback(() => {
+      loadPushups()
+        .then(sets => setPushups(pushupStats(sets, todayKey())))
+        .catch(() => {});
+    }, []),
+  );
   const todaysFocus = suggestFocus(TRAINING_TODAY);
 
   const { profile } = useProfile();
@@ -92,6 +107,52 @@ export function TrainScreen() {
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
+      {navigation.canGoBack() ? (
+        <IconButton
+          accessibilityLabel="Go back"
+          variant="muted"
+          size="md"
+          onPress={() => navigation.goBack()}>
+          <ArrowLeft color={theme.colors.text} size={20} />
+        </IconButton>
+      ) : null}
+
+      {/*
+        The challenge leads. A list of sets and reps is homework; a number
+        that pulses every time your chest touches the floor is a game — and
+        the phone keeps score, so there is nothing to type mid-set.
+      */}
+      <Card variant="dark" padding="lg" radius="xxl" style={styles.challenge}>
+        <View style={styles.challengeTop}>
+          <Flame color={theme.colors.accent} size={22} />
+          <Text variant="label" tone="accent" uppercase>
+            Push-up challenge
+          </Text>
+        </View>
+        <Text variant="h2" tone="inverse" style={styles.challengeTitle}>
+          The phone counts. You push.
+        </Text>
+        <Text variant="bodySm" tone="inverseMuted" style={styles.challengeBody}>
+          Phone on the floor under your chest — every rep is counted by the sensor. Best set:{' '}
+          {pushups.best}.
+        </Text>
+        <View style={styles.daily}>
+          <MeterBar
+            value={Math.min(100, (pushups.today / 50) * 100)}
+            trackColor={theme.colors.surfaceInverseMuted}
+          />
+          <Text variant="caption" tone="inverseMuted" style={styles.dailyText}>
+            Daily 50: {pushups.today >= 50 ? 'done today' : `${pushups.today} / 50 today`}
+          </Text>
+        </View>
+        <Button
+          label="Start a set"
+          size="md"
+          onPress={() => navigation.navigate('Pushups')}
+          style={styles.challengeBtn}
+        />
+      </Card>
+
       <Text variant="label" tone="accent" uppercase style={styles.eyebrow}>
         Train
       </Text>
@@ -261,6 +322,13 @@ export function TrainScreen() {
 }
 
 const styles = StyleSheet.create({
+  challenge: { marginTop: 16 },
+  challengeTop: { flexDirection: 'row', alignItems: 'center', columnGap: 8 },
+  challengeTitle: { marginTop: 8 },
+  challengeBody: { marginTop: 6 },
+  daily: { marginTop: 14 },
+  dailyText: { marginTop: 6 },
+  challengeBtn: { marginTop: 16, alignSelf: 'flex-start' },
   content: { paddingBottom: 140 },
   eyebrow: { paddingTop: 12 },
   flex: { flex: 1 },

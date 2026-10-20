@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -10,6 +10,7 @@ import {
   LogOut,
   MessageSquareWarning,
   Palette,
+  ScanEye,
   UserPlus,
   Users,
 } from 'lucide-react-native';
@@ -18,6 +19,7 @@ import {
   Avatar,
   Button,
   Card,
+  Chip,
   ListRow,
   Screen,
   SectionHeader,
@@ -32,6 +34,9 @@ import {
   currentUser,
   ensureSignedIn,
   loadRuns,
+  getScrollCheck,
+  openUsageAccess,
+  setScrollCheck,
   pickProfilePhoto,
   signOut,
   syncTone,
@@ -106,6 +111,10 @@ export function ProfileScreen() {
    */
   const chooseTone = (next: Tone) => {
     setTone(next);
+    // The scroll check writes its own notifications natively; keep its voice in step.
+    getScrollCheck()
+      .then(st => (st.enabled ? setScrollCheck(true, next === 'savage') : undefined))
+      .catch(() => {});
     ensureSignedIn()
       .then(u => syncTone(u.uid, next))
       .catch(() => {});
@@ -138,6 +147,57 @@ export function ProfileScreen() {
     } finally {
       setPhotoBusy(false);
     }
+  };
+
+  const [scrollCheck, setScrollCheckState] = useState({ enabled: false, hasUsageAccess: false });
+  const refreshScrollCheck = useCallback(() => {
+    getScrollCheck()
+      .then(setScrollCheckState)
+      .catch(() => {});
+  }, []);
+  // Back from Android's Usage access screen: see whether it was granted.
+  useEffect(() => {
+    refreshScrollCheck();
+    const sub = AppState.addEventListener('change', s => s === 'active' && refreshScrollCheck());
+    return () => sub.remove();
+  }, [refreshScrollCheck]);
+
+  /*
+   * Two switches, both the user's: Flint's own, and Android's Usage access,
+   * which only they can grant in Settings. Explained before sending them
+   * there, because the system screen says nothing about why.
+   */
+  const toggleScrollCheck = () => {
+    if (scrollCheck.enabled && scrollCheck.hasUsageAccess) {
+      setScrollCheck(false, tone === 'savage')
+        .then(refreshScrollCheck)
+        .catch(() => {});
+      return;
+    }
+    const enable = () =>
+      setScrollCheck(true, tone === 'savage')
+        .then(refreshScrollCheck)
+        .catch(() => {});
+    if (scrollCheck.hasUsageAccess) {
+      enable();
+      return;
+    }
+    Alert.alert(
+      'Allow Flint to see app time',
+      'Android will open "Usage access". Find Flint and switch it on. Flint only checks how long ' +
+        'Instagram, YouTube and similar feeds were open — never what you watched — and none of it ' +
+        'leaves your phone.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Open settings',
+          onPress: () => {
+            enable();
+            openUsageAccess().catch(() => {});
+          },
+        },
+      ],
+    );
   };
 
   const confirmSignOut = () =>
@@ -284,6 +344,24 @@ export function ProfileScreen() {
       </Text>
 
       <SectionHeader title="Settings" style={styles.section} />
+      <ListRow
+        filled
+        title="Doom-scroll check"
+        subtitle={
+          scrollCheck.enabled && scrollCheck.hasUsageAccess
+            ? 'On — 15+ minutes on reels and feeds gets you a push-up dare'
+            : 'Off — catch yourself scrolling and earn it back with push-ups'
+        }
+        leading={<ScanEye color={theme.colors.accent} size={20} />}
+        trailing={
+          <Chip
+            label={scrollCheck.enabled && scrollCheck.hasUsageAccess ? 'On' : 'Off'}
+            variant={scrollCheck.enabled && scrollCheck.hasUsageAccess ? 'accent' : 'muted'}
+          />
+        }
+        onPress={toggleScrollCheck}
+        style={styles.row}
+      />
       <ListRow
         filled
         title="Report a problem"

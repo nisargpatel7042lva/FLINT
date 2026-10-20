@@ -48,6 +48,7 @@ import {
   FeedbackScreen,
   RunHistoryScreen,
   RunDetailScreen,
+  PushupScreen,
   TrainScreen,
   TrainingPlaceScreen,
   TrainingPreferencesScreen,
@@ -175,6 +176,7 @@ export function RootNavigator() {
         <Stack.Screen name="Tracking" component={TrackingScreen} />
         <Stack.Screen name="History" component={RunHistoryScreen} />
         <Stack.Screen name="RunDetail" component={RunDetailScreen} />
+        <Stack.Screen name="Pushups" component={PushupScreen} />
         <Stack.Screen name="Train" component={TrainScreen} />
         <Stack.Screen name="Explored" component={ExploredScreen} />
 
