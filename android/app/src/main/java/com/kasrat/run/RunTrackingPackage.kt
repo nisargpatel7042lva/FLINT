@@ -7,7 +7,11 @@ import com.facebook.react.uimanager.ViewManager
 
 class RunTrackingPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
-    listOf(RunTrackingModule(reactContext), com.kasrat.focus.FocusModule(reactContext))
+    listOf(
+      RunTrackingModule(reactContext),
+      com.kasrat.focus.FocusModule(reactContext),
+      com.kasrat.alerts.AlertsModule(reactContext),
+    )
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
     emptyList()

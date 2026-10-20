@@ -39,6 +39,7 @@ import {
   setScrollCheck,
   pickProfilePhoto,
   signOut,
+  stopBackgroundAlerts,
   syncTone,
   type RunRecord,
   type Tone,
@@ -212,6 +213,7 @@ export function ProfileScreen() {
           text: 'Log out',
           style: 'destructive',
           onPress: async () => {
+            await stopBackgroundAlerts().catch(() => {});
             await signOut().catch(() => {});
             update({ completed: false });
             navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });

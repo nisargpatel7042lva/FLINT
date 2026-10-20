@@ -4,6 +4,8 @@ import { Flame, Hand, Swords } from 'lucide-react-native';
 
 import { InAppBanner, type BannerContent } from '../components';
 import { useSocial } from '../hooks';
+import { startBackgroundAlerts } from '../services/alerts';
+import { watchAuth } from '../services/auth';
 import { onForegroundNudge } from '../services/messaging';
 import { getSocialRepository } from '../services/socialRepositoryProvider';
 import { useTheme } from '../theme';
@@ -70,6 +72,18 @@ export function LiveAlerts() {
         });
     });
   }, [received, nameFor, push, theme.colors.accent]);
+
+  // And for when the app is closed: the phone checks for itself every
+  // 15 minutes or so (no server push on the free Firebase plan).
+  useEffect(
+    () =>
+      watchAuth(user => {
+        if (user) {
+          startBackgroundAlerts().catch(() => {});
+        }
+      }),
+    [],
+  );
 
   // Server pushes that land while the app is open.
   useEffect(

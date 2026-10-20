@@ -81,10 +81,13 @@ export const linkingConfig: LinkingOptions<RootStackParamList> = {
       History: 'history',
       Pushups: 'pushups',
       Train: 'train',
+      // Where the background alert check sends a nudge.
+      Notifications: 'inbox',
       Tabs: {
         screens: {
           Home: '',
           City: 'city',
+          Squad: 'squad',
           Profile: 'profile',
         },
       },

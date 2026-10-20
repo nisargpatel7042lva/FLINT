@@ -108,7 +108,7 @@ android {
         applicationId "com.kasrat"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
+        versionCode 4
         versionName "0.1.0"
     }
     signingConfigs {
@@ -153,10 +153,21 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     // Periodic doom-scroll check (DoomScrollWorker).
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+    // Background club alerts (AlertCheckWorker) read Firestore natively, as the
+    // signed-in user. Same BOM as @react-native-firebase, so one SDK version.
+    implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
+}
+
+// The Firebase SDK (for AlertCheckWorker) is built with a newer Kotlin than
+// React Native's. Only its metadata version differs; the API is plain Java.
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    compilerOptions.freeCompilerArgs.add("-Xskip-metadata-version-check")
 }

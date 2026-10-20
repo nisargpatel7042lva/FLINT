@@ -26,6 +26,7 @@ import {
 } from '../../components';
 import {
   ACTIVITY_LABELS,
+  CLOUD_FUNCTIONS,
   SUBMISSIONS,
   TODAY,
   WAR,
@@ -201,54 +202,59 @@ export function GroupsScreen() {
             </View>
           )}
 
-          <SectionHeader title="Head to head" style={styles.section} />
+          {/* 1:1 challenges run on Cloud Functions, off on the free plan. */}
+          {CLOUD_FUNCTIONS ? (
+            <>
+              <SectionHeader title="Head to head" style={styles.section} />
 
-          {activeChallenges.length === 0 && pendingChallenges.length === 0 ? (
-            <EmptyState
-              title="No challenges running"
-              body="Pick an activity and a number of days, then send the link to one person."
-              icon={<Target color={theme.colors.textMuted} size={26} />}
-              action={
-                <Button
-                  label="Challenge someone"
-                  onPress={() => navigation.navigate('CreateOneOnOne')}
-                />
-              }
-            />
-          ) : (
-            <View style={styles.list}>
-              {[...activeChallenges, ...pendingChallenges].map(c => (
-                <ListRow
-                  key={c.id}
-                  filled
-                  title={c.title}
-                  subtitle={
-                    c.status === 'pending'
-                      ? 'Waiting for someone to accept'
-                      : `${ACTIVITY_LABELS[c.activityKind]} · ${c.targetDays} days`
-                  }
-                  leading={<Target color={theme.colors.accent} size={20} />}
-                  trailing={
-                    <Chip
-                      label={c.status === 'pending' ? 'Pending' : 'Live'}
-                      variant={c.status === 'pending' ? 'muted' : 'accent'}
+              {activeChallenges.length === 0 && pendingChallenges.length === 0 ? (
+                <EmptyState
+                  title="No challenges running"
+                  body="Pick an activity and a number of days, then send the link to one person."
+                  icon={<Target color={theme.colors.textMuted} size={26} />}
+                  action={
+                    <Button
+                      label="Challenge someone"
+                      onPress={() => navigation.navigate('CreateOneOnOne')}
                     />
                   }
-                  onPress={() =>
-                    navigation.navigate('ChallengeDetail', { challengeId: c.id })
-                  }
                 />
-              ))}
-              <Button
-                label="New challenge"
-                variant="outline"
-                fullWidth
-                style={styles.newChallenge}
-                onPress={() => navigation.navigate('CreateOneOnOne')}
-                iconLeft={<Plus color={theme.colors.text} size={18} />}
-              />
-            </View>
-          )}
+              ) : (
+                <View style={styles.list}>
+                  {[...activeChallenges, ...pendingChallenges].map(c => (
+                    <ListRow
+                      key={c.id}
+                      filled
+                      title={c.title}
+                      subtitle={
+                        c.status === 'pending'
+                          ? 'Waiting for someone to accept'
+                          : `${ACTIVITY_LABELS[c.activityKind]} · ${c.targetDays} days`
+                      }
+                      leading={<Target color={theme.colors.accent} size={20} />}
+                      trailing={
+                        <Chip
+                          label={c.status === 'pending' ? 'Pending' : 'Live'}
+                          variant={c.status === 'pending' ? 'muted' : 'accent'}
+                        />
+                      }
+                      onPress={() =>
+                        navigation.navigate('ChallengeDetail', { challengeId: c.id })
+                      }
+                    />
+                  ))}
+                  <Button
+                    label="New challenge"
+                    variant="outline"
+                    fullWidth
+                    style={styles.newChallenge}
+                    onPress={() => navigation.navigate('CreateOneOnOne')}
+                    iconLeft={<Plus color={theme.colors.text} size={18} />}
+                  />
+                </View>
+              )}
+            </>
+          ) : null}
 
           {/*
             The Team War card is fixture data, and it only belongs on screen

@@ -16,6 +16,7 @@ import {
   type Standing,
   type Steal,
 } from '../services/city';
+import { watchRegions } from '../services/alerts';
 import { getSocialRepository } from '../services/socialRepositoryProvider';
 
 export type LatLon = { latitude: number; longitude: number };
@@ -102,6 +103,7 @@ export function useCity(myClubIds: string[]): CityApi {
           const c = JSON.parse(raw) as LatLon;
           if (Number.isFinite(c.latitude) && Number.isFinite(c.longitude)) {
             setCentre(c);
+            watchRegions(regionsAround(c));
           }
         }
       })
@@ -111,6 +113,7 @@ export function useCity(myClubIds: string[]): CityApi {
       .then(fix => {
         if (alive && fix) {
           setCentre(fix);
+          watchRegions(regionsAround(fix));
           AsyncStorage.setItem(CENTRE_KEY, JSON.stringify(fix)).catch(() => {});
         }
       })

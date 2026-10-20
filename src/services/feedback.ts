@@ -16,7 +16,7 @@ import { ensureSignedIn } from './auth';
  * does not say which build it came from cannot be acted on.
  */
 export const APP_VERSION = '0.1.0';
-export const APP_BUILD = 3;
+export const APP_BUILD = 4;
 
 export type FeedbackKind = 'bug' | 'idea' | 'other';
 
