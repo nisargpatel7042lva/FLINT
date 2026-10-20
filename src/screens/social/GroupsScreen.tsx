@@ -36,6 +36,7 @@ import {
 } from '../../services';
 import { useMyChallenges, useSocial } from '../../hooks';
 import type { Group, GroupKind } from '../../services/types';
+import { friendlyError, reportFailure } from '../../services/feedback';
 import { useTheme } from '../../theme';
 
 type Mode = 'mine' | 'join';
@@ -77,10 +78,9 @@ export function GroupsScreen() {
       setNotice(null);
       setMode('mine');
       navigation.navigate('GroupDetail', { groupId: group.id });
-    } catch {
-      setNotice(
-        `Could not start that ${newKind}. Nothing was created — try again in a moment.`,
-      );
+    } catch (e) {
+      reportFailure('Groups', `start ${newKind}`, e);
+      setNotice(friendlyError(e, `Starting a ${newKind}`));
     } finally {
       setBusy(false);
     }
@@ -108,8 +108,9 @@ export function GroupsScreen() {
       );
       setMode('mine');
       navigation.navigate('GroupDetail', { groupId: result.group.id });
-    } catch {
-      setNotice('Could not join right now. Nothing changed — try again in a moment.');
+    } catch (e) {
+      reportFailure('Groups', 'join club', e);
+      setNotice(friendlyError(e, 'Joining'));
     } finally {
       setBusy(false);
     }

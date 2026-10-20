@@ -79,6 +79,7 @@ class RunTrackingModule(private val ctx: ReactApplicationContext) : ReactContext
           pushDouble(p.time.toDouble())
           pushDouble(p.accuracy.toDouble())
           pushInt(p.segment)
+          pushDouble(p.speed.toDouble())
         },
       )
     }

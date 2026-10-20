@@ -38,8 +38,14 @@ export type RecorderStatus = {
   count: number;
 };
 
-/** `[lat, lon, timeMs, accuracy, segment]`, as the service sends them. */
-export type RawPoint = [number, number, number, number, number];
+/**
+ * `[lat, lon, timeMs, accuracy, segment, speed]`, as the service sends them.
+ * Speed is metres per second from the GPS chip, or -1 when it had none; it is
+ * absent from points recorded before builds that sent it.
+ */
+export type RawPoint =
+  | [number, number, number, number, number]
+  | [number, number, number, number, number, number];
 
 export type NativeRecorder = {
   start: (kind: RunKind) => Promise<RecorderStatus>;
@@ -96,12 +102,18 @@ export function feedPoints(
   lastSegment: number | null,
 ): number | null {
   let seg = lastSegment;
-  points.forEach(([latitude, longitude, timestamp, accuracy, segment]) => {
+  points.forEach(([latitude, longitude, timestamp, accuracy, segment, speed]) => {
     if (seg !== null && segment !== seg) {
       acc.breakSegment();
     }
     seg = segment;
-    acc.add({ latitude, longitude, timestamp, accuracy });
+    acc.add({
+      latitude,
+      longitude,
+      timestamp,
+      accuracy,
+      speed: speed !== undefined && speed >= 0 ? speed : null,
+    });
   });
   return seg;
 }

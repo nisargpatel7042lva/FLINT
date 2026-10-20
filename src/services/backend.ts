@@ -1,4 +1,8 @@
 import { getApp, getApps } from '@react-native-firebase/app';
+import { connectAuthEmulator, getAuth } from '@react-native-firebase/auth';
+import { connectFirestoreEmulator, getFirestore } from '@react-native-firebase/firestore';
+
+import { EMULATOR_HOST, USE_EMULATORS } from './devConfig';
 
 /**
  * Whether a real Firebase backend is available.
@@ -27,6 +31,8 @@ export function isFirebaseConfigured(): boolean {
   return cached;
 }
 
+let emulatorsConnected = false;
+
 /** Throws a useful message rather than a null-pointer deep inside a query. */
 export function requireFirebase() {
   if (!isFirebaseConfigured()) {
@@ -34,7 +40,18 @@ export function requireFirebase() {
       'Firebase is not configured. Add android/app/google-services.json and rebuild.',
     );
   }
-  return getApp();
+  const app = getApp();
+  /*
+   * Emulators must be connected before the first read or write, and every
+   * data call passes through here first — so this is the one safe place.
+   * Debug builds only: a release build can never be pointed at a laptop.
+   */
+  if (__DEV__ && USE_EMULATORS && !emulatorsConnected) {
+    emulatorsConnected = true;
+    connectAuthEmulator(getAuth(app), `http://${EMULATOR_HOST}:9099`);
+    connectFirestoreEmulator(getFirestore(app), EMULATOR_HOST, 8080);
+  }
+  return app;
 }
 
 /** For tests and for forcing the local backend during development. */

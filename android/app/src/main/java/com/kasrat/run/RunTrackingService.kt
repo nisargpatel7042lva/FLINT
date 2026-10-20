@@ -48,7 +48,10 @@ class RunTrackingService : Service() {
       override fun onLocationResult(result: LocationResult) {
         result.locations.forEach { loc ->
           if (loc.hasAccuracy() && loc.accuracy > MAX_ACCURACY_M) return@forEach
-          RunSession.record(this@RunTrackingService, loc.latitude, loc.longitude, loc.time, loc.accuracy)
+          // Doppler speed from the chip, or -1 when it has none. JS uses it to
+          // tell standing still from moving, which positions alone cannot.
+          val speed = if (loc.hasSpeed()) loc.speed else -1f
+          RunSession.record(this@RunTrackingService, loc.latitude, loc.longitude, loc.time, loc.accuracy, speed)
         }
         refreshNotification(force = false)
       }
@@ -200,7 +203,7 @@ class RunTrackingService : Service() {
     private const val NOTIFY_EVERY_MS = 5000L
 
     /** Same bar the JS side applies. Worse than this is a guess, not a position. */
-    private const val MAX_ACCURACY_M = 50f
+    private const val MAX_ACCURACY_M = 30f
 
     fun start(context: Context) {
       ContextCompat.startForegroundService(context, Intent(context, RunTrackingService::class.java))

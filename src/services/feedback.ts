@@ -56,3 +56,39 @@ export async function sendFeedback(input: {
     createdAt: serverTimestamp(),
   });
 }
+
+/** The short machine code of a Firebase error, e.g. `permission-denied`. */
+export function errorCode(e: unknown): string {
+  const raw = String((e as { code?: string } | null)?.code ?? '');
+  return raw.replace(/^[a-z]+\//, '') || 'unknown';
+}
+
+/**
+ * A failure a tester hit but did not report, reported for them.
+ *
+ * Only the step and the error code — never what they typed — so the team sees
+ * "join failed: permission-denied" without anyone having to describe it.
+ * Best effort: a failure to report is not shown to anyone.
+ */
+export function reportFailure(screen: string, step: string, e: unknown): void {
+  sendFeedback({
+    kind: 'bug',
+    screen,
+    message: `auto: ${step} failed: ${errorCode(e)}`,
+  }).catch(() => {});
+}
+
+/** What to tell the person, by error code. */
+export function friendlyError(e: unknown, action: string): string {
+  switch (errorCode(e)) {
+    case 'unavailable':
+    case 'network-request-failed':
+    case 'deadline-exceeded':
+      return `No connection. ${action} needs the internet — try again when you're online.`;
+    case 'permission-denied':
+    case 'unauthenticated':
+      return `Flint's server refused this (${errorCode(e)}). We've been sent a report; try again in a minute.`;
+    default:
+      return `${action} failed (${errorCode(e)}). We've been sent a report; try again in a minute.`;
+  }
+}

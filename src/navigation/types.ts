@@ -111,6 +111,8 @@ export type RootStackParamList = {
   AlertsPrimer: undefined;
   /** Beta: report a problem or send an idea. */
   Feedback: undefined;
+  /** One run from the phone's history, with its route. */
+  RunDetail: { runId: string };
   /** Off the tab bar for v1 — running leads; these stay one tap away. */
   History: undefined;
   Train: undefined;

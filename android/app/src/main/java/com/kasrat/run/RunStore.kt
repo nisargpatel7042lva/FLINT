@@ -76,7 +76,7 @@ class RunStore(context: Context) {
   }
 
   fun append(p: RunPoint) {
-    pointsFile.appendText("${p.lat},${p.lon},${p.time},${p.accuracy},${p.segment}\n")
+    pointsFile.appendText("${p.lat},${p.lon},${p.time},${p.accuracy},${p.segment},${p.speed}\n")
   }
 
   fun readPoints(): MutableList<RunPoint> {
@@ -84,9 +84,11 @@ class RunStore(context: Context) {
     val out = mutableListOf<RunPoint>()
     pointsFile.forEachLine { line ->
       val f = line.split(',')
-      if (f.size == 5) {
+      // 5 fields from builds before speed was recorded, 6 since.
+      if (f.size == 5 || f.size == 6) {
         try {
-          out.add(RunPoint(f[0].toDouble(), f[1].toDouble(), f[2].toLong(), f[3].toFloat(), f[4].toInt()))
+          val speed = if (f.size == 6) f[5].toFloat() else -1f
+          out.add(RunPoint(f[0].toDouble(), f[1].toDouble(), f[2].toLong(), f[3].toFloat(), f[4].toInt(), speed))
         } catch (_: NumberFormatException) {
           // A torn last line from a kill mid-append. Everything before it is good.
         }
@@ -118,4 +120,6 @@ data class RunPoint(
   val time: Long,
   val accuracy: Float,
   val segment: Int,
+  /** Metres per second from the GPS chip, or -1 when it reported none. */
+  val speed: Float = -1f,
 )

@@ -238,3 +238,18 @@ describe('copy', () => {
     );
   });
 });
+
+describe('filling gaps between fixes', () => {
+  it('lights the blocks between two far-apart fixes', () => {
+    // Three fixes ~1 km apart: without filling, only the middle block lights.
+    const pts = [0, 1, 2].map(i => ({
+      latitude: 22.3 + i * 0.009,
+      longitude: 73.18,
+      timestamp: i * 300_000,
+      accuracy: 5,
+    }));
+    const cells = cityCellsForRun([pts]);
+    // ~2 km minus 400 m of trim at ~120 m per block.
+    expect(cells.length).toBeGreaterThanOrEqual(12);
+  });
+});

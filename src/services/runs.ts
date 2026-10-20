@@ -23,6 +23,27 @@ export type RunRecord = {
   /** Local `YYYY-MM-DD`. */
   day: string;
   startedAt: string;
+  /**
+   * Why the run did not count for the club, if it did not.
+   *
+   * A refused run is still the runner's run. It used to be dropped entirely,
+   * so a real run spoiled by one GPS glitch simply vanished from history.
+   */
+  flagged?: string;
+  /** Blocks this run lit, for the history list. */
+  litBlocks?: number;
+  /**
+   * Seconds actually moving — waits at junctions excluded. Pace is shown
+   * from this; `durationSec` (wall time, pauses excluded) is what the club
+   * board and its anti-cheat use.
+   */
+  movingSec?: number;
+};
+
+/** Seconds per km from moving time when known, else from wall time. */
+export const runPaceSec = (r: RunRecord): number | null => {
+  const secs = r.movingSec && r.movingSec > 0 ? r.movingSec : r.durationSec;
+  return r.distanceKm >= 0.5 ? secs / r.distanceKm : null;
 };
 
 /**
@@ -134,3 +155,26 @@ export async function saveRun(run: RunRecord): Promise<RunRecord[]> {
 }
 
 export const resetRuns = () => AsyncStorage.removeItem(KEY).catch(() => {});
+
+// ── Routes ─────────────────────────────────────────────────────────────────
+//
+// Kept beside the run, one key per run, so loading the history list never
+// reads every route. On the phone only: a route is never uploaded.
+
+const routeKey = (runId: string) => `flint.route.v1.${runId}`;
+
+export async function saveRoute(runId: string, encoded: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(routeKey(runId), encoded);
+  } catch {
+    // Losing a route loses the map on one history entry, nothing else.
+  }
+}
+
+export async function loadRoute(runId: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(routeKey(runId));
+  } catch {
+    return null;
+  }
+}

@@ -1,5 +1,5 @@
 import { cellFor, type CellId } from './exploration';
-import { haversineKm, type GeoPoint, type Segment } from './location';
+import { haversineKm, type Segment } from './location';
 
 export { cityRunId } from './cityId';
 
@@ -38,6 +38,9 @@ export const EMBER_WINDOW_DAYS = 14;
  * neighbourhood.
  */
 export const PRIVACY_TRIM_KM = 0.2;
+
+/** Gap filled between two fixes, in metres: a quarter of a block. */
+const FILL_STEP_M = 30;
 
 /** Cells one run may light. ~48 km of new ground; mirrored in the rules. */
 export const MAX_CITY_CELLS = 400;
@@ -84,23 +87,39 @@ export type CityState = {
  * the front gate and resumes still has its first 200 m removed.
  */
 export function cityCellsForRun(segments: Segment[]): CellId[] {
-  const points: GeoPoint[] = [];
-  const along: number[] = [];
+  /*
+   * Densify first: a sample every 30 m along the line between fixes. Fixes
+   * are kept only once the runner has really moved, so two can be 40–80 m
+   * apart, and a run that clips the corner of a block between them would
+   * otherwise leave it dark. Trimming is then done on the dense path, so it
+   * cuts exactly 200 m however sparse the fixes were.
+   */
+  const dense: Array<{ lat: number; lon: number; at: number }> = [];
   let total = 0;
   segments.forEach(seg =>
     seg.forEach((p, i) => {
       if (i > 0) {
-        total += haversineKm(seg[i - 1], p);
+        const prev = seg[i - 1];
+        const stepKm = haversineKm(prev, p);
+        const n = Math.floor((stepKm * 1000) / FILL_STEP_M);
+        for (let k = 1; k < n; k += 1) {
+          const t = k / n;
+          dense.push({
+            lat: prev.latitude + (p.latitude - prev.latitude) * t,
+            lon: prev.longitude + (p.longitude - prev.longitude) * t,
+            at: total + stepKm * t,
+          });
+        }
+        total += stepKm;
       }
-      points.push(p);
-      along.push(total);
+      dense.push({ lat: p.latitude, lon: p.longitude, at: total });
     }),
   );
 
   const cells = new Set<CellId>();
-  points.forEach((p, i) => {
-    if (along[i] >= PRIVACY_TRIM_KM && along[i] <= total - PRIVACY_TRIM_KM) {
-      cells.add(cellFor(p.latitude, p.longitude));
+  dense.forEach(d => {
+    if (d.at >= PRIVACY_TRIM_KM && d.at <= total - PRIVACY_TRIM_KM) {
+      cells.add(cellFor(d.lat, d.lon));
     }
   });
   return [...cells].slice(0, MAX_CITY_CELLS);

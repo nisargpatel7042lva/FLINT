@@ -14,6 +14,8 @@ export type GeoPoint = {
   longitude: number;
   timestamp: number;
   accuracy: number | null;
+  /** Metres per second as the GPS chip measured it (Doppler), when it did. */
+  speed?: number | null;
 };
 
 /**
@@ -96,8 +98,22 @@ export function haversineKm(a: GeoPoint, b: GeoPoint): number {
 }
 
 /** Discards jitter: GPS noise while standing still otherwise inflates distance. */
-const MIN_ACCURACY_M = 50;
-const MIN_STEP_KM = 0.005;
+const MIN_ACCURACY_M = 30;
+
+/**
+ * The smallest move that counts, in metres, before accuracy is considered.
+ *
+ * A phone lying still on a table reports a position that wanders 5–20 m every
+ * few seconds. Counting each wobble is how a run "starts itself" — distance
+ * climbing while the runner is still tying their laces.
+ */
+const MIN_MOVE_M = 10;
+
+/** Below this the GPS chip itself says we are standing still. */
+const STILL_SPEED_MPS = 0.5;
+
+/** A very slow walk, ~21 min/km. Anything slower between two fixes was a stop. */
+const SLOWEST_MOVING_MPS = 0.8;
 
 /**
  * Above this, a "step" is a teleport rather than a person.
@@ -191,29 +207,111 @@ export function createAccumulator(): Accumulator {
 const MIN_KM_FOR_PACE = 0.05;
 
 /**
+ * Whether `next` is a real move away from `anchor`, or GPS wobble.
+ *
+ * A move has to clear the larger of a fixed floor and the fix's own error
+ * radius: a point reported "±18 m" that is 15 m away proves nothing. When the
+ * chip reports a Doppler speed that says we are standing still, the bar is
+ * doubled — wobble rarely comes with a speed, and walking almost always does.
+ */
+export function isRealMove(anchor: GeoPoint, next: GeoPoint): boolean {
+  const metres = haversineKm(anchor, next) * 1000;
+  const radius = Math.min(Math.max(anchor.accuracy ?? 0, next.accuracy ?? 0), MIN_ACCURACY_M);
+  let threshold = Math.max(MIN_MOVE_M, radius);
+  if (next.speed !== undefined && next.speed !== null && next.speed >= 0 && next.speed < STILL_SPEED_MPS) {
+    threshold *= 2;
+  }
+  return metres > threshold;
+}
+
+/**
  * Derives every figure the tracking UI shows from the recorded segments.
  *
- * Distance and moving time are accumulated step by step *within* segments
- * only, so a pause contributes neither. Splits attribute each step's time
- * proportionally when a step straddles a kilometre boundary — without that,
- * a single 80-metre step landing across 1.00km would dump its whole duration
- * into one split and visibly skew it.
+ * Distance is measured between ANCHORS, not between consecutive fixes: a fix
+ * only becomes the new anchor once it is a real move away from the last one
+ * (`isRealMove`). Standing still therefore adds nothing, however much the
+ * position jitters, while running loses almost nothing — the next anchor is
+ * simply one fix later, and the straight line to it is the path taken.
+ *
+ * Moving time only accrues between anchors, so a stop at a junction does not
+ * count against pace. Splits attribute each step's time proportionally when
+ * a step straddles a kilometre boundary.
+ *
+ * `segments` in the result are the anchors only — what is drawn, and what
+ * lights blocks — so a jittery standstill draws no star of lines either.
  */
+/** Fixes either side of each point that are averaged into it. */
+const SMOOTH_RADIUS = 2;
+
+/**
+ * Each fix averaged with its neighbours, weighted by how sure the GPS was.
+ *
+ * Wobble is mostly random, so averaging five fixes cancels most of it; real
+ * movement is not, so it survives. The weight is 1/accuracy², the standard
+ * inverse-variance weighting, so one wild "±45 m" fix barely moves the
+ * average of four good ones. Doppler speed, when present, is kept from the
+ * original fix — it is measured, not inferred, and needs no smoothing.
+ */
+export function smoothSegment(points: GeoPoint[]): GeoPoint[] {
+  return points.map((p, i) => {
+    let lat = 0;
+    let lon = 0;
+    let w = 0;
+    let acc = 0;
+    // Symmetric, narrowing towards the ends: a lopsided window near the start
+    // or finish would drag those fixes inwards and shorten every run.
+    const r = Math.min(SMOOTH_RADIUS, i, points.length - 1 - i);
+    for (let j = i - r; j <= i + r; j += 1) {
+      const a = Math.max(points[j].accuracy ?? 15, 3);
+      const wj = 1 / (a * a);
+      lat += points[j].latitude * wj;
+      lon += points[j].longitude * wj;
+      acc += a * wj;
+      w += wj;
+    }
+    return {
+      latitude: lat / w,
+      longitude: lon / w,
+      timestamp: p.timestamp,
+      accuracy: acc / w,
+      speed: p.speed,
+    };
+  });
+}
+
 export function summarise(segments: Segment[]): TrackSummary {
   let distanceKm = 0;
   let movingSeconds = 0;
   const splits: Split[] = [];
+  const track: Segment[] = [];
 
   let splitKm = 0;
   let splitSeconds = 0;
 
-  segments.forEach(points => {
+  segments.forEach(raw => {
+    if (raw.length === 0) {
+      return;
+    }
+    const points = smoothSegment(raw);
+    const kept: GeoPoint[] = [points[0]];
+    let anchor = points[0];
     for (let i = 1; i < points.length; i += 1) {
-      const stepKm = haversineKm(points[i - 1], points[i]);
-      if (stepKm < MIN_STEP_KM) {
+      const p = points[i];
+      if (!isRealMove(anchor, p)) {
         continue;
       }
-      const stepSeconds = (points[i].timestamp - points[i - 1].timestamp) / 1000;
+      const stepKm = haversineKm(anchor, p);
+      /*
+       * Time for this step, capped at what a slow walk would take. Without
+       * the cap, two minutes stood at a junction land on the next step as
+       * "moving" time and drag the pace down for the whole run.
+       */
+      const stepSeconds = Math.min(
+        (p.timestamp - anchor.timestamp) / 1000,
+        (stepKm * 1000) / SLOWEST_MOVING_MPS,
+      );
+      anchor = p;
+      kept.push(p);
       if (stepSeconds <= 0) {
         continue;
       }
@@ -239,6 +337,7 @@ export function summarise(segments: Segment[]): TrackSummary {
       splitKm += remainingKm;
       splitSeconds += remainingSeconds;
     }
+    track.push(kept);
   });
 
   const flat = segments.flat();
@@ -250,8 +349,8 @@ export function summarise(segments: Segment[]): TrackSummary {
   const rounded = Math.round(distanceKm * 100) / 100;
 
   return {
-    segments,
-    points: flat,
+    segments: track,
+    points: track.flat(),
     distanceKm: rounded,
     durationSeconds,
     movingSeconds: Math.round(movingSeconds),
@@ -297,6 +396,7 @@ export async function startTracking(
         longitude: pos.coords.longitude,
         timestamp: pos.timestamp,
         accuracy,
+        speed: pos.coords.speed !== null && pos.coords.speed >= 0 ? pos.coords.speed : null,
       });
       if (kept) {
         onUpdate?.(summarise(acc.segments));

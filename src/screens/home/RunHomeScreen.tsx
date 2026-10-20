@@ -24,6 +24,7 @@ import {
   predict,
   predictionLine,
   refreshPushToken,
+  runPaceSec,
   stealLine,
   todayKey,
   weekStartKey,
@@ -274,7 +275,11 @@ export function RunHomeScreen() {
         <Card variant="light" padding="base" radius="xl">
           <View style={styles.board}>
             {runs.slice(0, 3).map(r => (
-              <View key={r.id} style={styles.row}>
+              <Pressable
+                key={r.id}
+                style={styles.row}
+                accessibilityRole="button"
+                onPress={() => navigation.navigate('RunDetail', { runId: r.id })}>
                 <View style={styles.flex}>
                   <Text variant="bodyStrong">
                     {r.distanceKm.toFixed(2)} km {r.kind === 'walk' ? 'walk' : 'run'}
@@ -289,9 +294,9 @@ export function RunHomeScreen() {
                 </View>
                 <Text variant="bodySm" tone="muted">
                   {formatDuration(r.durationSec)}
-                  {r.distanceKm >= 0.5 ? ` · ${formatPaceSec(r.durationSec / r.distanceKm)}` : ''}
+                  {runPaceSec(r) !== null ? ` · ${formatPaceSec(runPaceSec(r))}` : ''}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </Card>

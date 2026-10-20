@@ -38,3 +38,4 @@ export * from './runRecorder';
 export * from './city';
 export * from './mercator';
 export * from './feedback';
+export * from './polyline';

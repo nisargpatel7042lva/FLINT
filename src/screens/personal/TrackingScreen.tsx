@@ -59,6 +59,8 @@ import {
   predictionLine,
   runId,
   saveRun,
+  saveRoute,
+  encodeRoute,
   verdictLine,
   type Prediction,
   isBatteryRestricted,
@@ -422,13 +424,26 @@ export function TrackingScreen() {
         startedAt: new Date(startedAt.current).toISOString(),
       };
       const verdict = checkPlausible(record);
+      const cells = cityCellsForRun(final.segments);
+
+      /*
+       * Always kept on the phone, route included. A refused run is flagged
+       * rather than dropped: it is still the runner's run, it just does not
+       * count for the club. Dropping it is how real runs spoiled by one GPS
+       * glitch used to vanish from history altogether.
+       */
+      saveRun({
+        ...record,
+        flagged: verdict.ok ? undefined : verdict.reason,
+        litBlocks: verdict.ok ? cells.length : 0,
+        movingSec: final.movingSeconds,
+      }).catch(() => {});
+      saveRoute(record.id, encodeRoute(final.segments)).catch(() => {});
 
       if (!verdict.ok) {
         setClubPost({ state: 'refused', reason: verdict.reason });
       } else {
-        saveRun(record).catch(() => {});
         if (groups.length > 0) {
-          const cells = cityCellsForRun(final.segments);
           const region = regionForRun(final.segments);
           postRun({
             startedAtMs: startedAt.current,

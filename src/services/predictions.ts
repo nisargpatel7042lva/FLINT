@@ -55,7 +55,8 @@ function median(values: number[]): number {
  */
 export function predict(runs: RunRecord[], kind: RunKind): Prediction {
   const recent = runs
-    .filter(r => r.kind === kind && r.distanceKm > 0)
+    // Flagged runs (a GPS glitch, a ride) would skew the call either way.
+    .filter(r => r.kind === kind && r.distanceKm > 0 && !r.flagged)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
     .slice(0, WINDOW);
 

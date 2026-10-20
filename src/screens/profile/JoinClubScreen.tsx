@@ -7,6 +7,7 @@ import { Flag, Hash, Share2 } from 'lucide-react-native';
 import { Button, Card, Input, Screen, SegmentedControl, Text } from '../../components';
 import { useProfile, useSocial } from '../../hooks';
 import { normaliseCode } from '../../services/socialRepository';
+import { friendlyError, reportFailure } from '../../services/feedback';
 import type { Group } from '../../services';
 import type { RootStackParamList } from '../../navigation/types';
 import { useTheme } from '../../theme';
@@ -62,8 +63,9 @@ export function JoinClubScreen() {
         return;
       }
       setClub({ group: result.group, started: false });
-    } catch {
-      setError('Could not join right now. Check your connection and try again.');
+    } catch (e) {
+      reportFailure('JoinClub', 'join club', e);
+      setError(friendlyError(e, 'Joining a club'));
     } finally {
       setBusy(false);
     }
@@ -75,8 +77,9 @@ export function JoinClubScreen() {
     try {
       const group = await createGroup(name.trim(), 'club');
       setClub({ group, started: true });
-    } catch {
-      setError('Could not start the club right now. Nothing was created — try again.');
+    } catch (e) {
+      reportFailure('JoinClub', 'start club', e);
+      setError(friendlyError(e, 'Starting a club'));
     } finally {
       setBusy(false);
     }

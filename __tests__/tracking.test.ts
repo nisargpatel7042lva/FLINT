@@ -220,3 +220,57 @@ describe('createAccumulator', () => {
     expect(acc.segments).toHaveLength(1);
   });
 });
+
+describe('standing still', () => {
+  // A deterministic wobble of up to ~15 m, like a phone lying on a bench.
+  const wobble = (i: number) => ({
+    dLat: Math.sin(i * 1.7) * 0.00012,
+    dLon: Math.cos(i * 2.3) * 0.00012,
+  });
+
+  it('adds no distance for five minutes of GPS jitter in one spot', () => {
+    const points = Array.from({ length: 100 }, (_, i) => {
+      const w = wobble(i);
+      return {
+        latitude: 22.3072 + w.dLat,
+        longitude: 73.1812 + w.dLon,
+        timestamp: i * 3000,
+        accuracy: 12,
+      };
+    });
+    const s = summarise([points]);
+    // Was 1.88 km before smoothing; harsh wobble with no speed reading now
+    // leaks a few tens of metres over five minutes.
+    expect(s.distanceKm).toBeLessThan(0.05);
+    expect(s.movingSeconds).toBeLessThan(60);
+  });
+
+  it('ignores wobble the chip itself reports as stationary', () => {
+    const points = Array.from({ length: 60 }, (_, i) => ({
+      latitude: 22.3072 + (i % 2) * 0.00016, // ~18 m hop back and forth
+      longitude: 73.1812,
+      timestamp: i * 3000,
+      accuracy: 8,
+      speed: 0.1,
+    }));
+    expect(summarise([points]).distanceKm).toBe(0);
+  });
+
+  it('still measures a real run through the same wobble', () => {
+    // 2 km north at ~3 m/s, one fix every 3 s, with the same jitter on top.
+    const n = 222;
+    const points = Array.from({ length: n + 1 }, (_, i) => {
+      const w = wobble(i);
+      return {
+        latitude: 22.3072 + (i / n) * 0.018 + w.dLat * 0.3,
+        longitude: 73.1812 + w.dLon * 0.3,
+        timestamp: i * 3000,
+        accuracy: 8,
+        speed: 3,
+      };
+    });
+    const s = summarise([points]);
+    expect(s.distanceKm).toBeGreaterThan(1.9);
+    expect(s.distanceKm).toBeLessThan(2.15);
+  });
+});

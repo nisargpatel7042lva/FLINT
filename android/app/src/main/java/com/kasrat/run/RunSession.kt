@@ -24,6 +24,8 @@ object RunSession {
   private var meta: RunStore.Meta? = null
   private val points = mutableListOf<RunPoint>()
   private var distanceKm = 0.0
+  /** Last position that counted as a real move: what wobble is measured against. */
+  private var anchor: RunPoint? = null
   private val main = Handler(Looper.getMainLooper())
 
   /** The recording service, told when pause state changes. */
@@ -51,20 +53,26 @@ object RunSession {
       meta = m
       points.clear()
       distanceKm = 0.0
+      anchor = null
     }
   }
 
-  fun record(context: Context, lat: Double, lon: Double, time: Long, accuracy: Float) {
+  fun record(context: Context, lat: Double, lon: Double, time: Long, accuracy: Float, speed: Float) {
     synchronized(lock) {
       val m = meta ?: return
       if (m.pausedSince != 0L) return
-      val p = RunPoint(lat, lon, time, accuracy, m.segment)
-      val last = points.lastOrNull()
-      if (last != null && last.segment == p.segment) {
-        val step = haversineKm(last, p)
-        val seconds = (p.time - last.time) / 1000.0
-        // The notification's running total only. JS recomputes properly.
-        if (step >= 0.005 && seconds > 0 && step * 1000 / seconds <= 25) distanceKm += step
+      val p = RunPoint(lat, lon, time, accuracy, m.segment, speed)
+      // The notification's running total only; JS recomputes properly, with
+      // smoothing. Same "real move" rule, so standing still adds nothing here
+      // either and the notification never disagrees wildly with the screen.
+      val a = anchor
+      if (a == null || a.segment != p.segment) {
+        anchor = p
+      } else if (isRealMove(a, p)) {
+        val step = haversineKm(a, p)
+        val seconds = (p.time - a.time) / 1000.0
+        if (seconds > 0 && step * 1000 / seconds <= 25) distanceKm += step
+        anchor = p
       }
       points.add(p)
       storeFor(context).append(p)
@@ -104,6 +112,7 @@ object RunSession {
       meta = null
       points.clear()
       distanceKm = 0.0
+      anchor = null
       return m to out
     }
   }
@@ -137,15 +146,30 @@ object RunSession {
 
   private fun measure(list: List<RunPoint>): Double {
     var total = 0.0
-    for (i in 1 until list.size) {
-      val a = list[i - 1]
-      val b = list[i]
-      if (a.segment != b.segment) continue
-      val step = haversineKm(a, b)
-      val seconds = (b.time - a.time) / 1000.0
-      if (step >= 0.005 && seconds > 0 && step * 1000 / seconds <= 25) total += step
+    var a: RunPoint? = null
+    for (b in list) {
+      val from = a
+      if (from == null || from.segment != b.segment) {
+        a = b
+        continue
+      }
+      if (!isRealMove(from, b)) continue
+      val step = haversineKm(from, b)
+      val seconds = (b.time - from.time) / 1000.0
+      if (seconds > 0 && step * 1000 / seconds <= 25) total += step
+      a = b
     }
+    anchor = a
     return total
+  }
+
+  /** Mirrors isRealMove in location.ts: past the fix's error radius, and twice that when the chip says still. */
+  private fun isRealMove(a: RunPoint, b: RunPoint): Boolean {
+    val metres = haversineKm(a, b) * 1000
+    val radius = minOf(maxOf(a.accuracy, b.accuracy).toDouble(), 30.0)
+    var threshold = maxOf(10.0, radius)
+    if (b.speed >= 0f && b.speed < 0.5f) threshold *= 2
+    return metres > threshold
   }
 
   private fun haversineKm(a: RunPoint, b: RunPoint): Double {

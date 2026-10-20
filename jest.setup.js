@@ -59,10 +59,12 @@ jest.mock('@react-native-firebase/auth', () => ({
   sendPasswordResetEmail: jest.fn(),
   EmailAuthProvider: { credential: jest.fn() },
   signOut: jest.fn(),
+  connectAuthEmulator: jest.fn(),
 }));
 
 jest.mock('@react-native-firebase/firestore', () => ({
   getFirestore: jest.fn(),
+  connectFirestoreEmulator: jest.fn(),
   collection: jest.fn(),
   doc: jest.fn(),
   getDoc: jest.fn(),

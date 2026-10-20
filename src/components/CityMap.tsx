@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
-import Svg, { Circle, Rect } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { Minus, Plus, LocateFixed } from 'lucide-react-native';
 
 import { cellBounds, cellFor, type CellId } from '../services/exploration';
@@ -36,6 +36,13 @@ export type CityMapProps = {
   onTapCell?: (cell: CellId) => void;
   /** Where the viewer is, if known. */
   me?: LatLon | null;
+  /**
+   * A route to draw over the blocks — the viewer's own run, from the phone.
+   * Each inner array is one stretch; pauses are gaps, never lines.
+   */
+  route?: LatLon[][];
+  /** Starting zoom; 15 shows a neighbourhood, 16 a few streets. */
+  initialZoom?: number;
   height: number;
   style?: StyleProp<ViewStyle>;
 };
@@ -77,12 +84,22 @@ const OVERDRAW = 1;
  * native map SDK: no API key, no billing account, no native dependency to keep
  * in step with React Native — and the overlay is the whole feature anyway.
  */
-export function CityMap({ centre, cells, selected, onTapCell, me, height, style }: CityMapProps) {
+export function CityMap({
+  centre,
+  cells,
+  selected,
+  onTapCell,
+  me,
+  route,
+  initialZoom = START_ZOOM,
+  height,
+  style,
+}: CityMapProps) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
-  const [zoom, setZoom] = useState(START_ZOOM);
+  const [zoom, setZoom] = useState(initialZoom);
   /** World-pixel centre the canvas is drawn around. */
-  const [anchor, setAnchor] = useState(() => project(centre.latitude, centre.longitude, START_ZOOM));
+  const [anchor, setAnchor] = useState(() => project(centre.latitude, centre.longitude, initialZoom));
   const panned = useRef(false);
 
   const tx = useSharedValue(0);
@@ -136,6 +153,21 @@ export function CityMap({ centre, cells, selected, onTapCell, me, height, style 
   }, [cells, zoom, originX, originY, canvasW, canvasH, width]);
 
   const selectedRect = rects.find(r => r.cell === selected);
+
+  const routePaths = useMemo(
+    () =>
+      (route ?? [])
+        .filter(seg => seg.length > 1)
+        .map(seg =>
+          seg
+            .map((p, i) => {
+              const xy = project(p.latitude, p.longitude, zoom);
+              return `${i === 0 ? 'M' : 'L'}${(xy.x - originX).toFixed(1)},${(xy.y - originY).toFixed(1)}`;
+            })
+            .join(' '),
+        ),
+    [route, zoom, originX, originY],
+  );
   const meXY = me ? project(me.latitude, me.longitude, zoom) : null;
 
   const commitPan = useCallback(
@@ -267,6 +299,12 @@ export function CityMap({ centre, cells, selected, onTapCell, me, height, style 
                     strokeWidth={2.5}
                   />
                 ) : null}
+                {routePaths.map((d, i) => (
+                  <React.Fragment key={`route${i}`}>
+                    <Path d={d} stroke="#000000" strokeOpacity={0.5} strokeWidth={6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    <Path d={d} stroke="#FFFFFF" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </React.Fragment>
+                ))}
                 {meXY ? (
                   <>
                     <Circle cx={meXY.x - originX} cy={meXY.y - originY} r={11} fill="#FFFFFF" fillOpacity={0.18} />

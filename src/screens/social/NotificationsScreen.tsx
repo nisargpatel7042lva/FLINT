@@ -1,15 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import {
-  ArrowLeft,
-  Flame,
-  Hand,
-  ShieldCheck,
-  Swords,
-  Trophy,
-  Video,
-} from 'lucide-react-native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { ArrowLeft, BellOff, Hand, Play, Swords } from 'lucide-react-native';
 
 import {
   Avatar,
@@ -21,126 +14,104 @@ import {
   SectionHeader,
   Text,
 } from '../../components';
-import { NOTIFICATIONS, memberById } from '../../services';
-import type { AppNotification, NotificationKind, Poke } from '../../services';
+import type { Poke } from '../../services';
 import { useSocial } from '../../hooks';
+import type { RootStackParamList } from '../../navigation/types';
+import { relativeTime } from './relativeTime';
 import { useTheme } from '../../theme';
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 /**
- * A received nudge rendered as a notification.
+ * Notifications: nudges and challenges from real people, live.
  *
- * Pokes live in their own store because they are written by the app, while
- * `NOTIFICATIONS` is fixture data — but they are the same thing to a reader,
- * so they are projected into one shape and one sorted list rather than given a
- * separate section nobody would think to scroll to.
+ * Fed by a Firestore listener, so a nudge appears here the moment it is sent,
+ * with no refresh. An earlier version padded this list with sample
+ * notifications ("your team is losing", proof to review) that never changed —
+ * which is exactly why it felt static. Everything here now is real.
+ *
+ * Opening the screen marks what is on it as read.
  */
-const pokeToNotification = (p: Poke, senderName: string): AppNotification => ({
-  id: p.id,
-  kind: p.kind === 'challenge' ? 'challenge' : 'nudge',
-  title: `${senderName} ${p.kind === 'challenge' ? 'challenged you' : 'nudged you'}`,
-  body: `${senderName} ${p.message}`,
-  createdAt: p.createdAt,
-  read: p.read,
-  memberId: p.fromId,
-});
-
-const relativeTime = (iso: string) => {
-  const mins = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) {
-    return `${mins}m`;
-  }
-  const hours = Math.round(mins / 60);
-  return hours < 24 ? `${hours}h` : `${Math.round(hours / 24)}d`;
-};
-
-/** Notification centre: streaks, team status, and proof that needs attention. */
 export function NotificationsScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
-  const { received, nameFor, markInboxRead } = useSocial();
-  const [fixtures, setFixtures] = useState<AppNotification[]>(NOTIFICATIONS);
+  const navigation = useNavigation<Nav>();
+  const { received, nameFor, markInboxRead, sendPoke, spent } = useSocial();
 
   const items = useMemo(
-    () =>
-      [...received.map(p => pokeToNotification(p, nameFor(p.fromId))), ...fixtures].sort(
-        (a, b) => b.createdAt.localeCompare(a.createdAt),
-      ),
-    [received, fixtures, nameFor],
+    () => [...received].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [received],
   );
+  const unread = items.filter(p => !p.read);
+  const earlier = items.filter(p => p.read);
 
-  const unread = items.filter(n => !n.read);
-  const earlier = items.filter(n => n.read);
-
-  const iconFor = (kind: NotificationKind) => {
-    const c = theme.colors.onAccent;
-    switch (kind) {
-      case 'team_losing':
-        return <Swords color={c} size={18} />;
-      case 'team_winning':
-        return <Trophy color={c} size={18} />;
-      case 'proof_pending':
-        return <Video color={c} size={18} />;
-      case 'proof_verified':
-        return <ShieldCheck color={c} size={18} />;
-      case 'streak_reminder':
-        return <Flame color={c} size={18} />;
-      case 'nudge':
-        return <Hand color={c} size={18} />;
-      case 'challenge':
-        return <Swords color={c} size={18} />;
-      default:
-        return <Trophy color={c} size={18} />;
+  // Seen once the screen has been open a moment, not on the first frame — so
+  // the "New" section is still there to read.
+  useEffect(() => {
+    if (unread.length === 0) {
+      return;
     }
-  };
+    const t = setTimeout(() => {
+      markInboxRead().catch(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [unread.length, markInboxRead]);
 
-  const markAllRead = () => {
-    setFixtures(prev => prev.map(n => ({ ...n, read: true })));
-    markInboxRead().catch(() => {});
-  };
+  const run = () => navigation.navigate('Tracking', { kind: 'run' });
 
-  const renderRow = (n: AppNotification) => (
-    // Unread takes the *brighter* surface. In dark mode `light` and `dark`
-    // sit within a few percent of each other and the distinction vanishes.
-    <Card
-      key={n.id}
-      variant={n.read ? 'light' : 'muted'}
-      padding="base"
-      elevation={n.read ? 'sm' : 'md'}
-      style={styles.row}>
-      <View style={styles.rowInner}>
-        {n.memberId ? (
-          <Avatar name={memberById(n.memberId).name} size="md" />
-        ) : (
-          <View
-            style={[
-              styles.iconWrap,
-              {
-                backgroundColor: theme.colors.accent,
-                borderRadius: theme.radius.pill,
-              },
-            ]}>
-            {iconFor(n.kind)}
+  const renderRow = (p: Poke) => {
+    const name = nameFor(p.fromId);
+    const challenge = p.kind === 'challenge';
+    const repliedToday = spent(p.fromId, 'poke');
+    return (
+      <Card
+        key={p.id}
+        variant={p.read ? 'light' : 'muted'}
+        padding="base"
+        elevation={p.read ? 'sm' : 'md'}>
+        <View style={styles.rowInner}>
+          <Avatar name={name} size="md" />
+          <View style={styles.copy}>
+            <View style={styles.titleRow}>
+              {challenge ? (
+                <Swords color={theme.colors.accent} size={14} />
+              ) : (
+                <Hand color={theme.colors.accent} size={14} />
+              )}
+              <Text variant="bodyStrong" style={styles.flex}>
+                {name} {challenge ? 'challenged you' : 'nudged you'}
+              </Text>
+              <Text variant="label" tone="muted">
+                {relativeTime(p.createdAt)}
+              </Text>
+            </View>
+            <Text variant="bodySm" tone="muted" style={styles.body}>
+              {p.message}
+            </Text>
+            <View style={styles.actions}>
+              <Button
+                label={challenge ? 'Take it on' : 'Go run'}
+                size="sm"
+                onPress={run}
+                iconLeft={<Play color={theme.colors.onAccent} size={14} />}
+              />
+              <Button
+                label={repliedToday ? 'Nudged back' : 'Nudge back'}
+                size="sm"
+                variant="outline"
+                disabled={repliedToday}
+                onPress={() => {
+                  sendPoke({ uid: p.fromId, name, handle: '' }, 'poke').catch(() => {});
+                }}
+              />
+            </View>
           </View>
-        )}
-
-        <View style={styles.copy}>
-          <Text variant="bodyStrong">{n.title}</Text>
-          <Text variant="bodySm" tone="muted" style={styles.body}>
-            {n.body}
-          </Text>
-        </View>
-
-        <View style={styles.meta}>
-          <Text variant="label" tone="muted">
-            {relativeTime(n.createdAt)}
-          </Text>
-          {!n.read ? (
+          {!p.read ? (
             <View style={[styles.dot, { backgroundColor: theme.colors.accent }]} />
           ) : null}
         </View>
-      </View>
-    </Card>
-  );
+      </Card>
+    );
+  };
 
   return (
     <Screen scroll padding="lg" contentContainerStyle={styles.content}>
@@ -152,9 +123,6 @@ export function NotificationsScreen() {
           onPress={() => navigation.goBack()}>
           <ArrowLeft color={theme.colors.text} size={20} />
         </IconButton>
-        {unread.length > 0 ? (
-          <Button label="Mark all read" variant="ghost" size="sm" onPress={markAllRead} />
-        ) : null}
       </View>
 
       <Text variant="displaySm" style={styles.title}>
@@ -162,7 +130,11 @@ export function NotificationsScreen() {
       </Text>
 
       {items.length === 0 ? (
-        <EmptyState title="All clear" body="Nothing needs your attention right now." />
+        <EmptyState
+          title="Nothing yet"
+          body="Nudges and challenges from your club land here the moment they are sent."
+          icon={<BellOff color={theme.colors.textMuted} size={26} />}
+        />
       ) : (
         <View>
           {unread.length > 0 ? (
@@ -175,7 +147,6 @@ export function NotificationsScreen() {
               <View style={styles.list}>{unread.map(renderRow)}</View>
             </View>
           ) : null}
-
           {earlier.length > 0 ? (
             <View>
               <SectionHeader title="Earlier" style={styles.section} />
@@ -190,20 +161,15 @@ export function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: 140 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 4,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 4 },
   title: { marginTop: 20 },
   section: { marginTop: 28 },
   list: { marginTop: 12, rowGap: 10 },
-  row: {},
   rowInner: { flexDirection: 'row', alignItems: 'flex-start', columnGap: 12 },
-  iconWrap: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1 },
+  flex: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', columnGap: 6 },
   body: { marginTop: 2 },
-  meta: { alignItems: 'flex-end', rowGap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  actions: { flexDirection: 'row', columnGap: 8, marginTop: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
 });

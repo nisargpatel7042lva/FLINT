@@ -45,7 +45,8 @@ import {
   JoinClubScreen,
   AlertsPrimerScreen,
   FeedbackScreen,
-  HistoryScreen,
+  RunHistoryScreen,
+  RunDetailScreen,
   TrainScreen,
   TrainingPlaceScreen,
   TrainingPreferencesScreen,
@@ -168,7 +169,8 @@ export function RootNavigator() {
         {/* Personal tracking loop. */}
         <Stack.Screen name="WorkoutDetail" component={WorkoutDetailScreen} />
         <Stack.Screen name="Tracking" component={TrackingScreen} />
-        <Stack.Screen name="History" component={HistoryScreen} />
+        <Stack.Screen name="History" component={RunHistoryScreen} />
+        <Stack.Screen name="RunDetail" component={RunDetailScreen} />
         <Stack.Screen name="Train" component={TrainScreen} />
         <Stack.Screen name="Explored" component={ExploredScreen} />
 
